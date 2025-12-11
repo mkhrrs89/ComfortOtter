@@ -1,0 +1,3941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ModelMatchup — AI Image Rater</title>
+  <meta name="theme-color" content="#050c0a" />
+<link rel="stylesheet" href="app-style.css">
+
+  <style>
+    :root{
+      --bg:#050c0a;
+      --panel:#091612;
+      --panel-soft:#0e1f1a;
+      --muted:#8fb0a1;
+      --text:#e7f5ef;
+      --accent:#1f9d73;
+      --accent-soft:#153e30;
+      --danger:#ff5f71;
+      --ghost:#182621;
+      --ring:#1b3a2f;
+      --card:#07100d;
+      --border-soft:#123427;
+    }
+    *{box-sizing:border-box}
+    html,body,#root{height:100%}
+    body{
+      margin:0;
+      background:radial-gradient(circle at top,#103828 0,#050c0a 55%);
+      color:var(--text);
+      font:14px/1.4 system-ui,Segoe UI,Roboto,Arial,sans-serif;
+    }
+    .app{
+      max-width:1180px;
+      margin:0 auto;
+      padding:16px 20px 40px;
+    }
+    .header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      margin-bottom:10px;
+    }
+    h1{
+      font-size:22px;
+      margin:0;
+      letter-spacing:0.03em;
+    }
+    .tabs{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .tab{
+      background:var(--panel);
+      color:var(--text);
+      border:1px solid var(--ring);
+      padding:7px 11px;
+      border-radius:999px;
+      cursor:pointer;
+      font-size:13px;
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .tab.active{
+      outline:2px solid var(--accent);
+      background:linear-gradient(135deg,#1f9d73,#157457);
+    }
+
+.badgeSummary {
+  font-size: 14px;
+  opacity: 0.85;
+  margin-left: auto;
+  display: flex;
+  gap: 14px;
+}
+
+    .pane{
+      background:var(--panel);
+      border:1px solid var(--ring);
+      border-radius:14px;
+      padding:14px;
+      margin-bottom:14px;
+    }
+    .toolbar{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin-top:8px;
+      align-items:center;
+    }
+    .btn{
+      background:var(--accent);
+      color:white;
+      border:none;
+      padding:7px 11px;
+      border-radius:10px;
+      cursor:pointer;
+      font-size:13px;
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+    }
+    .btn.sm{padding:5px 9px;font-size:12px}
+    .btn.ghost{
+      background:var(--ghost);
+    }
+    .btn.secondary{
+      background:linear-gradient(135deg,#1f9d73,#157457);
+    }
+    .btn.danger{
+      background:var(--danger);
+    }
+    .btn[disabled]{
+      opacity:0.5;
+      cursor:default;
+    }
+    .select,
+    .input{
+      background:#050c0a;
+      border:1px solid var(--ring);
+      color:var(--text);
+      border-radius:8px;
+      padding:6px 8px;
+      font-size:13px;
+    }
+    .select{min-width:130px}
+    .dropzone{
+      border:1.5px dashed var(--ring);
+      border-radius:12px;
+      padding:24px;
+      text-align:center;
+      cursor:pointer;
+      background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);
+    }
+    .dropzone p{margin:0;color:var(--muted);font-size:13px}
+    .hint{color:var(--muted);padding:12px 0;font-size:13px}
+    /* Library standard card grid */
+    .grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fill,minmax(230px,1fr));
+      gap:10px;
+      list-style:none;
+      padding:0;
+      margin:0;
+    }
+    .card{
+      border:1px solid var(--border-soft);
+      border-radius:12px;
+      overflow:hidden;
+      background:var(--card);
+      display:flex;
+      flex-direction:column;
+    }
+    .cardThumb{
+      position:relative;
+      background:#000;
+    }
+    .cardThumb img{
+      width:100%;
+      height:210px;
+      object-fit:cover;
+      display:block;
+    }
+    .cardBody{
+      padding:9px;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .fieldRow{
+      display:flex;
+      flex-direction:column;
+      gap:3px;
+      font-size:12px;
+      color:var(--muted);
+    }
+    .fieldRow label{font-size:11px}
+    .fieldRow input{
+      background:#050c0a;
+      border:1px solid var(--ring);
+      color:var(--text);
+      padding:6px 7px;
+      border-radius:8px;
+      font-size:13px;
+    }
+    .statLine{
+      font-size:12px;
+      color:var(--muted);
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+    }
+    .addedAt{
+      font-size:11px;
+      color:var(--muted);
+    }
+    /* Matchups */
+    .arena{
+      display:grid;
+      grid-template-columns:1fr auto 1fr;
+      align-items:center;
+      gap:12px;
+      margin:10px 0 6px;
+    }
+    .imageCard{
+      position:relative;
+      border:1px solid var(--ring);
+      border-radius:14px;
+      overflow:hidden;
+      cursor:pointer;
+      background:#000;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:4px;
+    }
+    .imageCard img{
+      width:100%;
+      height:64vh;
+      max-height:520px;
+      object-fit:contain;
+      background:#000;
+      display:block;
+    }
+    .vs{
+      font-weight:700;
+      opacity:0.8;
+      font-size:16px;
+    }
+    .matchMetaRow{
+      display:grid;
+      grid-template-columns:1fr auto 1fr;
+      gap:12px;
+      align-items:center;
+      margin-bottom:6px;
+      font-size:13px;
+    }
+    .matchMetaBox{
+      background:var(--panel-soft);
+      border-radius:10px;
+      padding:6px 8px;
+      border:1px solid var(--ring);
+      display:flex;
+      flex-direction:column;
+      gap:3px;
+    }
+    .matchMetaTitle{
+      font-size:11px;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:0.06em;
+    }
+    .matchMetaStats{
+      font-size:13px;
+    }
+    .matchFooter{
+      display:flex;
+      justify-content:center;
+      gap:8px;
+      margin-top:4px;
+    }
+    .matchPoolInfo{
+      font-size:12px;
+      color:var(--muted);
+      margin-top:4px;
+      text-align:center;
+    }
+    /* Tables */
+    .statsTab{
+      background:var(--panel);
+      border:1px solid var(--ring);
+      border-radius:14px;
+      padding:10px;
+    }
+    table{
+      width:100%;
+      border-collapse:collapse;
+      font-size:12px;
+    }
+    th,td{
+      border-bottom:1px solid var(--border-soft);
+      padding:6px 5px;
+      text-align:left;
+    }
+    th{
+      font-size:11px;
+      color:var(--muted);
+      user-select:none;
+      cursor:pointer;
+      white-space:nowrap;
+    }
+/* Mobile tweaks for Stats table */
+@media (max-width: 768px){
+  .statsTab{
+    padding:8px;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch; /* smooth scroll on iOS */
+  }
+  .statsTab table{
+    min-width: 720px; /* keep columns readable, horizontal scroll if needed */
+  }
+}
+    th.sortable:hover{
+      background:rgba(255,255,255,0.03);
+    }
+    th .sort-ind{
+      font-size:10px;
+      opacity:0.8;
+      margin-left:3px;
+    }
+    .thumbWrap{
+      position:relative;
+      display:inline-block;
+    }
+    .thumb{
+      width:46px;
+      height:46px;
+      object-fit:cover;
+      border-radius:8px;
+      border:1px solid var(--ring);
+      cursor:pointer;
+      background:#000;
+      display:block;
+    }
+    /* Modals */
+    .modal{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.78);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      z-index:1000;
+    }
+.modalInner{
+  background:#050c0a;
+  border:1px solid var(--ring);
+  border-radius:12px;
+  max-width:96vw;
+  max-height:96vh;
+  padding:12px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  overflow-y:auto;           /* 👈 NEW: allow scrolling inside the modal */
+}
+
+    .previewImgWrap{
+      position:relative;
+      max-width:92vw;
+      max-height:70vh;
+      margin:0 auto;
+    }
+    .previewImgWrap img{
+      max-width:100%;
+      max-height:70vh;
+      display:block;
+      margin:0 auto;
+      border-radius:10px;
+    }
+
+@media (max-width: 700px){
+  .previewImgWrap,
+  .previewImgWrap img{
+    max-height:60vh;   /* slightly smaller image on small screens */
+  }
+}
+
+    .modalFields{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+      gap:8px;
+      font-size:12px;
+      color:var(--muted);
+    }
+    .modalFields input{
+      width:100%;
+      background:#050c0a;
+      border:1px solid var(--ring);
+      color:var(--text);
+      border-radius:8px;
+      padding:6px 7px;
+      font-size:13px;
+    }
+    .modalFooter{
+      display:flex;
+      justify-content:center;
+      gap:8px;
+    }
+    /* Cropper */
+    .cropCanvas{
+      max-width:86vw;
+      max-height:70vh;
+      border:1px solid var(--ring);
+      border-radius:10px;
+      background:#000;
+      touch-action:none;
+    }
+    .cropHint{
+      color:var(--muted);
+      font-size:12px;
+      text-align:center;
+    }
+    /* Gallery view */
+    .galleryControls{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin-bottom:8px;
+      align-items:center;
+      justify-content:space-between;
+    }
+    .galleryGrid{
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:8px;
+    }
+    @media (max-width:900px){
+      .galleryGrid{grid-template-columns:repeat(3,minmax(0,1fr));}
+    }
+    @media (max-width:700px){
+      .galleryGrid{grid-template-columns:repeat(2,minmax(0,1fr));}
+    }
+    @media (max-width:480px){
+      .galleryGrid{grid-template-columns:repeat(1,minmax(0,1fr));}
+    }
+    .galleryItem{
+      position:relative;
+      cursor:pointer;
+    }
+    .galleryImg{
+      width:100%;
+      height:auto;
+      display:block;
+      border-radius:10px;
+      border:1px solid var(--border-soft);
+      background:#000;
+    }
+    .galleryOverlay{
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      border-radius:10px;
+      box-shadow:0 0 0 1px rgba(255,255,255,0.05);
+    }
+    .galleryMeta{
+      position:absolute;
+      left:6px;
+      bottom:5px;
+      right:6px;
+      display:flex;
+      justify-content:flex-end;
+      align-items:flex-end;
+      gap:6px;
+    }
+    .galleryCheckWrap{
+      background:rgba(0,0,0,0.7);
+      border-radius:999px;
+      padding:3px 6px;
+      display:flex;
+      align-items:center;
+      gap:4px;
+    }
+    .checkbox{
+      width:14px;
+      height:14px;
+      border-radius:4px;
+      border:1px solid #c5f4d8;
+      background:rgba(0,0,0,0.4);
+      display:inline-block;
+      position:relative;
+    }
+    .checkbox.checked::after{
+      content:'';
+      position:absolute;
+      inset:2px;
+      border-radius:3px;
+      background:#3ee69d;
+    }
+    .smallMuted{
+      font-size:11px;
+      color:var(--muted);
+    }
+    .pill{
+      border-radius:999px;
+      padding:2px 7px;
+      font-size:11px;
+      background:var(--accent-soft);
+      border:1px solid var(--ring);
+      color:#c5f4dc;
+    }
+    .flexRow{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      align-items:center;
+    }
+    .pager{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-top:8px;
+      font-size:12px;
+      color:var(--muted);
+      flex-wrap:wrap;
+      gap:8px;
+    }
+    /* BADGES */
+    .badgeRow{
+      display:flex;
+      gap:4px;
+      align-items:center;
+      font-size:11px;
+      line-height:1;
+    }
+    .badgeRow-top-right{
+      position:absolute;
+      top:5px;
+      right:5px;
+      z-index:3;
+    }
+    .badgeRow-inline{
+      display:flex;
+      gap:4px;
+      align-items:center;
+    }
+    .badge{
+      border-radius:999px;
+      padding:2px 5px;
+      font-size:11px;
+      line-height:1.1;
+      background:rgba(0,0,0,0.7);
+      border:1px solid rgba(255,255,255,0.18);
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .badgeRow-top-right .badge{
+      padding:3px 7px;
+      font-size:13px;
+      box-shadow:0 0 6px rgba(0,0,0,0.6);
+    }
+    .badge.gold{
+      background:linear-gradient(135deg,#fce38a,#f5a623);
+      border-color:#f8d35a;
+      color:#251a03;
+    }
+    .badge.silver{
+      background:linear-gradient(135deg,#e6ecf6,#aab2c4);
+      border-color:#c0c7d1;
+      color:#111726;
+    }
+    .badge.bronze{
+      background:linear-gradient(135deg,#f4c28a,#c8753a);
+      border-color:#d18b5a;
+      color:#2b1708;
+    }
+    .badge.fresh{
+      background:linear-gradient(135deg,#a7f8cd,#35c47a);
+      border-color:#61e0a0;
+      color:#042514;
+    }
+    .badge.undefeated{
+      background:linear-gradient(135deg,#fff8b3,#ffd54f);
+      border-color:#ffe082;
+      color:#3b2a00;
+    }
+    .badge.winless{
+      background:linear-gradient(135deg,#3b1a1a,#8d4b3a);
+      border-color:#b36a50;
+      color:#ffe7d8;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+
+  // Comforting Otter config
+  const firebaseConfig = {
+    apiKey: "AIzaSyBOVGz7QH_iPtxoM25baGqTIR-2yxUQwH8",
+    authDomain: "comforting-otter.firebaseapp.com",
+    projectId: "comforting-otter",
+    storageBucket: "comforting-otter.firebasestorage.app",
+    messagingSenderId: "1074346290690",
+    appId: "1:1074346290690:web:bd2721e73fbdf029e7411b",
+    measurementId: "G-2JT31JFGNJ"
+  };
+
+  const app     = initializeApp(firebaseConfig);
+  const auth    = getAuth(app);
+  const db      = getFirestore(app);
+  const storage = getStorage(app);
+
+  // --- AUTH ---
+
+  signInAnonymously(auth).catch(err => {
+    console.error("Anonymous sign-in failed:", err);
+  });
+
+  onAuthStateChanged(auth, user => {
+    if (user) {
+      console.log("✅ Firebase ready. Anonymous UID:", user.uid);
+    } else {
+      console.log("ℹ️ Not signed in yet");
+    }
+  });
+
+  // --- METADATA MIRRORING ---
+
+  // Remove heavy fields before sending to Firestore
+  function stripBigFields(item) {
+    if (!item || !item.id) return null;
+
+    const {
+      dataUrl,
+      thumbnail,
+      thumbDataUrl,
+      // future big fields can be stripped here
+      ...rest
+    } = item;
+
+    return {
+      ...rest,
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  async function saveItemToCloud(item) {
+    const meta = stripBigFields(item);
+    if (!meta) return;
+
+    try {
+      const ref = doc(db, "images", meta.id); // one doc per image
+      await setDoc(ref, meta, { merge: true });
+      // console.log("☁️ mirrored to Firestore", meta.id);
+    } catch (err) {
+      console.error("Cloud save failed for", meta && meta.id, err);
+      // don't throw – local save should still succeed
+    }
+  }
+
+  // Expose to the rest of your app
+  window.firebaseApp     = app;
+  window.firebaseAuth    = auth;
+  window.firebaseDb      = db;
+  window.firebaseStorage = storage;
+  window.saveItemToCloud = saveItemToCloud;
+</script>
+
+<script>
+window.addEventListener("error", e => { alert("JS ERROR: " + e.message); });
+window.addEventListener("unhandledrejection", e => { alert("PROMISE ERROR: " + e.reason); });
+</script>
+
+
+
+
+<!-- existing React/Babel scripts stay as they are -->
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<script type="text/babel">
+async function idbPut(item){
+  const db = await openDB();
+  return new Promise((res,rej)=>{
+    const tx = db.transaction(DB_STORE,'readwrite');
+    tx.objectStore(DB_STORE).put(item);
+    tx.oncomplete = () => {
+      res();
+      // after local save succeeds, mirror to Firestore (non-blocking)
+      if (window.saveItemToCloud) {
+        window.saveItemToCloud(item);
+      }
+    };
+    tx.onerror = () => rej(tx.error);
+  });
+}
+
+</script>
+
+
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useRef } = React;
+
+    // ---------- IndexedDB ----------
+    const DB_NAME = 'modelMatchupDB';
+    const DB_STORE = 'items';
+
+    function openDB(){
+      return new Promise((resolve,reject)=>{
+        const req = indexedDB.open(DB_NAME,1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if(!db.objectStoreNames.contains(DB_STORE)){
+            db.createObjectStore(DB_STORE,{keyPath:'id'});
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+    async function idbGetAll(){
+      const db = await openDB();
+      return new Promise((res,rej)=>{
+        const tx = db.transaction(DB_STORE,'readonly');
+        const st = tx.objectStore(DB_STORE);
+        const out = [];
+        const cur = st.openCursor();
+        cur.onsuccess = e => {
+          const c = e.target.result;
+          if(c){ out.push(c.value); c.continue(); }
+          else res(out);
+        };
+        cur.onerror = () => rej(cur.error);
+      });
+    }
+    async function idbBulkPut(items){
+      const db = await openDB();
+      return new Promise((res,rej)=>{
+        const tx = db.transaction(DB_STORE,'readwrite');
+        const st = tx.objectStore(DB_STORE);
+        for(const it of items) st.put(it);
+        tx.oncomplete = () => res();
+        tx.onerror = () => rej(tx.error);
+      });
+    }
+    async function idbPut(item){
+      const db = await openDB();
+      return new Promise((res,rej)=>{
+        const tx = db.transaction(DB_STORE,'readwrite');
+        tx.objectStore(DB_STORE).put(item);
+        tx.oncomplete = () => res();
+        tx.onerror = () => rej(tx.error);
+      });
+    }
+    async function idbDelete(id){
+      const db = await openDB();
+      return new Promise((res,rej)=>{
+        const tx = db.transaction(DB_STORE,'readwrite');
+        tx.objectStore(DB_STORE).delete(id);
+        tx.oncomplete = () => res();
+        tx.onerror = () => rej(tx.error);
+      });
+    }
+    async function idbClear(){
+      const db = await openDB();
+      return new Promise((res,rej)=>{
+        const tx = db.transaction(DB_STORE,'readwrite');
+        tx.objectStore(DB_STORE).clear();
+        tx.oncomplete = () => res();
+        tx.onerror = () => rej(tx.error);
+      });
+    }
+// --- PASTE THIS AFTER idbClear ---
+    
+    // Low-memory way to get a map of ID -> Fingerprint
+
+    async function getSmartLookupMap(){
+      const db = await openDB();
+      return new Promise((res,rej)=>{
+        const tx = db.transaction(DB_STORE,'readonly');
+        const st = tx.objectStore(DB_STORE);
+        const map = new Map(); // Map<id, fingerprint>
+        const fpMap = new Map(); // Map<fingerprint, id>
+        
+        const cur = st.openCursor();
+        cur.onsuccess = e => {
+          const c = e.target.result;
+          if(c){
+            const val = c.value;
+            const id = val.id;
+            let fp = null;
+            // Create fingerprint from first 120 chars of dataUrl
+            if(val.dataUrl && typeof val.dataUrl === 'string'){
+               fp = val.dataUrl.slice(0,120);
+            }
+            
+            map.set(id, fp);
+            if(fp) fpMap.set(fp, id);
+            
+            c.continue();
+          }
+          else res({ byId: map, byFingerprint: fpMap });
+        };
+        cur.onerror = () => rej(cur.error);
+      });
+    }
+
+// --- NEW HELPERS FOR MEMORY MANAGEMENT ---
+
+// 1. Fetch a SINGLE full item (High Res) from DB (you already have this)
+async function idbGet(id){
+  const db = await openDB();
+  return db.transaction(DB_STORE,'readonly')
+           .objectStore(DB_STORE)
+           .get(id);
+}
+
+// Turn a full DB record into a lightweight UI item
+function mapDbRecordToUiItem(v){
+  if (!v) return null;
+
+  // Prefer true thumbnail fields. We *don’t* fall back to dataUrl here,
+  // because most of your big base64 blobs have been cleaned up.
+  const thumb = v.thumbnail || v.thumbDataUrl || null;
+
+  return {
+    id: v.id,
+
+    // core metadata
+    title: v.title || '',
+    generator: v.generator || '',
+    collections: Array.isArray(v.collections)
+      ? v.collections
+      : normalizeCollections(v.collections || v.collectionsRaw || ''),
+
+    wins: Number(v.wins || 0),
+    losses: Number(v.losses || 0),
+    tourneyBonus: Number(v.tourneyBonus || 0),
+    tourneyCount: Number(v.tourneyCount || 0),
+
+    addedAt: v.addedAt || nowStamp(),
+    hasBeenExported:
+      v.hasBeenExported === undefined ? true : !!v.hasBeenExported,
+    lastExportedAt: v.lastExportedAt || null,
+
+    // cloud image reference (what the migration + cleanup left behind)
+    fullUrl: v.fullUrl || null,
+
+    // UI image fields – SMALL ONLY
+    thumbnail: thumb,
+
+    // keep raw dataUrl if it still exists (old items / new uploads)
+    dataUrl: v.dataUrl || null
+  };
+}
+
+
+// Load Library WITHOUT massive DataURLs (memory-safe)
+async function loadOptimizedLibrary(){
+  const db = await openDB();
+
+  return new Promise((resolve) => {
+    const items = [];
+    const tx = db.transaction(DB_STORE, 'readonly');
+    const store = tx.objectStore(DB_STORE);
+    const cursorReq = store.openCursor();
+
+    cursorReq.onsuccess = (e) => {
+      const cursor = e.target.result;
+      if (!cursor) {
+        resolve(items);
+        return;
+      }
+
+      const v = cursor.value || {};
+      const uiItem = mapDbRecordToUiItem(v);
+      if (uiItem) items.push(uiItem);
+
+      cursor.continue();
+    };
+
+    cursorReq.onerror = () => {
+      console.error('loadOptimizedLibrary cursor error', cursorReq.error);
+      resolve([]);
+    };
+  });
+}
+
+
+// 3. Batched Thumbnail Generator (memory-friendly, extra defensive)
+async function generateMissingThumbnails_Safe(updateStatusCallback){
+  const db = await openDB();
+
+  // 1) Grab all keys
+  let keys = [];
+  try {
+    keys = await new Promise((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, 'readonly');
+      const store = tx.objectStore(DB_STORE);
+      const req  = store.getAllKeys();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror   = () => reject(req.error);
+    });
+  } catch (err) {
+    console.error('getAllKeys failed while generating thumbnails', err);
+    return 0;
+  }
+
+  if (!Array.isArray(keys)) {
+    try {
+      keys = Array.from(keys || []);
+    } catch (e) {
+      console.error('Keys are not iterable, aborting thumbnail generation.', keys);
+      return 0;
+    }
+  }
+
+  console.log('Starting thumbnail batch. Total keys:', keys.length);
+
+  // 🔹 MUCH smaller batch size so we don’t blow up memory
+  const MAX_PER_RUN = 5;
+  let processed = 0;
+  let generated = 0;
+
+  for (let i = 0; i < keys.length && processed < MAX_PER_RUN; i++) {
+    const id = keys[i];
+    processed++;
+
+    let item;
+    try {
+      item = await idbGet(id);    // own read tx
+    } catch (e) {
+      console.error('Failed to read item while generating thumbnail', id, e);
+      continue;
+    }
+
+// skip if no image source or already has new-style thumb
+const src =
+  item.dataUrl ||
+  item.fullUrl ||
+  item.thumbnail ||
+  item.thumbDataUrl;
+
+if (!item || !src || item.thumbDataUrl) {
+  continue;
+}
+
+let thumb;
+try {
+  thumb = await dataUrlToThumbDataUrl(src, 480, 0.7);
+} catch (e) {
+  console.error('Failed to create thumbnail for', id, e);
+  continue;
+}
+
+
+    // ✅ Write to BOTH fields so old + new paths can use it
+    item.thumbnail    = thumb;
+    item.thumbDataUrl = thumb;
+
+    try {
+      await idbPut(item);    // own write tx
+      generated++;
+
+      if (updateStatusCallback && generated % 5 === 0) {
+        updateStatusCallback(`Generated ${generated} thumbnails this run...`);
+      }
+    } catch (e) {
+      console.error('Failed to save thumbnail for', id, e);
+      continue;
+    }
+
+    // 🔹 Yield EVERY item so GC can breathe
+    await new Promise(r => setTimeout(r, 0));
+  }
+
+  console.log(`Thumbnail batch finished. Generated: ${generated}, processed: ${processed}`);
+  return generated;
+}
+
+
+// 4. Public function wired to the “Generate thumbnails” button
+async function generateMissingThumbnails(){
+  const ok = confirm(
+    "This process will scan all images and create small thumbnails to speed up the app.\n\n" +
+    "It may take a few minutes. Keep this tab open."
+  );
+  if (!ok) return;
+
+  try {
+    const count = await generateMissingThumbnails_Safe((status) => {
+      console.log(status);
+    });
+
+    // Reload using the optimized loader so we drop full dataUrls from state
+    let fresh = [];
+    try {
+      fresh = await loadOptimizedLibrary();
+    } catch (e) {
+      console.error('loadOptimizedLibrary failed after thumbnail generation, falling back to idbGetAll', e);
+      fresh = await idbGetAll();
+    }
+
+    const norm = fresh.map(it => ({
+      // keep whatever is in the DB record
+      ...it,
+
+      // normalize / enforce fields
+      title: it.title || '',
+      generator: it.generator || '',
+      collections: Array.isArray(it.collections)
+        ? it.collections
+        : normalizeCollections(it.collections || it.collectionsRaw || ''),
+      wins: Number(it.wins || 0),
+      losses: Number(it.losses || 0),
+      tourneyBonus: Number(it.tourneyBonus || 0),
+      tourneyCount: Number(it.tourneyCount || 0),
+      addedAt: it.addedAt || nowStamp(),
+      hasBeenExported: !!it.hasBeenExported,
+      lastExportedAt: it.lastExportedAt || null,
+      // unify thumbnail field again
+      thumbnail: it.thumbnail || it.thumbDataUrl || null,
+      dataUrl: it.dataUrl || null
+    }));
+
+    setItems(norm);
+    alert(`Generated thumbnails for ${count} images.`);
+  } catch (e) {
+    console.error('generateMissingThumbnails failed', e);
+    alert('Failed to generate thumbnails: ' + (e && e.message ? e.message : String(e)));
+  }
+}
+
+
+
+
+    // --- END PASTE ---
+    // ---------- Utils ----------
+    const pct = (w,l)=> {
+      const t = (w||0)+(l||0);
+      return t===0 ? 0 : (w||0)/t;
+    };
+    const matchupsCount = it => (it.wins||0)+(it.losses||0);
+
+    // UPDATED: include tourneyBonus
+    const computePoints = (w,l,tourneyBonus=0)=>{
+      const W = w||0, L = l||0;
+      const B = tourneyBonus || 0;
+      let pts = W*2 - L + B;
+      if(W>0 && L===0) pts += 5;
+      return pts;
+    };
+
+const normalizeCollections = (str)=>{
+  if(!str) return [];
+  // Allow trailing commas/empties so typing commas in the input feels natural;
+  // empty names are ignored elsewhere in the app.
+  return Array.from(new Set(
+    String(str).split(',')
+      .map(s=>s.trim())
+  ));
+};
+
+    const collectionsToString = arr => (arr && arr.length ? arr.join(', ') : '');
+    const nowStamp = ()=>{
+      const d = new Date();
+      const pad = n => String(n).padStart(2,'0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    };
+
+function formatAddedAt(ts){
+  if(!ts) return '';
+
+  // Try to parse whatever format was saved
+  const d = new Date(ts);
+  if(isNaN(d)) return ts; // fallback if unparseable
+
+  const options = { month: 'short', day: 'numeric', year: 'numeric' };
+  const dateStr = d.toLocaleDateString('en-US', options);
+
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mm = String(d.getMinutes()).padStart(2,'0');
+  const ss = String(d.getSeconds()).padStart(2,'0');
+  const timeStr = `${hh}:${mm}:${ss}`;
+
+  return `${dateStr}\n${timeStr}`;
+}
+
+    // image format detection once
+    const CANVAS_FORMAT = (()=>{
+      try{
+        const c = document.createElement('canvas');
+        if(c.toDataURL){
+          const av = c.toDataURL('image/avif');
+          if(av && av.startsWith('data:image/avif')) return 'image/avif';
+          const wp = c.toDataURL('image/webp');
+          if(wp && wp.startsWith('data:image/webp')) return 'image/webp';
+        }
+      }catch(e){}
+      return 'image/jpeg';
+    })();
+
+    function fitWithin(sw,sh,maxSide){
+      const s = Math.min(maxSide/sw, maxSide/sh, 1);
+      return { w:Math.round(sw*s), h:Math.round(sh*s) };
+    }
+
+function sleep(ms){
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+    // *** UPDATED: default maxSide 1200 + quality 0.70 ***
+    async function fileToCompressedDataUrl(file,maxSide=1200){
+      const dataUrl = await new Promise((resolve,reject)=>{
+        const img = new Image();
+        img.onload = ()=> resolve(img);
+        img.onerror = reject;
+        img.src = URL.createObjectURL(file);
+      }).then(img=>{
+        const {w,h} = fitWithin(img.naturalWidth,img.naturalHeight,maxSide);
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img,0,0,w,h);
+        return c.toDataURL(CANVAS_FORMAT,0.70);
+      });
+      return dataUrl;
+    }
+
+async function dataUrlToThumbDataUrl(src, maxSide = 320, quality = 0.80){
+  const dataUrl = await new Promise((resolve, reject)=>{
+    const img = new Image();
+    img.onload = ()=> resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  }).then(img=>{
+    const {w,h} = fitWithin(img.naturalWidth,img.naturalHeight,maxSide);
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img,0,0,w,h);
+    return c.toDataURL(CANVAS_FORMAT, quality);
+  });
+  return dataUrl;
+}
+
+
+    function encodeCanvas(canvas){
+      try{
+        return canvas.toDataURL(CANVAS_FORMAT,0.70);
+      }catch(e){
+        return canvas.toDataURL('image/jpeg',0.70);
+      }
+    }
+
+    // pickTwo with weight by fewer matchups
+    function pickTwoFromPool(pool){
+      if(!pool || pool.length<2) return [null,null];
+      const totals = pool.map(matchupsCount);
+      const minT = Math.min(...totals);
+      const weights = totals.map(t=>1/((t-minT)+1));
+      function draw(excludeId){
+        let totalW = 0;
+        for(let i=0;i<pool.length;i++){
+          if(pool[i].id===excludeId) continue;
+          totalW += weights[i];
+        }
+        let r = Math.random()*totalW;
+        for(let i=0;i<pool.length;i++){
+          if(pool[i].id===excludeId) continue;
+          r -= weights[i];
+          if(r<=0) return pool[i].id;
+        }
+        for(let i=0;i<pool.length;i++){
+          if(pool[i].id!==excludeId) return pool[i].id;
+        }
+        return pool[0].id;
+      }
+      const id1 = draw();
+      const id2 = draw(id1);
+      return [id1,id2];
+    }
+
+    // flat random (no weighting) selector
+    function pickTwoFromPoolFlat(pool){
+      if(!pool || pool.length<2) return [null,null];
+      const len = pool.length;
+      const i1 = Math.floor(Math.random()*len);
+      let i2 = Math.floor(Math.random()*(len-1));
+      if(i2>=i1) i2++;
+      return [pool[i1].id, pool[i2].id];
+    }
+
+    // ---------- Cropper hook ----------
+    function useCropper(){
+      const [crop,setCrop] = useState(null); // {img, iw, ih, rect, targetId}
+      const ref = useRef(null);
+
+      function dims(iw,ih){
+        const maxW = Math.min(window.innerWidth*0.86,1200);
+        const maxH = Math.min(window.innerHeight*0.70,900);
+        const s = Math.min(maxW/iw,maxH/ih,1);
+        return {cw:Math.round(iw*s),ch:Math.round(ih*s),scale:s,dpr:Math.max(1,Math.min(3,window.devicePixelRatio||1))};
+      }
+      function canvasPoint(e){
+        const c = ref.current;
+        const r = c.getBoundingClientRect();
+        const p = e.touches?e.touches[0]:e;
+        return {x:p.clientX-r.left,y:p.clientY-r.top};
+      }
+      function draw(current=crop){
+        if(!current) return;
+        const c = ref.current;
+        const {cw,ch,scale,dpr} = dims(current.iw,current.ih);
+        c.style.width = cw+'px';
+        c.style.height = ch+'px';
+        c.width = Math.round(cw*dpr);
+        c.height = Math.round(ch*dpr);
+        const ctx = c.getContext('2d');
+        ctx.setTransform(dpr,0,0,dpr,0,0);
+        ctx.clearRect(0,0,cw,ch);
+        ctx.drawImage(current.img,0,0,cw,ch);
+        const rx = current.rect.x*scale;
+        const ry = current.rect.y*scale;
+        const rw = current.rect.w*scale;
+        const rh = current.rect.h*scale;
+        ctx.save();
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.beginPath();
+        ctx.rect(0,0,cw,ch);
+        ctx.rect(rx,ry,rw,rh);
+        ctx.fill('evenodd');
+        ctx.restore();
+        ctx.strokeStyle = '#1f9d73';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(rx,ry,rw,rh);
+        const s = 8;
+        ctx.fillStyle = '#1f9d73';
+        ctx.fillRect(rx-s,ry-s,s*2,s*2);
+        ctx.fillRect(rx+rw-s,ry-s,s*2,s*2);
+        ctx.fillRect(rx-s,ry+rh-s,s*2,s*2);
+        ctx.fillRect(rx+rw-s,ry+rh-s,s*2,s*2);
+      }
+      useEffect(()=>{ if(crop) draw(crop); },[crop]);
+
+      function startForItem(item){
+        const img = new Image();
+        img.onload = ()=>{
+          const iw = img.naturalWidth;
+          const ih = img.naturalHeight;
+          const size = Math.min(iw,ih)*0.8;
+          setCrop({
+            img, iw, ih,
+            rect:{x:(iw-size)/2,y:(ih-size)/2,w:size,h:size},
+            targetId:item.id
+          });
+        };
+        img.src = item.dataUrl;
+      }
+
+      function onPointerDown(e){
+        if(!crop) return;
+        const startPt = canvasPoint(e);
+        const {scale} = dims(crop.iw,crop.ih);
+        const rx = crop.rect.x*scale;
+        const ry = crop.rect.y*scale;
+        const rw = crop.rect.w*scale;
+        const rh = crop.rect.h*scale;
+        const s = 10;
+        let mode = 'move';
+        if(Math.abs(startPt.x-rx)<s && Math.abs(startPt.y-ry)<s) mode='tl';
+        else if(Math.abs(startPt.x-(rx+rw))<s && Math.abs(startPt.y-ry)<s) mode='tr';
+        else if(Math.abs(startPt.x-rx)<s && Math.abs(startPt.y-(ry+rh))<s) mode='bl';
+        else if(Math.abs(startPt.x-(rx+rw))<s && Math.abs(startPt.y-(ry+rh))<s) mode='br';
+
+        const startRect = {...crop.rect};
+
+        function onMove(ev){
+          const p = canvasPoint(ev);
+          const dx = (p.x-startPt.x)/scale;
+          const dy = (p.y-startPt.y)/scale;
+          let r = {...startRect};
+          if(mode==='move'){
+            r.x = Math.min(crop.iw-r.w, Math.max(0,startRect.x+dx));
+            r.y = Math.min(crop.ih-r.h, Math.max(0,startRect.y+dy));
+          }else if(mode==='tl'){
+            r.x = Math.min(startRect.x+startRect.w-10, Math.max(0,startRect.x+dx));
+            r.y = Math.min(startRect.y+startRect.h-10, Math.max(0,startRect.y+dy));
+            r.w = startRect.w-(r.x-startRect.x);
+            r.h = startRect.h-(r.y-startRect.y);
+          }else if(mode==='tr'){
+            r.y = Math.min(startRect.y+startRect.h-10, Math.max(0,startRect.y+dy));
+            r.w = Math.min(crop.iw-startRect.x-10, Math.max(10,startRect.w+dx));
+            r.h = startRect.h-(r.y-startRect.y);
+          }else if(mode==='bl'){
+            r.x = Math.min(startRect.x+startRect.w-10, Math.max(0,startRect.x+dx));
+            r.w = startRect.w-(r.x-startRect.x);
+            r.h = Math.min(crop.ih-startRect.y-10, Math.max(10,startRect.h+dy));
+          }else if(mode==='br'){
+            r.w = Math.min(crop.iw-startRect.x-10, Math.max(10,startRect.w+dx));
+            r.h = Math.min(crop.ih-startRect.y-10, Math.max(10,startRect.h+dy));
+          }
+          setCrop(c=>({...c,rect:r}));
+          draw({...crop,rect:r});
+        }
+        function end(){
+          window.removeEventListener('mousemove',onMove);
+          window.removeEventListener('mouseup',end);
+          window.removeEventListener('touchmove',onMove);
+          window.removeEventListener('touchend',end);
+        }
+        window.addEventListener('mousemove',onMove);
+        window.addEventListener('mouseup',end);
+        window.addEventListener('touchmove',onMove,{passive:false});
+        window.addEventListener('touchend',end);
+      }
+
+      function apply(){
+        if(!crop) return null;
+        const r = crop.rect;
+        const max = 1200; // UPDATED from 1500
+        const c = document.createElement('canvas');
+        const scale = Math.min(max/r.w,max/r.h,1);
+        c.width = Math.round(r.w*scale);
+        c.height = Math.round(r.h*scale);
+        const ctx = c.getContext('2d');
+        ctx.drawImage(
+          crop.img,
+          r.x,r.y,r.w,r.h,
+          0,0,c.width,c.height
+        );
+        return { dataUrl: encodeCanvas(c), targetId: crop.targetId };
+      }
+
+      return { ref, crop, setCrop, startForItem, onPointerDown, apply };
+    }
+
+// ... useCropper ends above here ...
+
+const MatchCard = ({ item, onClick, result }) => {
+  const [highResSrc, setHighResSrc] = useState(
+    item.fullUrl || item.dataUrl || item.thumbnail
+  );
+
+  useEffect(() => {
+    // If we already have a cloud URL, just use that and stop.
+    if (item.fullUrl) {
+      setHighResSrc(item.fullUrl);
+      return;
+    }
+
+    // Fall back to local dataUrl / thumbnail
+    if (item.dataUrl) {
+      setHighResSrc(item.dataUrl);
+      return;
+    }
+
+    // Old "lightweight" items: try to hydrate from IndexedDB if needed
+    if (item.id) {
+      idbGet(item.id).then(full => {
+        if (full) {
+          setHighResSrc(full.fullUrl || full.dataUrl || full.thumbnail || highResSrc);
+        }
+      });
+    }
+  }, [item.id, item.fullUrl, item.dataUrl]);
+
+  return (
+    <div
+      className={`match-card ${result || ''}`}
+      onClick={() => onClick(item.id)}
+    >
+      <div className="img-container">
+        <SafeImage src={highResSrc} alt={item.title} className="match-img" />
+        {result && (
+          <div className={`overlay ${result}`}>
+            {result === 'win' ? 'WINNER' : 'ELIMINATED'}
+          </div>
+        )}
+      </div>
+      <div className="match-info">
+        <div className="match-title">{item.title}</div>
+        <div className="match-stats">
+          Wins: {item.wins} | Losses: {item.losses}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ImageModal = ({ item, onClose, onSave, onDelete }) => {
+      const [editedTitle, setEditedTitle] = useState(item.title);
+      const [editedCollections, setEditedCollections] = useState(item.collections.join(', '));
+      const [editedGenerator, setEditedGenerator] = useState(item.generator || '');
+      
+      // Lazy Load High Res (This is the memory-safe part)
+const [displaySrc, setDisplaySrc] = useState(
+  item.fullUrl || item.dataUrl || item.thumbnail
+);
+
+useEffect(() => {
+  // Prefer cloud URL if we have it
+  if (item.fullUrl) {
+    setDisplaySrc(item.fullUrl);
+    return;
+  }
+
+  if (item.dataUrl) {
+    setDisplaySrc(item.dataUrl);
+    return;
+  }
+
+  if (item.id) {
+    idbGet(item.id).then(full => {
+      if (full) {
+        setDisplaySrc(full.fullUrl || full.dataUrl || full.thumbnail || displaySrc);
+      }
+    });
+  }
+}, [item.id, item.fullUrl, item.dataUrl]);
+
+      
+      const handleSave = () => {
+        onSave(item.id, {
+          title: editedTitle,
+          collections: normalizeCollections(editedCollections),
+          generator: editedGenerator
+        });
+      };
+
+      return (
+        <div className="modal" onClick={onClose}>
+          <div className="modalInner" onClick={e => e.stopPropagation()}>
+            <div className="modal-img-container">
+              {/* NOTE: If SafeImage is undefined, change this to <img src={displaySrc} className="modal-img" /> */}
+              <SafeImage src={displaySrc} className="modal-img" />
+            </div>
+            <div style={{display:'flex', gap:10, flexDirection:'column'}}>
+               <input 
+                 type="text" 
+                 value={editedTitle} 
+                 onChange={e=>setEditedTitle(e.target.value)} 
+                 className="input" 
+                 placeholder="Title"
+               />
+               <input 
+                 type="text" 
+                 value={editedCollections} 
+                 onChange={e=>setEditedCollections(e.target.value)} 
+                 className="input" 
+                 placeholder="Collections (comma sep)"
+               />
+               <input 
+                 type="text" 
+                 value={editedGenerator} 
+                 onChange={e=>setEditedGenerator(e.target.value)} 
+                 className="input" 
+                 placeholder="AI Generator used..."
+               />
+            </div>
+            <div className="modalFooter">
+              <button className="btn danger" onClick={()=> onDelete(item.id)}>Delete</button>
+              <div style={{flex:1}}></div>
+              <button className="btn ghost" onClick={onClose}>Cancel</button>
+              <button className="btn primary" onClick={handleSave}>Save</button>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+// Pick the best image source for matchups / small thumbs
+function getDisplaySrc(item){
+  if (!item) return "";
+
+  // Prefer HD / canonical sources first
+  const candidates = [
+    item.fullUrl,
+    item.dataUrl,
+    item.thumbnail,
+    item.thumbDataUrl
+  ];
+
+  for (const c of candidates){
+    if (typeof c === 'string'){
+      const s = c.trim();
+      if (s) return s;
+    }
+  }
+  return "";
+}
+
+
+
+// Very small preloader helper
+function preloadImage(src){
+  if (!src) return;
+  const img = new Image();
+  img.src = src; // browser will cache it
+}
+
+
+    // ... function App starts below here ...
+
+    // ---------- Main App ----------
+    function App(){
+      const [tab,setTab] = useState('Library'); // Library | Matchups | Stats | Collections
+      const [items,setItems] = useState([]);
+      const [matchIds,setMatchIds] = useState([null,null]);
+      const [lastMatch,setLastMatch] = useState(null); // {winnerId, loserId, leftId, rightId}
+      const [previewId,setPreviewId] = useState(null);
+      const [previewSrc, setPreviewSrc] = useState(null);
+      const [activeCollection,setActiveCollection] = useState(null); // name string
+      const [collectionViewMode,setCollectionViewMode] = useState('gallery'); // gallery | cards
+      const [libraryViewMode,setLibraryViewMode] = useState('cards'); // cards | gallery
+      const [librarySort, setLibrarySort] = useState({field:'points', dir:'asc'});
+      const [libraryFilter, setLibraryFilter] = useState('all'); // all | unassigned
+      const [libraryCollectionFilter,setLibraryCollectionFilter] = useState({include:[],exclude:[]});
+      const [statsSort,setStatsSort] = useState({field:'points',dir:'asc'});
+      const [collStatsSort,setCollStatsSort] = useState({field:'pct',dir:'desc'});
+      const [matchMode,setMatchMode] = useState({type:'all', collection:null}); // all | bottom | collection
+      const [selectedIds,setSelectedIds] = useState([]); // for gallery batch + export
+      const [batchOpen,setBatchOpen] = useState(false);
+      const [batchCollectionsText,setBatchCollectionsText] = useState('');
+      const [batchGenerator,setBatchGenerator] = useState('');
+      const [previewCollectionsText,setPreviewCollectionsText] = useState('');
+      const [libraryPage,setLibraryPage] = useState(1);
+      const [libraryPageSize,setLibraryPageSize] = useState(50);
+      const [collectionPage,setCollectionPage] = useState(1);
+      const [collectionPageSize,setCollectionPageSize] = useState(50);
+      const [statsPage,setStatsPage] = useState(1);
+// If we were navigated to index.html?openId=<uuid>, auto-open that image
+const [pendingOpenId, setPendingOpenId] = useState(() => {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('openId');
+  } catch (e) {
+    return null;
+  }
+});
+
+// --- ORPHAN / CLEANUP TOOLS ---
+      const [cleanupModalOpen, setCleanupModalOpen] = useState(false);
+      const [orphans, setOrphans] = useState(null); // null = waiting for file, [] = clean, [items] = orphans found
+      const cleanupFileRef = useRef(null);
+
+      async function analyzeForOrphans(file){
+        try {
+          const text = await file.text();
+          const json = JSON.parse(text);
+          
+          if(!json.items || !Array.isArray(json.items)){
+            alert("Invalid file format.");
+            return;
+          }
+
+          // 1. Create a Set of all IDs that exist on Desktop
+          const authorizedIds = new Set(json.items.map(it => it.id));
+
+          // 2. Find items on Mobile that are NOT in that Set
+          // We scan the current 'items' state (which matches the Mobile DB)
+          const foundOrphans = items.filter(localItem => !authorizedIds.has(localItem.id));
+
+          setOrphans(foundOrphans);
+        } catch (e) {
+          console.error(e);
+          alert("Failed to parse file.");
+        }
+      }
+
+      async function deleteOrphans(){
+        if(!orphans || !orphans.length) return;
+        if(!confirm(`Permanently delete ${orphans.length} orphaned images? This cannot be undone.`)) return;
+
+        // Delete from IDB
+        for(const it of orphans){
+          await idbDelete(it.id);
+        }
+
+        // Update React State
+        const orphanIds = new Set(orphans.map(o => o.id));
+        setItems(prev => prev.filter(it => !orphanIds.has(it.id)));
+        
+        // Reset
+        setOrphans([]);
+        alert("Cleanup complete!");
+        setCleanupModalOpen(false);
+      }
+      const statsPageSize = 250;
+
+const fileRef = useRef(null);
+const importRef = useRef(null);      // for JSON / metadata imports
+const imageImportRef = useRef(null); // for image uploads
+const cropper = useCropper();
+
+// load from IDB (thumbnail-first)
+useEffect(()=>{
+  (async()=>{
+    let all;
+    try {
+      all = await loadOptimizedLibrary();   // ✅ use this
+    } catch (e) {
+      console.error('loadOptimizedLibrary failed on startup, falling back to idbGetAll', e);
+      all = await idbGetAll();              // only as a fallback
+    }
+
+    const norm = all.map(it => ({
+      ...it,
+      // (normalization fields, but DON'T re-add full dataUrl here)
+      collections: Array.isArray(it.collections)
+        ? it.collections
+        : normalizeCollections(it.collections || ''),
+      wins: Number(it.wins || 0),
+      losses: Number(it.losses || 0),
+      tourneyBonus: Number(it.tourneyBonus || 0),
+      tourneyCount: Number(it.tourneyCount || 0),
+      addedAt: it.addedAt || nowStamp(),
+      hasBeenExported: !!it.hasBeenExported,
+      lastExportedAt: it.lastExportedAt || null
+    }));
+
+    setItems(norm);
+    if (norm.length >= 2){
+      const [a,b] = pickTwoFromPool(norm);
+      setMatchIds([a,b]);
+    }
+  })();
+},[]);
+
+// Auto-open an image when arriving from duplicates.html with ?openId=<id>
+useEffect(() => {
+  if (!pendingOpenId) return;
+  if (!items || !items.length) return;
+
+  const exists = items.some(it => it.id === pendingOpenId);
+  if (exists) {
+    setTab('Library');
+    setPreviewId(pendingOpenId);
+  }
+
+  // Only run once
+  setPendingOpenId(null);
+}, [pendingOpenId, items]);
+
+
+      // sync preview collections text whenever previewId or items change
+      useEffect(()=>{
+        if(!previewId){
+          setPreviewCollectionsText('');
+          return;
+        }
+        const it = items.find(x=>x.id===previewId);
+        setPreviewCollectionsText(it ? collectionsToString(it.collections) : '');
+      },[previewId,items]);
+
+// lazy-load full-res image for preview modal
+useEffect(()=>{
+  if (!previewId) {
+    setPreviewSrc(null);
+    return;
+  }
+
+  // start with whatever we already have (thumbnail or dataUrl stored in state)
+  const current = items.find(x => x.id === previewId);
+  const base =
+    (current && (current.dataUrl || current.thumbnail)) || null;
+  setPreviewSrc(base);
+
+  let cancelled = false;
+
+  (async () => {
+    try {
+      const full = await idbGet(previewId);
+      if (!cancelled && full && full.dataUrl) {
+        setPreviewSrc(full.dataUrl);   // swap in the big image
+      }
+    } catch (e) {
+      console.error('Failed to load full preview', e);
+    }
+  })();
+
+  return () => {
+    cancelled = true;
+  };
+}, [previewId, items]);
+
+      // reset pages when filters/sorts change
+      useEffect(()=>{
+        setLibraryPage(1);
+      },[libraryFilter,libraryCollectionFilter,librarySort,items.length]);
+      useEffect(()=>{
+        setCollectionPage(1);
+      },[activeCollection,items.length]);
+
+      // helpers to persist + update
+      async function replaceAllItems(next){
+        setItems(next);
+        await idbClear();
+        await idbBulkPut(next);
+      }
+      async function patchItem(id,patch){
+        setItems(prev=>{
+          const next = prev.map(it=>{
+            if(it.id!==id) return it;
+            const updated = {...it,...patch};
+            idbPut(updated);
+            return updated;
+          });
+          return next;
+        });
+      }
+      async function addNewItems(newItems){
+        const merged = [...items,...newItems];
+        setItems(merged);
+        await idbBulkPut(newItems);
+        if(merged.length>=2 && (!matchIds[0]||!matchIds[1])){
+          const [a,b] = pickTwoFromPool(merged);
+          setMatchIds([a,b]);
+        }
+      }
+
+      // delete with confirm
+      async function removeItem(id){
+        if(!confirm('Delete this image? This cannot be undone unless you have an export.')) return;
+        await idbDelete(id);
+        const next = items.filter(it=>it.id!==id);
+        setItems(next);
+        const pool = getMatchPool(next,matchMode);
+        const [a,b] = pickTwoFromPool(pool);
+        setMatchIds([a,b]);
+        if(previewId===id) setPreviewId(null);
+        setSelectedIds(prev=>prev.filter(x=>x!==id));
+      }
+
+// Preload the current matchup images so flipping feels snappier
+useEffect(() => {
+  if (!matchIds || !matchIds[0] || !matchIds[1]) return;
+  if (!items || !items.length) return;
+
+  const left  = items.find(it => it.id === matchIds[0]);
+  const right = items.find(it => it.id === matchIds[1]);
+
+  const leftSrc  = getDisplaySrc(left);
+  const rightSrc = getDisplaySrc(right);
+
+  preloadImage(leftSrc);
+  preloadImage(rightSrc);
+}, [matchIds, items]);
+
+function hasAnyImage(item){
+  if (!item) return false;
+  const candidates = [item.fullUrl, item.dataUrl, item.thumbnail, item.thumbDataUrl];
+  return candidates.some(c => typeof c === 'string' && c.trim().length > 0);
+}
+
+function getMatchPool(all,mode){
+  // Only consider items that actually have some kind of image source
+  const basePool = all.filter(hasAnyImage);
+
+  if (basePool.length < 2) return basePool;
+
+  let pool = basePool;
+
+  if(mode.type==='bottom'){
+    const sorted = [...basePool].sort(
+      (a,b)=> matchupsCount(a) - matchupsCount(b)
+    );
+    const cutoff = Math.ceil(sorted.length/2);
+    pool = sorted.slice(0,cutoff);
+
+  }else if(mode.type==='bottom25' || mode.type==='bottom10'){
+    const sorted = [...basePool].sort(
+      (a,b)=> matchupsCount(a) - matchupsCount(b)
+    );
+    const fraction = mode.type==='bottom25' ? 0.25 : 0.10;
+    const cutoff = Math.max(2, Math.ceil(sorted.length * fraction));
+    pool = sorted.slice(0, cutoff);
+
+  }else if(mode.type==='topWinPct10' || mode.type==='bottomWinPct10'){
+    const sorted = [...basePool].sort((a,b)=>{
+      const pa = pct(a.wins||0, a.losses||0);
+      const pb = pct(b.wins||0, b.losses||0);
+
+      if(pa !== pb){
+        return mode.type === 'topWinPct10' ? (pb - pa) : (pa - pb);
+      }
+
+      const ma = matchupsCount(a);
+      const mb = matchupsCount(b);
+      return mode.type === 'topWinPct10' ? (mb - ma) : (ma - mb);
+    });
+
+    const cutoff = Math.max(2, Math.ceil(sorted.length * 0.10));
+    pool = sorted.slice(0, cutoff);
+
+  }else if(mode.type==='collection' && mode.collection){
+    pool = basePool.filter(it=> (it.collections||[]).includes(mode.collection));
+
+  }else if(mode.type==='freshLeaf'){
+    pool = basePool.filter(it=> matchupsCount(it) < 4);
+
+  }else{
+    pool = basePool;
+  }
+
+  if(pool.length<2) pool = basePool;
+  return pool;
+}
+
+
+
+
+function rerollMatch(poolOverride){
+        const pool = poolOverride || getMatchPool(items,matchMode);
+        const [a,b] = (matchMode.type === 'allFlat')
+          ? pickTwoFromPoolFlat(pool)
+          : pickTwoFromPool(pool);
+        setMatchIds([a,b]);
+      }
+
+
+// file handling
+
+async function handleFiles(fileList, forcedCollections = null){
+  const arr = Array.from(fileList || []);
+  if (!arr.length) return;
+
+  const processed = [];
+
+  for (const file of arr){
+    const id = crypto.randomUUID();
+
+    // Full-size compressed image (same as before, max ~1200px)
+    const dataUrl = await fileToCompressedDataUrl(file, 1200);
+
+    // NEW: smaller thumbnail (around 320px)
+    const thumbDataUrl = await fileToCompressedDataUrl(file, 480);
+
+    processed.push({
+      id,
+      title: file.name.replace(/\.[^.]+$/,''),
+      generator: '',
+      collections: forcedCollections || [],
+      wins: 0,
+      losses: 0,
+      tourneyBonus: 0,
+      tourneyCount: 0,
+      dataUrl,        // full-size compressed
+      thumbnail: thumbDataUrl, // rename to our unified field
+      addedAt: nowStamp(),
+      hasBeenExported: false,
+      lastExportedAt: null
+    });
+  }
+
+  await addNewItems(processed);
+}
+
+
+
+      // ---------- BADGE MAP (includes Tournament Champion badge) ----------
+      const badgeMap = useMemo(()=>{
+        const map = new Map();
+        if(!items.length) return map;
+        const ptsValues = Array.from(
+          new Set(items.map(it=>computePoints(it.wins,it.losses,it.tourneyBonus||0)))
+        ).sort((a,b)=>b-a);
+        const goldPts = ptsValues[0];
+        const silverPts = ptsValues[1];
+        const bronzePts = ptsValues[2];
+        for(const it of items){
+          const pts = computePoints(it.wins,it.losses,it.tourneyBonus||0);
+          const m = matchupsCount(it);
+          const wins = it.wins||0;
+          const losses = it.losses||0;
+          const b = {};
+          if(ptsValues.length>0 && pts===goldPts) b.gold = true;
+          if(ptsValues.length>1 && pts===silverPts) b.silver = true;
+          if(ptsValues.length>2 && pts===bronzePts) b.bronze = true;
+          if(m < 4) b.fresh = true;
+          if(wins >= 3 && losses === 0) b.undefeated = true;
+          if(losses >= 3 && wins === 0) b.winless = true;
+          if((it.tourneyBonus||0) > 0) b.champion = true;
+          if(Object.keys(b).length>0){
+            map.set(it.id,b);
+          }
+        }
+        return map;
+      },[items]);
+
+// ---------- BADGE COUNTS SUMMARY ----------
+const totalUndefeated = Array.from(badgeMap.values())
+  .filter(b => b.undefeated).length;
+
+// 🌱 "New" = images that have had fewer than 4 matchups
+const totalNew = items.filter(it => matchupsCount(it) < 4).length;
+
+
+const totalWinless = Array.from(badgeMap.values())
+  .filter(b => b.winless).length;
+
+
+      function renderBadges(id, placement='badgeRow-top-right'){
+        const b = badgeMap.get(id);
+        if(!b) return null;
+        return (
+          <div className={'badgeRow '+placement}>
+            {b.champion && <span className="badge gold">🏆</span>}
+            {b.gold && <span className="badge gold">🥇</span>}
+            {b.silver && <span className="badge silver">🥈</span>}
+            {b.bronze && <span className="badge bronze">🥉</span>}
+            {b.undefeated && <span className="badge undefeated">⭐</span>}
+            {b.winless && <span className="badge winless">💩</span>}
+            {b.fresh && <span className="badge fresh">🌱</span>}
+          </div>
+        );
+      }
+
+// export/import
+async function exportLibrary(){
+  // If any images are selected (via gallery checkboxes), export only those.
+  // Otherwise, export the entire library.
+  const exportItems = selectedIds.length
+    ? items.filter(it => selectedIds.includes(it.id))
+    : items;
+
+  if(!exportItems.length){
+    alert('No images to export. Select some images in the gallery first.');
+    return;
+  }
+
+  // Build and download JSON (full image export)
+  const payload = {
+    version: 2,
+    exportedAt: new Date().toISOString(),
+    items: exportItems
+  };
+  const blob = new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const a = document.createElement('a');
+  const ts = new Date().toISOString().replace(/[:.]/g,'-');
+  a.href = URL.createObjectURL(blob);
+  a.download = `modelmatchup-library-${ts}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+
+  // SAFER: mark exported items without clearing the whole DB
+  try{
+    const stamp = nowStamp();
+    for(const it of exportItems){
+      const existing = items.find(x => x.id === it.id);
+      const last = existing && existing.lastExportedAt
+        ? existing.lastExportedAt
+        : stamp;
+
+      // patchItem updates React state + IndexedDB for this one item
+      patchItem(it.id, {
+        hasBeenExported: true,
+        lastExportedAt: last
+      });
+    }
+  }catch(err){
+    console.error('Failed to update export flags', err);
+    // Even if this fails, your library is still intact.
+  }
+  // After export: clear any selected images in the gallery
+  setSelectedIds([]);
+}
+
+
+
+// NEW: export metadata ONLY (no dataUrl) for selected or all images
+function exportMetadata(){
+  const exportItems = selectedIds.length
+    ? items.filter(it => selectedIds.includes(it.id))
+    : items;
+
+  if(!exportItems.length){
+    alert('No images to export metadata for. Select some images in the gallery first.');
+    return;
+  }
+
+  const metaItems = exportItems.map(it => {
+    const badges = badgeMap.get(it.id) || {};
+    const badgeNames = Object.keys(badges).filter(k => badges[k]);
+
+    // fingerprint ties this metadata entry to the actual image pixels
+    const fingerprint = (it.dataUrl && typeof it.dataUrl === 'string')
+      ? it.dataUrl.slice(0, 120)     // short prefix is enough, keeps file small
+      : null;
+
+return {
+  id: it.id,
+  title: it.title || '',
+  generator: it.generator || '',
+  collections: it.collections || [],
+  wins: it.wins || 0,
+  losses: it.losses || 0,
+  tourneyBonus: it.tourneyBonus || 0,
+  tourneyCount: it.tourneyCount || 0,         // 👈 NEW
+  points: computePoints(it.wins,it.losses,it.tourneyBonus||0),
+  matchups: matchupsCount(it),
+  addedAt: it.addedAt || null,
+  badges: badgeNames,
+  fingerprint
+};
+
+  });
+
+  const payload = {
+    version: 4,
+    type: 'metadata-only',
+    exportedAt: new Date().toISOString(),
+    items: metaItems
+  };
+  const blob = new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const a = document.createElement('a');
+  const ts = new Date().toISOString().replace(/[:.]/g,'-');
+  a.href = URL.createObjectURL(blob);
+  a.download = `modelmatchup-metadata-${ts}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  // After metadata export: clear the selection too
+  setSelectedIds([]);
+}
+
+
+      function selectUnexported(){
+        const ids = items
+          .filter(it => !it.hasBeenExported)
+          .map(it => it.id);
+
+        if(!ids.length){
+          alert('No unexported images in the library.');
+          return;
+        }
+        setSelectedIds(ids);
+      }
+
+// NEW: import multiple JSON files at once.
+// If files contain dataUrl, treat as full exports (images + metadata).
+// If they don't, treat as metadata-only updates (stats, titles, collections, etc.).
+
+// NEW: thumbnail generation helper
+async function generateMissingThumbnails(){
+  const ok = confirm(
+    "This will generate thumbnails in small batches so the browser doesn't crash.\n\n" +
+    "You may need to run it a few times until it reports 0 new thumbnails."
+  );
+  if (!ok) return;
+
+  try {
+    const count = await generateMissingThumbnails_Safe((status) => {
+      console.log(status);
+    });
+
+    let fresh = [];
+    try {
+      fresh = await loadOptimizedLibrary();
+    } catch (e) {
+      console.error('loadOptimizedLibrary failed after thumbnail generation, falling back to idbGetAll', e);
+      fresh = await idbGetAll();
+    }
+
+    const norm = fresh.map(it => ({
+      ...it,
+      title: it.title || '',
+      generator: it.generator || '',
+      collections: Array.isArray(it.collections)
+        ? it.collections
+        : normalizeCollections(it.collections || it.collectionsRaw || ''),
+      wins: Number(it.wins || 0),
+      losses: Number(it.losses || 0),
+      tourneyBonus: Number(it.tourneyBonus || 0),
+      tourneyCount: Number(it.tourneyCount || 0),
+      addedAt: it.addedAt || nowStamp(),
+      hasBeenExported: !!it.hasBeenExported,
+      lastExportedAt: it.lastExportedAt || null,
+      thumbnail: it.thumbnail || it.thumbDataUrl || null,
+      dataUrl: it.dataUrl || null
+    }));
+
+    setItems(norm);
+    alert(`Generated thumbnails for ${count} images in this batch.`);
+  } catch (e) {
+    console.error('generateMissingThumbnails failed', e);
+    alert('Failed to generate thumbnails: ' + (e && e.message ? e.message : String(e)));
+  }
+}
+
+
+
+
+
+async function importLibraryFiles(fileList){
+  try{
+    const files = Array.from(fileList || []);
+    if(!files.length) return;
+
+    // ---- 1. Peek at the first file to decide mode ----
+    const firstFile = files[0];
+    const firstText = await firstFile.text();
+    const firstJson = JSON.parse(firstText);
+
+    if(!firstJson.items || !Array.isArray(firstJson.items)){
+      throw new Error(`Bad file format in ${firstFile.name}`);
+    }
+
+    const firstItems = firstJson.items;
+
+    const isFullExport = firstItems.some(
+      it => typeof it.dataUrl === 'string' && it.dataUrl.length > 50
+    );
+
+    // ======================================================
+    // PATH A: FULL EXPORT IMPORT (images + metadata)
+    // ======================================================
+    if(isFullExport){
+      let totalImported = 0;
+
+      // Helper to normalize + write one items array to DB in chunks
+      async function importItemsArray(itemsArr){
+        if(!Array.isArray(itemsArr) || !itemsArr.length) return;
+
+        const cleaned = itemsArr.map(it => ({
+          ...it,
+          id: it.id || crypto.randomUUID(),
+
+          // unify / normalize thumbnail field
+          thumbnail: it.thumbnail || it.thumbDataUrl || null,
+
+          collections: Array.isArray(it.collections)
+            ? it.collections
+            : normalizeCollections(it.collections || ''),
+
+          wins: Number(it.wins || 0),
+          losses: Number(it.losses || 0),
+          tourneyBonus: Number(it.tourneyBonus || 0),
+          tourneyCount: Number(it.tourneyCount || 0),
+
+          addedAt: it.addedAt || nowStamp(),
+          hasBeenExported: !!it.hasBeenExported,
+          lastExportedAt: it.lastExportedAt || null
+        }));
+
+        const CHUNK = 10;
+        for(let i = 0; i < cleaned.length; i += CHUNK){
+          const chunk = cleaned.slice(i, i + CHUNK);
+          await idbBulkPut(chunk);
+        }
+
+        totalImported += cleaned.length;
+      }
+
+      // process FIRST file
+      await importItemsArray(firstItems);
+
+      // process REMAINING files one-by-one (no big parsedFiles array)
+      for(let idx = 1; idx < files.length; idx++){
+        const f = files[idx];
+        const text = await f.text();
+        const json = JSON.parse(text);
+
+        if(!json.items || !Array.isArray(json.items)){
+          throw new Error(`Bad file format in ${f.name}`);
+        }
+        await importItemsArray(json.items);
+      }
+
+      // Reload a lightweight, thumbnail-only view into React state
+      const lib = await loadOptimizedLibrary();
+      setItems(lib);
+
+      alert(`Import complete. Added ${totalImported} images.`);
+      return;
+    }
+
+    // ======================================================
+    // PATH B: METADATA-ONLY IMPORT (no dataUrl)
+    // ======================================================
+
+    // Build lookup maps without ever touching React state
+    const { byId, byFingerprint } = await getSmartLookupMap();
+
+// Collect metadata entries from ALL files (these are tiny)
+const allImportedMeta = [...firstItems];
+
+for (let idx = 1; idx < files.length; idx++) {
+  const f = files[idx];
+  const text = await f.text();
+  const json = JSON.parse(text);
+
+  if (!json.items || !Array.isArray(json.items)) {
+    throw new Error(`Bad file format in ${f.name}`);
+  }
+  allImportedMeta.push(...json.items);
+}
+
+
+    const updatesToApply = [];
+
+    for(const it of allImportedMeta){
+      let targetId = null;
+
+      // 1) direct id match (same device / same DB id)
+      if(it.id && byId.has(it.id)){
+        targetId = it.id;
+      }
+      // 2) fingerprint match (cross-device sync)
+      else if(it.fingerprint && byFingerprint.has(it.fingerprint)){
+        targetId = byFingerprint.get(it.fingerprint);
+      }
+
+      if(targetId){
+        updatesToApply.push({ targetId, meta: it });
+      }
+    }
+
+    if(!updatesToApply.length){
+      alert('No matching images found to update.');
+      return;
+    }
+
+    // ---- 2. Apply updates to IndexedDB in small batches ----
+    const db = await openDB();
+    const BATCH_SIZE = 20;
+    let totalUpdated = 0;
+
+    for(let i = 0; i < updatesToApply.length; i += BATCH_SIZE){
+      const batch = updatesToApply.slice(i, i + BATCH_SIZE);
+      const tx = db.transaction(DB_STORE, 'readwrite');
+      const store = tx.objectStore(DB_STORE);
+
+      // Grab existing records for this batch
+      const currentImages = await Promise.all(
+        batch.map(item =>
+          new Promise((resolve, reject) => {
+            const req = store.get(item.targetId);
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror = () => reject(req.error);
+          })
+        )
+      );
+
+      for(let j = 0; j < batch.length; j++){
+        const { targetId, meta } = batch[j];
+        const existing = currentImages[j];
+        if(!existing) continue;
+
+        const incoming = meta || {};
+
+        const updated = {
+          ...existing,
+          title: typeof incoming.title === 'string'
+            ? incoming.title
+            : (existing.title || ''),
+          generator: typeof incoming.generator === 'string'
+            ? incoming.generator
+            : (existing.generator || ''),
+
+          collections: Array.isArray(incoming.collections)
+            ? incoming.collections
+            : (incoming.collections != null
+                ? normalizeCollections(incoming.collections)
+                : (existing.collections || [])),
+
+          wins: incoming.wins != null
+            ? Number(incoming.wins)
+            : Number(existing.wins || 0),
+
+          losses: incoming.losses != null
+            ? Number(incoming.losses)
+            : Number(existing.losses || 0),
+
+          tourneyBonus: incoming.tourneyBonus != null
+            ? Number(incoming.tourneyBonus)
+            : Number(existing.tourneyBonus || 0),
+
+          tourneyCount: incoming.tourneyCount != null
+            ? Number(incoming.tourneyCount)
+            : Number(existing.tourneyCount || 0),
+
+          // Keep image blobs as-is
+          dataUrl: existing.dataUrl,
+          thumbnail: existing.thumbnail || existing.thumbDataUrl || null
+        };
+
+        store.put(updated);
+      }
+
+      await new Promise((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+
+      totalUpdated += batch.length;
+    }
+
+    // ---- 3. Mirror those changes into React state (thumb-only) ----
+    setItems(prev => {
+      const updatesMap = new Map();
+      updatesToApply.forEach(u => updatesMap.set(u.targetId, u.meta));
+
+      return prev.map(existing => {
+        const incoming = updatesMap.get(existing.id);
+        if(!incoming) return existing;
+
+        return {
+          ...existing,
+          title: typeof incoming.title === 'string'
+            ? incoming.title
+            : (existing.title || ''),
+          generator: typeof incoming.generator === 'string'
+            ? incoming.generator
+            : (existing.generator || ''),
+
+          collections: Array.isArray(incoming.collections)
+            ? incoming.collections
+            : (incoming.collections != null
+                ? normalizeCollections(incoming.collections)
+                : (existing.collections || [])),
+
+          wins: incoming.wins != null
+            ? Number(incoming.wins)
+            : Number(existing.wins || 0),
+
+          losses: incoming.losses != null
+            ? Number(incoming.losses)
+            : Number(existing.losses || 0),
+
+          tourneyBonus: incoming.tourneyBonus != null
+            ? Number(incoming.tourneyBonus)
+            : Number(existing.tourneyBonus || 0),
+
+          tourneyCount: incoming.tourneyCount != null
+            ? Number(incoming.tourneyCount)
+            : Number(existing.tourneyCount || 0)
+        };
+      });
+    });
+
+    alert(`Metadata sync complete. Updated ${totalUpdated} images.`);
+  }catch(e){
+    console.error(e);
+    alert('Import failed: ' + (e && e.message ? e.message : e));
+  }
+}
+
+
+
+    // --- END PASTE ---
+
+      async function resetAllStats(){
+        if(!confirm('Reset wins/losses for all images?')) return;
+        const next = items.map(it=>({...it,wins:0,losses:0}));
+        await replaceAllItems(next);
+        setLastMatch(null);
+        const pool = getMatchPool(next,matchMode);
+        const [a,b] = (matchMode.type === 'allFlat')
+          ? pickTwoFromPoolFlat(pool)
+          : pickTwoFromPool(pool);
+        setMatchIds([a,b]);
+
+      }
+      async function clearLibrary(){
+        if(!confirm('Delete ALL images from this device? This cannot be undone unless you have an export.')) return;
+        await idbClear();
+        setItems([]);
+        setMatchIds([null,null]);
+        setLastMatch(null);
+        setSelectedIds([]);
+        setPreviewId(null);
+      }
+
+      // match result + undo
+      function recordWin(winnerId){
+        const [a,b] = matchIds;
+        if(!a || !b) return;
+        const loserId = winnerId===a ? b : a;
+        const winner = items.find(it=>it.id===winnerId);
+        const loser = items.find(it=>it.id===loserId);
+        if(!winner || !loser) return;
+        const wWins = (winner.wins||0)+1;
+        const lLoss = (loser.losses||0)+1;
+        patchItem(winnerId,{wins:wWins});
+        patchItem(loserId,{losses:lLoss});
+        setLastMatch({winnerId,loserId,leftId:a,rightId:b});
+        const pool = getMatchPool(items,matchMode);
+        rerollMatch(pool);
+      }
+
+      function undoLast(){
+        if(!lastMatch) return;
+        const {winnerId,loserId,leftId,rightId} = lastMatch;
+        const winner = items.find(it=>it.id===winnerId);
+        const loser = items.find(it=>it.id===loserId);
+        if(winner){
+          patchItem(winnerId,{wins:Math.max(0,(winner.wins||0)-1)});
+        }
+        if(loser){
+          patchItem(loserId,{losses:Math.max(0,(loser.losses||0)-1)});
+        }
+        setMatchIds([leftId,rightId]);
+        setLastMatch(null);
+      }
+
+      // all collection names
+      const allCollectionNames = useMemo(()=>{
+        const set = new Set();
+        for(const it of items){
+          (it.collections||[]).forEach(c=>c && set.add(c));
+        }
+        return Array.from(set).sort((a,b)=>a.localeCompare(b));
+      },[items]);
+
+      // stats for collections (also used for matchups dropdown)
+      const collectionStats = useMemo(()=>{
+        const map = new Map();
+        for(const it of items){
+          const cols = it.collections || [];
+          for(const name of cols){
+            if(!name) continue;
+            const cur = map.get(name) || {name,wins:0,losses:0,bonus:0,images:new Set()};
+            cur.wins += it.wins||0;
+            cur.losses += it.losses||0;
+            cur.bonus += Number(it.tourneyBonus||0);
+            cur.images.add(it.id);
+            map.set(name,cur);
+          }
+        }
+        const rows = Array.from(map.values()).map(r=>({
+          name: r.name,
+          wins: r.wins,
+          losses: r.losses,
+          imagesCount: r.images.size,
+          matchups: r.wins + r.losses,
+          pct: pct(r.wins,r.losses),
+          points: computePoints(r.wins,r.losses,r.bonus)
+        }));
+        rows.sort((a,b)=>{
+          const dir = collStatsSort.dir==='asc' ? 1 : -1;
+          const f = collStatsSort.field;
+          if(f==='name'){return a.name.localeCompare(b.name)*dir;}
+          if(f==='imagesCount' || f==='wins' || f==='losses' || f==='matchups' || f==='points'){
+            return (a[f]-b[f])*dir;
+          }
+          if(f==='pct'){return (a.pct-b.pct)*dir;}
+          return 0;
+        });
+        return rows.reverse();
+      },[items,collStatsSort]);
+
+      // library filtered + sorted list (full, before pagination)
+      const libraryItems = useMemo(()=>{
+        let list = [...items];
+        if(libraryFilter==='unassigned'){
+          list = list.filter(it=>!it.collections || it.collections.length===0);
+        }
+        const include = libraryCollectionFilter.include || [];
+        const exclude = libraryCollectionFilter.exclude || [];
+        if(include.length){
+          list = list.filter(it=>{
+            const cols = it.collections || [];
+            return include.every(name => cols.includes(name));
+          });
+        }
+        if(exclude.length){
+          list = list.filter(it=>{
+            const cols = it.collections || [];
+            return !exclude.some(name => cols.includes(name));
+          });
+        }
+        list.sort((a,b)=>{
+          const dir = librarySort.dir==='asc' ? 1 : -1;
+          if(librarySort.field==='addedAt'){
+            const ta = new Date(a.addedAt||0).getTime();
+            const tb = new Date(b.addedAt||0).getTime();
+            return (tb-ta)*dir;
+          }else if(librarySort.field==='title'){
+            return a.title.localeCompare(b.title)*dir;
+          }else if(librarySort.field==='points'){
+            const pa = computePoints(a.wins,a.losses,a.tourneyBonus||0);
+            const pb = computePoints(b.wins,b.losses,b.tourneyBonus||0);
+            if(pb!==pa) return (pb-pa)*dir;
+            return (matchupsCount(b)-matchupsCount(a))*dir;
+          }else if(librarySort.field==='matchups'){
+            return (matchupsCount(b)-matchupsCount(a))*dir;
+          }
+          return 0;
+        });
+        return list;
+      },[items,librarySort,libraryFilter,libraryCollectionFilter]);
+
+// stats rows (with win% tie-breaker by wins then matchups)
+const statsRows = useMemo(()=>{
+  const rows = items.map(it=>({
+    ...it,
+    matchups: matchupsCount(it),
+    pct: pct(it.wins,it.losses),
+    points: computePoints(it.wins,it.losses,it.tourneyBonus||0),
+    tourneyCount: Number(it.tourneyCount || 0)    // 👈 NEW
+  }));
+  rows.sort((a,b)=>{
+    const dir = statsSort.dir==='asc' ? 1 : -1;
+    const f = statsSort.field;
+    if(f==='title'){
+      return a.title.localeCompare(b.title)*dir;
+    }else if(f==='matchups'){
+      return (a.matchups-b.matchups)*dir;
+    }else if(f==='tourneyCount'){                  // 👈 NEW
+      return (a.tourneyCount-b.tourneyCount)*dir;
+    }else if(f==='wins' || f==='losses' || f==='points'){
+      return (a[f]-b[f])*dir;
+    }else if(f==='pct'){
+      let cmp = a.pct - b.pct;
+      if(cmp !== 0) return cmp * dir;
+      let winCmp = a.wins - b.wins;
+      if(winCmp !== 0) return winCmp * dir;
+      let mCmp = a.matchups - b.matchups;
+      return mCmp * dir;
+    }else if(f==='addedAt'){
+      const ta = new Date(a.addedAt||0).getTime();
+      const tb = new Date(b.addedAt||0).getTime();
+      return (ta-tb)*dir;
+    }
+    return 0;
+  });
+  return rows.reverse();
+},[items,statsSort]);
+
+
+      // pagination: stats
+      const statsTotalPages = Math.max(1, Math.ceil(statsRows.length / statsPageSize));
+      const statsPageSafe = Math.min(Math.max(statsPage,1), statsTotalPages);
+      const statsStart = (statsPageSafe-1) * statsPageSize;
+      const statsEnd = statsPageSafe * statsPageSize;
+      const statsPageItems = statsRows.slice(statsStart, statsEnd);
+
+      const activeCollectionItems = useMemo(()=>{
+        if(!activeCollection) return [];
+        return items.filter(it=> (it.collections||[]).includes(activeCollection));
+      },[items,activeCollection]);
+
+      // pagination: library
+      const libPageSizeNum = libraryPageSize === 'all'
+        ? (libraryItems.length || 1)
+        : libraryPageSize;
+      const libTotalPages = libraryPageSize === 'all'
+        ? 1
+        : Math.max(1, Math.ceil(libraryItems.length / libPageSizeNum));
+      const libPage = Math.min(Math.max(libraryPage,1), libTotalPages);
+      const libStart = libraryPageSize === 'all' ? 0 : (libPage-1)*libPageSizeNum;
+      const libEnd = libraryPageSize === 'all' ? libraryItems.length : libPage*libPageSizeNum;
+      const libraryPageItems = libraryPageSize === 'all'
+        ? libraryItems
+        : libraryItems.slice(libStart, libEnd);
+
+      // pagination: active collection
+      const collPageSizeNum = collectionPageSize === 'all'
+        ? (activeCollectionItems.length || 1)
+        : collectionPageSize;
+      const collTotalPages = collectionPageSize === 'all'
+        ? 1
+        : Math.max(1, Math.ceil(activeCollectionItems.length / collPageSizeNum));
+      const collPage = Math.min(Math.max(collectionPage,1), collTotalPages);
+      const collStart = collectionPageSize === 'all' ? 0 : (collPage-1)*collPageSizeNum;
+      const collEnd = collectionPageSize === 'all' ? activeCollectionItems.length : collectionPage*collPageSizeNum;
+      const collectionPageItems = collectionPageSize === 'all'
+        ? activeCollectionItems
+        : activeCollectionItems.slice(collStart, collEnd);
+
+      const left = items.find(it=>it.id===matchIds[0]) || null;
+      const right = items.find(it=>it.id===matchIds[1]) || null;
+      const previewItem = previewId ? items.find(it=>it.id===previewId) : null;
+      const selectionMode = selectedIds.length>0;
+
+      const allLibPageSelected = libraryPageItems.length>0 && libraryPageItems.every(it=>selectedIds.includes(it.id));
+      const allCollPageSelected = collectionPageItems.length>0 && collectionPageItems.every(it=>selectedIds.includes(it.id));
+
+      function toggleSelected(id){
+        setSelectedIds(prev=>{
+          if(prev.includes(id)){
+            return prev.filter(x=>x!==id);
+          }else{
+            return [...prev,id];
+          }
+        });
+      }
+      function clearSelection(){
+        setSelectedIds([]);
+      }
+      function selectAllVisible(list){
+        setSelectedIds(list.map(it=>it.id));
+      }
+
+      function openPreviewFor(item){
+        setPreviewId(item.id);
+      }
+
+      function startCropFor(item){
+        cropper.startForItem(item);
+      }
+function applyCrop(){
+  const result = cropper.apply();
+  if (!result) return;
+
+  // Use cropped image everywhere so all views update visibly
+  patchItem(result.targetId, {
+    dataUrl:      result.dataUrl,
+    thumbnail:    result.dataUrl,
+    thumbDataUrl: result.dataUrl,
+    fullUrl:      result.dataUrl
+  });
+
+  cropper.setCrop(null);
+}
+
+
+      function changeStatsSort(field){
+        setStatsSort(prev=>{
+          if(prev.field===field){
+            return {field,dir:prev.dir==='asc'?'desc':'asc'};
+          }
+          return {field,dir: field==='points' || field==='pct' || field==='matchups' ? 'desc':'asc'};
+        });
+      }
+      function changeCollStatsSort(field){
+        setCollStatsSort(prev=>{
+          if(prev.field===field){
+            return {field,dir:prev.dir==='asc'?'desc':'asc'};
+          }
+          return {field,dir: field==='points' || field==='pct' || field==='matchups' || field==='imagesCount' ? 'desc':'asc'};
+        });
+      }
+
+      function sortIndicator(active,dir){
+        if(!active) return null;
+        return <span className="sort-ind">{dir==='asc' ? '▲' : '▼'}</span>;
+      }
+
+      function startCollectionMatchups(name){
+        const next = {type:'collection',collection:name};
+        setMatchMode(next);
+        setTab('Matchups');
+        const pool = getMatchPool(items,next);
+        const [a,b] = pickTwoFromPool(pool);
+        setMatchIds([a,b]);
+      }
+
+function labelForMatchMode(){
+  if(matchMode.type==='allFlat') return 'All images (equal chance)';
+  if(matchMode.type==='bottom') return 'Bottom 50% by matchups';
+  if(matchMode.type==='bottom25') return 'Bottom 25% by matchups';
+  if(matchMode.type==='bottom10') return 'Bottom 10% by matchups';
+  if(matchMode.type==='topWinPct10') return 'Top 10% by win%';
+  if(matchMode.type==='bottomWinPct10') return 'Bottom 10% by win%';
+  if(matchMode.type==='freshLeaf') return 'Fresh images (leaf icon)';
+  if(matchMode.type==='collection' && matchMode.collection){
+    return `Collection: ${matchMode.collection}`;
+  }
+  return 'All images';
+}
+
+
+      const matchSelectValue =
+        matchMode.type === 'collection' && matchMode.collection
+          ? `collection:${matchMode.collection}`
+          : matchMode.type;
+
+      // ----- Render -----
+      return (
+        <div className="app">
+
+<header className="header">
+<h1>ModelMatchup</h1>
+
+  <div className="badgeSummary">
+    ⭐ {totalUndefeated}
+    &nbsp;&nbsp;
+    💩 {totalWinless}
+    &nbsp;&nbsp;
+    🖼 {items.length}
+    &nbsp;&nbsp;
+    🌱 {totalNew}
+  </div>
+
+
+  <nav className="tabs">
+              {['Library','Matchups','Stats','Collections'].map(t=>(
+                <button
+                  key={t}
+                  className={'tab'+(tab===t?' active':'')}
+                  onClick={()=>{ setTab(t); if(t!=='Collections') setActiveCollection(null); }}
+                >
+                  {t}
+                </button>
+              ))}
+  {/* 🔹 Extra utility pages */}
+  <a href="sizes.html" className="tab">Image Sizes</a>
+  <a href="duplicates.html" className="tab">Title Twins</a>
+  <a href="tourney.html" className="tab">Tournament</a>
+  <a href="thumb-maintenance.html" className="tab">Thumb Maintenance</a>
+  <a href="normalize-urls.html" className="tab">Normalize URLs</a>
+  <a href="unmigrated-report.html" className="tab">Unmigrated Report</a>
+
+</nav>
+
+
+          </header>
+
+          {/* LIBRARY */}
+          {tab==='Library' && (
+            <>
+              <section className="pane">
+                <div
+                  className="dropzone"
+                  onClick={()=>{
+  if (fileRef.current) {
+    fileRef.current.click();
+  }
+}}
+
+                  onDragOver={e=>e.preventDefault()}
+                  onDrop={e=>{
+                    e.preventDefault();
+                    const dt = e.dataTransfer;
+if (dt && dt.files && dt.files.length) {
+  handleFiles(dt.files, null);
+}
+
+                  }}
+                >
+                  <p>Drop AI images here or click to upload</p>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    style={{display:'none'}}
+                    onChange={e=>handleFiles(e.target.files,null)}
+                  />
+                </div>
+<div className="toolbar">
+
+
+  {/* CLEANUP / SYNC */}
+  <button className="btn ghost" onClick={()=>{ setCleanupModalOpen(true); setOrphans(null); }}>
+    Sync Deletions
+  </button>
+
+  {/* EXPORTS */}
+  <button className="btn secondary" onClick={exportLibrary}>Export</button>
+  <button className="btn ghost" onClick={selectUnexported}>Select unexported</button>
+  <button className="btn ghost" onClick={exportMetadata}>Export metadata</button>
+<button className="btn ghost" onClick={generateMissingThumbnails}>
+  Generate thumbnails
+</button>
+
+
+
+
+  {/* METADATA IMPORT (JSON) */}
+<button
+  className="btn ghost"
+  onClick={()=>{
+    if (importRef.current) {
+      importRef.current.click();
+    }
+  }}
+>
+  Import
+</button>
+
+
+  {/* HIDDEN INPUT FOR IMAGE UPLOADS */}
+  <input
+    ref={imageImportRef}
+    type="file"
+    accept="image/*"
+    multiple
+    style={{display:'none'}}
+    onChange={e=>{
+      const files = e.target.files;
+      if (files && files.length){
+        handleFiles(files, null);   // <- uses your existing upload logic
+      }
+      e.target.value = '';
+    }}
+  />
+
+  {/* HIDDEN INPUT FOR JSON / METADATA IMPORT */}
+  <input
+    ref={importRef}
+    type="file"
+    accept="application/json"
+    multiple
+    style={{display:'none'}}
+    onChange={e=>{
+      const files = e.target.files;
+      if(files && files.length){
+        importLibraryFiles(files);  // <- your existing metadata importer
+      }
+      e.target.value='';
+    }}
+  />
+
+  <button className="btn ghost" onClick={resetAllStats}>Reset All Stats</button>
+  <button className="btn danger" onClick={clearLibrary}>Delete Library</button>
+</div>
+
+                <div className="toolbar" style={{marginTop:10,justifyContent:'space-between'}}>
+                  <div className="flexRow">
+                    <label className="smallMuted">
+                      Sort by{' '}
+                      <select
+                        className="select"
+                        value={librarySort.field}
+                        onChange={e => setLibrarySort(s => ({ ...s, field: e.target.value }))}
+                      >
+                        <option value="addedAt">Date added</option>
+                        <option value="title">Title</option>
+                        <option value="points">Points</option>
+                        <option value="matchups"># Matchups</option>
+                      </select>
+                    </label>
+                    <label className="smallMuted">
+                      Direction{' '}
+                      <select
+                        className="select"
+                        value={librarySort.dir}
+                        onChange={e => setLibrarySort(s => ({ ...s, dir: e.target.value }))}
+                      >
+                        <option value="desc">Desc</option>
+                        <option value="asc">Asc</option>
+                      </select>
+                    </label>
+                    <label className="smallMuted">
+                      Filter{' '}
+                      <select
+                        className="select"
+                        value={libraryFilter}
+                        onChange={e=>setLibraryFilter(e.target.value)}
+                      >
+                        <option value="all">All images</option>
+                        <option value="unassigned">No collections</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div className="flexRow">
+                    <span className="smallMuted">View</span>
+                    <button
+                      className={'btn sm '+(libraryViewMode==='cards'?'secondary':'ghost')}
+                      onClick={()=>setLibraryViewMode('cards')}
+                    >
+                      Cards
+                    </button>
+                    <button
+                      className={'btn sm '+(libraryViewMode==='gallery'?'secondary':'ghost')}
+                      onClick={()=>setLibraryViewMode('gallery')}
+                    >
+                      Gallery
+                    </button>
+                  </div>
+                </div>
+
+                {allCollectionNames.length > 0 && (
+                  <div className="toolbar" style={{marginTop:8}}>
+                    <span className="smallMuted">
+                      Collection filter (click to include → exclude → clear):
+                    </span>
+                    {allCollectionNames.map(name=>{
+                      const isInclude = libraryCollectionFilter.include.includes(name);
+                      const isExclude = libraryCollectionFilter.exclude.includes(name);
+                      let cls = 'ghost';
+                      if(isInclude) cls = 'secondary';
+                      if(isExclude) cls = 'danger';
+                      return (
+                        <button
+                          key={name}
+                          className={'btn sm '+cls}
+                          onClick={()=>{
+                            setLibraryCollectionFilter(prev=>{
+                              const inc = new Set(prev.include || []);
+                              const exc = new Set(prev.exclude || []);
+                              if(!inc.has(name) && !exc.has(name)){
+                                inc.add(name);           // neutral -> include (green)
+                              }else if(inc.has(name)){
+                                inc.delete(name);        // include -> exclude (red)
+                                exc.add(name);
+                              }else if(exc.has(name)){
+                                exc.delete(name);        // exclude -> neutral
+                              }
+                              return {
+                                include: [...inc],
+                                exclude: [...exc]
+                              };
+                            });
+                          }}
+                        >
+                          {name}
+                        </button>
+                      );
+                    })}
+                    {(libraryCollectionFilter.include.length>0 || libraryCollectionFilter.exclude.length>0) && (
+                      <button
+                        className="btn sm ghost"
+                        onClick={()=>setLibraryCollectionFilter({include:[],exclude:[]})}
+                      >
+                        Clear collection filter
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {items.length>0 && (
+                  <div className="pager">
+                    <div>Page {libPage} of {libTotalPages}</div>
+                    <div className="flexRow">
+                      <label className="smallMuted">
+                        Per page{' '}
+                        <select
+                          className="select"
+                          value={String(libraryPageSize)}
+                          onChange={e=>{
+                            const v = e.target.value === 'all' ? 'all' : Number(e.target.value);
+                            setLibraryPageSize(v);
+                            setLibraryPage(1);
+                          }}
+                        >
+                          <option value="25">25</option>
+                          <option value="50">50</option>
+                          <option value="100">100</option>
+                          <option value="250">250</option>
+                          <option value="500">500</option>
+                          <option value="all">All</option>
+                        </select>
+                      </label>
+                      <button
+                        className="btn sm ghost"
+                        onClick={()=>setLibraryPage(p=>Math.max(1,p-1))}
+                        disabled={libPage<=1}
+                      >
+                        Prev
+                      </button>
+                      <button
+                        className="btn sm ghost"
+                        onClick={()=>setLibraryPage(p=>Math.min(libTotalPages,p+1))}
+                        disabled={libPage>=libTotalPages}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </section>
+
+              {items.length===0 && (
+                <p className="hint">No images yet. Import or upload to get started.</p>
+              )}
+
+              {items.length>0 && libraryViewMode==='cards' && (
+                <ul className="grid">
+                  {libraryPageItems.map(it=>(
+                    <li key={it.id} className="card">
+<div className="cardThumb" onClick={()=>openPreviewFor(it)}>
+  <img
+  src={it.thumbnail || it.fullUrl || it.dataUrl}
+  alt={it.title || 'Image'}
+/>
+
+  {renderBadges(it.id,'badgeRow-top-right')}
+</div>
+
+                      <div className="cardBody">
+                        <div className="fieldRow">
+                          <label>Title</label>
+                          <input
+                            value={it.title}
+                            onChange={e=>patchItem(it.id,{title:e.target.value})}
+                          />
+                        </div>
+                        <div className="fieldRow">
+                          <label>Collections (comma-separated)</label>
+                          <input
+                            value={collectionsToString(it.collections)}
+                            onChange={e=>{
+                              const arr = normalizeCollections(e.target.value);
+                              patchItem(it.id,{collections:arr});
+                            }}
+                          />
+                        </div>
+                        <div className="fieldRow">
+                          <label>AI Generator</label>
+                          <input
+                            value={it.generator}
+                            onChange={e=>patchItem(it.id,{generator:e.target.value})}
+                          />
+                        </div>
+<div className="statLine">
+  <span>W {it.wins||0}</span>
+  <span>L {it.losses||0}</span>
+  <span>Win % {(pct(it.wins,it.losses)*100).toFixed(0)}%</span>
+  <span>Pts {computePoints(it.wins,it.losses,it.tourneyBonus||0)}</span>
+  <span>M {matchupsCount(it)}</span>
+  <span>T {it.tourneyCount || 0}</span> {/* NEW */}
+</div>
+
+                        <div className="addedAt" style={{whiteSpace:'pre-line'}}>
+  Added {formatAddedAt(it.addedAt)}
+</div>
+
+                        <div className="toolbar" style={{marginTop:4}}>
+                          <button className="btn ghost sm" onClick={()=>startCropFor(it)}>Crop</button>
+                          <button className="btn danger sm" onClick={()=>removeItem(it.id)}>Delete</button>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {items.length>0 && libraryViewMode==='gallery' && (
+                <section className="pane" style={{padding:10}}>
+                  <div className="galleryControls">
+                    <div className="flexRow">
+                      <button
+                        className="btn sm secondary"
+                        onClick={()=>{
+                          if(allLibPageSelected) clearSelection();
+                          else selectAllVisible(libraryPageItems);
+                        }}
+                      >
+                        {allLibPageSelected ? 'Clear all on page' : 'Select all on page'}
+                      </button>
+                      {selectedIds.length>0 && (
+                        <button className="btn sm ghost" onClick={()=>setBatchOpen(true)}>
+                          Batch edit ({selectedIds.length})
+                        </button>
+                      )}
+                    </div>
+                    <div className="smallMuted">
+                      {selectionMode
+                        ? 'Selection mode: click images to toggle selection'
+                        : 'Click an image to view & edit. Export will use any selected images.'}
+                    </div>
+                  </div>
+                  <div className="galleryGrid">
+                    {libraryPageItems.map(it=>{
+                      const isSel = selectedIds.includes(it.id);
+                      return (
+                        <div
+                          key={it.id}
+                          className="galleryItem"
+                          onClick={()=>{
+                            if(selectionMode){
+                              toggleSelected(it.id);
+                            }else{
+                              openPreviewFor(it);
+                            }
+                          }}
+                        >
+<img
+  className="galleryImg"
+  src={it.thumbnail || it.fullUrl || it.dataUrl}
+  alt={it.title || 'Image'}
+/>
+
+
+                          <div className="galleryOverlay" />
+                          {renderBadges(it.id,'badgeRow-top-right')}
+                          <div className="galleryMeta">
+                            <div
+                              className="galleryCheckWrap"
+                              onClick={e=>{e.stopPropagation();toggleSelected(it.id);}}
+                            >
+                              <span className={'checkbox'+(isSel?' checked':'')}></span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {items.length>0 && (
+                    <div className="pager">
+                      <div>Page {libPage} of {libTotalPages}</div>
+                      <div className="flexRow">
+                        <label className="smallMuted">
+                          Per page{' '}
+                          <select
+                            className="select"
+                            value={String(libraryPageSize)}
+                            onChange={e=>{
+                              const v = e.target.value === 'all' ? 'all' : Number(e.target.value);
+                              setLibraryPageSize(v);
+                              setLibraryPage(1);
+                            }}
+                          >
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                            <option value="250">250</option>
+                            <option value="500">500</option>
+                            <option value="all">All</option>
+                          </select>
+                        </label>
+                        <button
+                          className="btn sm ghost"
+                          onClick={()=>setLibraryPage(p=>Math.max(1,p-1))}
+                          disabled={libPage<=1}
+                        >
+                          Prev
+                        </button>
+                        <button
+                          className="btn sm ghost"
+                          onClick={()=>setLibraryPage(p=>Math.min(libTotalPages,p+1))}
+                          disabled={libPage>=libTotalPages}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </section>
+              )}
+            </>
+          )}
+
+          {/* MATCHUPS */}
+          {tab==='Matchups' && (
+            <section className="pane">
+              <div className="toolbar" style={{justifyContent:'space-between',marginBottom:6}}>
+                <div className="flexRow">
+                  <label className="smallMuted">
+                    Matchup pool{' '}
+<select
+  className="select"
+  value={matchSelectValue}
+  onChange={e=>{
+    const v = e.target.value;
+    const simpleModes = [
+      'all',
+      'allFlat',
+      'bottom',
+      'bottom25',
+      'bottom10',
+      'topWinPct10',
+      'bottomWinPct10',
+      'freshLeaf'
+    ];
+
+    if(simpleModes.includes(v)){
+      const next = {type:v, collection:null};
+      setMatchMode(next);
+      const pool = getMatchPool(items,next);
+      const [a,b] = (v === 'allFlat')
+        ? pickTwoFromPoolFlat(pool)
+        : pickTwoFromPool(pool);
+      setMatchIds([a,b]);
+    }else if(v.startsWith('collection:')){
+      const name = v.slice('collection:'.length);
+      const next = {type:'collection',collection:name};
+      setMatchMode(next);
+      const pool = getMatchPool(items,next);
+      const [a,b] = pickTwoFromPool(pool);
+      setMatchIds([a,b]);
+    }
+  }}
+>
+
+
+<option value="all">All images</option>
+<option value="allFlat">All images (equal chance)</option>
+
+<option value="bottom">Bottom 50% by matchups</option>
+<option value="bottom25">Bottom 25% by matchups</option>
+<option value="bottom10">Bottom 10% by matchups</option>
+
+<option value="topWinPct10">Top 10% by win%</option>
+<option value="bottomWinPct10">Bottom 10% by win%</option>
+
+<option value="freshLeaf">Fresh images (leaf icon)</option>
+
+{collectionStats
+  .filter(c=>c.imagesCount>=2)
+  .map(c=>(
+    <option key={c.name} value={`collection:${c.name}`}>
+      Collection: {c.name}
+    </option>
+  ))}
+
+
+</select>
+                  </label>
+                  {matchMode.type==='collection' && matchMode.collection && (
+                    <span className="pill">Current: {matchMode.collection}</span>
+                  )}
+                </div>
+                <div className="flexRow">
+                  <button className="btn sm" onClick={()=>rerollMatch()}>
+                    Next
+                  </button>
+                  <button className="btn sm ghost" onClick={undoLast} disabled={!lastMatch}>
+                    Undo last result
+                  </button>
+                </div>
+              </div>
+
+              {(!left || !right) ? (
+                <p className="hint">You need at least two images in the current pool to run matchups.</p>
+              ) : (
+                <>
+<div className="arena">
+  <button className="imageCard" onClick={()=>recordWin(left.id)}>
+    <img
+      src={getDisplaySrc(left)}
+      alt="left"
+      onError={e=>{
+        // Fallback if primary src fails
+        const fallback =
+          (left.thumbnail && left.thumbnail.trim()) ||
+          (left.thumbDataUrl && left.thumbDataUrl.trim()) ||
+          (left.dataUrl && left.dataUrl.trim()) ||
+          "";
+
+        // Only switch if we actually have a different fallback
+        if (fallback && e.target.src !== fallback){
+          e.target.src = fallback;
+        }else{
+          // If nothing at all works, just hide the broken icon
+          e.target.style.visibility = 'hidden';
+        }
+      }}
+    />
+    {renderBadges(left.id,'badgeRow-top-right')}
+  </button>
+
+  <div className="vs">VS</div>
+
+  <button className="imageCard" onClick={()=>recordWin(right.id)}>
+    <img
+      src={getDisplaySrc(right)}
+      alt="right"
+      onError={e=>{
+        const fallback =
+          (right.thumbnail && right.thumbnail.trim()) ||
+          (right.thumbDataUrl && right.thumbDataUrl.trim()) ||
+          (right.dataUrl && right.dataUrl.trim()) ||
+          "";
+
+        if (fallback && e.target.src !== fallback){
+          e.target.src = fallback;
+        }else{
+          e.target.style.visibility = 'hidden';
+        }
+      }}
+    />
+    {renderBadges(right.id,'badgeRow-top-right')}
+  </button>
+</div>
+
+
+
+                  <div className="matchMetaRow">
+                    <div className="matchMetaBox">
+                      <div className="matchMetaTitle">Left image</div>
+                      <div className="matchMetaStats">
+                        {left.title || 'Untitled'}<br/>
+                        W {left.wins} • L {left.losses} • Pts {computePoints(left.wins,left.losses,left.tourneyBonus||0)} • M {matchupsCount(left)}<br/>
+                        Collections: {collectionsToString(left.collections)}
+                      </div>
+                      <div className="toolbar" style={{marginTop:4,gap:6}}>
+                        <button className="btn ghost sm" onClick={()=>openPreviewFor(left)}>View</button>
+                        <button className="btn ghost sm" onClick={()=>startCropFor(left)}>Crop</button>
+                      </div>
+                    </div>
+                    <div></div>
+                    <div className="matchMetaBox">
+                      <div className="matchMetaTitle">Right image</div>
+                      <div className="matchMetaStats">
+                        {right.title || 'Untitled'}<br/>
+                        W {right.wins} • L {right.losses} • Pts {computePoints(right.wins,right.losses,right.tourneyBonus||0)} • M {matchupsCount(right)}<br/>
+                        Collections: {collectionsToString(right.collections)}
+                      </div>
+                      <div className="toolbar" style={{marginTop:4,gap:6}}>
+                        <button className="btn ghost sm" onClick={()=>openPreviewFor(right)}>View</button>
+                        <button className="btn ghost sm" onClick={()=>startCropFor(right)}>Crop</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="matchFooter">
+                    <button className="btn sm" onClick={()=>rerollMatch()}>
+                      Next matchup
+                    </button>
+                    <button className="btn sm ghost" onClick={undoLast} disabled={!lastMatch}>
+                      Undo last
+                    </button>
+                  </div>
+                  <div className="matchPoolInfo">
+                    Pool: {labelForMatchMode()}
+                  </div>
+                </>
+              )}
+            </section>
+          )}
+
+          {/* STATS */}
+          {tab==='Stats' && (
+            <section className="statsTab">
+              {items.length===0 ? (
+                <p className="hint">No images yet.</p>
+              ) : (
+                <>
+                <table>
+<thead>
+  <tr>
+    <th>#</th>
+    <th>Image</th>
+    <th className="sortable" onClick={()=>changeStatsSort('title')}>
+      Title{sortIndicator(statsSort.field==='title',statsSort.dir)}
+    </th>
+    <th>Collections</th>
+    <th className="sortable" onClick={()=>changeStatsSort('addedAt')}>
+      Added{sortIndicator(statsSort.field==='addedAt',statsSort.dir)}
+    </th>
+    <th className="sortable" onClick={()=>changeStatsSort('wins')}>
+      W{sortIndicator(statsSort.field==='wins',statsSort.dir)}
+    </th>
+    <th className="sortable" onClick={()=>changeStatsSort('losses')}>
+      L{sortIndicator(statsSort.field==='losses',statsSort.dir)}
+    </th>
+    <th className="sortable" onClick={()=>changeStatsSort('matchups')}>
+      M{sortIndicator(statsSort.field==='matchups',statsSort.dir)}
+    </th>
+    <th className="sortable" onClick={()=>changeStatsSort('tourneyCount')}>
+      T{sortIndicator(statsSort.field==='tourneyCount',statsSort.dir)} {/* 👈 NEW */}
+    </th>
+    <th className="sortable" onClick={()=>changeStatsSort('pct')}>
+      Win%{sortIndicator(statsSort.field==='pct',statsSort.dir)}
+    </th>
+    <th className="sortable" onClick={()=>changeStatsSort('points')}>
+      Points{sortIndicator(statsSort.field==='points',statsSort.dir)}
+    </th>
+  </tr>
+</thead>
+
+<tbody>
+  {statsPageItems.map((x,i)=>(
+    <tr key={x.id}>
+      <td>{statsStart + i + 1}</td>
+<td>
+  <div style={{display:'flex',alignItems:'center',gap:4}}>
+    <div className="thumbWrap">
+      <img
+        className="thumb"
+        // same priority as Library view, plus thumbDataUrl as an extra backup
+        src={x.thumbnail || x.fullUrl || x.dataUrl || x.thumbDataUrl || ''}
+        alt={x.title || 'Image'}
+        onClick={() => openPreviewFor(x)}
+        onError={e => {
+          // If our first choice failed, try any other known field
+          const fallbacks = [
+            x.fullUrl,
+            x.dataUrl,
+            x.thumbnail,
+            x.thumbDataUrl
+          ].filter(Boolean);
+
+          const current = e.target.src;
+          const next = fallbacks.find(url => url && url !== current);
+
+          if (next) {
+            e.target.src = next;
+          } else {
+            // truly no usable image → hide the box so it’s obvious it’s “image-less”
+            e.target.style.visibility = 'hidden';
+          }
+        }}
+      />
+    </div>
+    {renderBadges(x.id, 'badgeRow-inline')}
+  </div>
+</td>
+      <td>{x.title}</td>
+      <td>{collectionsToString(x.collections)}</td>
+<td style={{whiteSpace:'pre-line'}}>{formatAddedAt(x.addedAt)}</td>
+      <td>{x.wins}</td>
+      <td>{x.losses}</td>
+      <td>{x.matchups}</td>
+      <td>{x.tourneyCount || 0}</td>
+      <td>{x.pct.toFixed(3)}</td>
+      <td>{x.points}</td>
+    </tr>
+  ))}
+</tbody>
+
+                </table>
+                {statsTotalPages>1 && (
+                  <div className="pager">
+                    <div>Page {statsPageSafe} of {statsTotalPages}</div>
+                    <div className="flexRow">
+                      <button
+                        className="btn sm ghost"
+                        onClick={()=>setStatsPage(p=>Math.max(1,p-1))}
+                        disabled={statsPageSafe<=1}
+                      >
+                        Prev
+                      </button>
+                      <button
+                        className="btn sm ghost"
+                        onClick={()=>setStatsPage(p=>Math.min(statsTotalPages,p+1))}
+                        disabled={statsPageSafe>=statsTotalPages}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
+                </>
+              )}
+            </section>
+          )}
+
+
+          {/* COLLECTIONS LIST / DETAIL */}
+          {tab==='Collections' && !activeCollection && (
+            <section className="statsTab">
+              {collectionStats.length===0 ? (
+                <p className="hint">No collections yet. Add collection names to images in the Library.</p>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th className="sortable" onClick={()=>changeCollStatsSort('name')}>
+                        Collection{sortIndicator(collStatsSort.field==='name',collStatsSort.dir)}
+                      </th>
+                      <th className="sortable" onClick={()=>changeCollStatsSort('imagesCount')}>
+                        # Images{sortIndicator(collStatsSort.field==='imagesCount',collStatsSort.dir)}
+                      </th>
+                      <th className="sortable" onClick={()=>changeCollStatsSort('wins')}>
+                        W{sortIndicator(collStatsSort.field==='wins',collStatsSort.dir)}
+                      </th>
+                      <th className="sortable" onClick={()=>changeCollStatsSort('losses')}>
+                        L{sortIndicator(collStatsSort.field==='losses',collStatsSort.dir)}
+                      </th>
+                      <th className="sortable" onClick={()=>changeCollStatsSort('matchups')}>
+                        M{sortIndicator(collStatsSort.field==='matchups',collStatsSort.dir)}
+                      </th>
+                      <th className="sortable" onClick={()=>changeCollStatsSort('pct')}>
+                        Win%{sortIndicator(collStatsSort.field==='pct',collStatsSort.dir)}
+                      </th>
+                      <th className="sortable" onClick={()=>changeCollStatsSort('points')}>
+                        Points{sortIndicator(collStatsSort.field==='points',collStatsSort.dir)}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {collectionStats.map((c,i)=>(
+                      <tr key={c.name}>
+                        <td>{i+1}</td>
+                        <td>
+                          <button
+                            className="btn sm ghost"
+                            onClick={()=>{
+                              setActiveCollection(c.name);
+                              setCollectionViewMode('gallery');
+                              setCollectionPage(1);
+                            }}
+                          >
+                            {c.name}
+                          </button>
+                        </td>
+                        <td>{c.imagesCount}</td>
+                        <td>{c.wins}</td>
+                        <td>{c.losses}</td>
+                        <td>{c.matchups}</td>
+                        <td>{c.pct.toFixed(3)}</td>
+                        <td>{c.points}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </section>
+          )}
+
+          {tab==='Collections' && activeCollection && (
+            <section className="pane">
+              <div className="toolbar" style={{justifyContent:'space-between',marginBottom:8}}>
+                <div className="flexRow">
+                  <button className="btn sm ghost" onClick={()=>{setActiveCollection(null); setSelectedIds([]);}}>
+                    ← Back to all collections
+                  </button>
+                  <span className="pill">{activeCollection}</span>
+                  <span className="smallMuted">
+                    {activeCollectionItems.length} images • {activeCollectionItems.reduce((a,it)=>a+it.wins,0)} W / {activeCollectionItems.reduce((a,it)=>a+it.losses,0)} L
+                  </span>
+                </div>
+                <div className="flexRow">
+                  <button
+                    className="btn sm"
+                    onClick={()=>startCollectionMatchups(activeCollection)}
+                    disabled={activeCollectionItems.length<2}
+                  >
+                    Matchups in this collection
+                  </button>
+                  <button
+                    className="btn sm ghost"
+                    onClick={()=>setCollectionViewMode('gallery')}
+                  >
+                    Gallery
+                  </button>
+                  <button
+                    className="btn sm ghost"
+                    onClick={()=>setCollectionViewMode('cards')}
+                  >
+                    Cards
+                  </button>
+                </div>
+              </div>
+
+              <div className="toolbar" style={{justifyContent:'space-between',marginBottom:6}}>
+                <div className="flexRow">
+                  <button
+                    className="btn sm secondary"
+                    onClick={()=>{
+                      if(allCollPageSelected) clearSelection();
+                      else selectAllVisible(collectionPageItems);
+                    }}
+                  >
+                    {allCollPageSelected ? 'Clear all on page' : 'Select all on page'}
+                  </button>
+                  {selectedIds.length>0 && (
+                    <button className="btn sm ghost" onClick={()=>setBatchOpen(true)}>
+                      Batch edit ({selectedIds.length})
+                    </button>
+                  )}
+                </div>
+                <div className="flexRow">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    style={{display:'none'}}
+                    id="collectionUploadInput"
+                    onChange={e=>{
+                      const forced = [activeCollection];
+                      handleFiles(e.target.files,forced);
+                    }}
+                  />
+                  <button
+                    className="btn sm"
+                    onClick={()=>{
+                      const el = document.getElementById('collectionUploadInput');
+                      el && el.click();
+                    }}
+                  >
+                    Add images to this collection
+                  </button>
+                </div>
+              </div>
+
+              {activeCollectionItems.length>0 && (
+                <div className="pager">
+                  <div>Page {collPage} of {collTotalPages}</div>
+                  <div className="flexRow">
+                    <label className="smallMuted">
+                      Per page{' '}
+                      <select
+                        className="select"
+                        value={String(collectionPageSize)}
+                        onChange={e=>{
+                          const v = e.target.value === 'all' ? 'all' : Number(e.target.value);
+                          setCollectionPageSize(v);
+                          setCollectionPage(1);
+                        }}
+                      >
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="250">250</option>
+                        <option value="500">500</option>
+                        <option value="all">All</option>
+                      </select>
+                    </label>
+                    <button
+                      className="btn sm ghost"
+                      onClick={()=>setCollectionPage(p=>Math.max(1,p-1))}
+                      disabled={collPage<=1}
+                    >
+                      Prev
+                    </button>
+                    <button
+                      className="btn sm ghost"
+                      onClick={()=>setCollectionPage(p=>Math.min(collTotalPages,p+1))}
+                      disabled={collPage>=collTotalPages}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {activeCollectionItems.length===0 && (
+                <p className="hint">No images in this collection yet.</p>
+              )}
+
+              {activeCollectionItems.length>0 && collectionViewMode==='gallery' && (
+                <div className="galleryGrid" style={{marginTop:8}}>
+                  {collectionPageItems.map(it=>{
+                    const isSel = selectedIds.includes(it.id);
+                    return (
+                      <div
+                        key={it.id}
+                        className="galleryItem"
+                        onClick={()=>{
+                          if(selectionMode){
+                            toggleSelected(it.id);
+                          }else{
+                            openPreviewFor(it);
+                          }
+                        }}
+                      >
+<img
+  className="galleryImg"
+  src={it.thumbnail || it.fullUrl || it.dataUrl}
+  alt={it.title || 'Image'}
+/>
+
+                        <div className="galleryOverlay" />
+                        {renderBadges(it.id,'badgeRow-top-right')}
+                        <div className="galleryMeta">
+                          <div
+                            className="galleryCheckWrap"
+                            onClick={e=>{e.stopPropagation();toggleSelected(it.id);}}
+                          >
+                            <span className={'checkbox'+(isSel?' checked':'')}></span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {activeCollectionItems.length>0 && collectionViewMode==='cards' && (
+                <ul className="grid" style={{marginTop:8}}>
+                  {collectionPageItems.map(it=>(
+                    <li key={it.id} className="card">
+                      <div className="cardThumb" onClick={()=>openPreviewFor(it)}>
+                        <img
+  src={it.thumbnail || it.fullUrl || it.dataUrl}
+  alt={it.title || 'Image'}
+/>
+
+                        {renderBadges(it.id,'badgeRow-top-right')}
+                      </div>
+                      <div className="cardBody">
+                        <div className="fieldRow">
+                          <label>Title</label>
+                          <input
+                            value={it.title}
+                            onChange={e=>patchItem(it.id,{title:e.target.value})}
+                          />
+                        </div>
+                        <div className="fieldRow">
+                          <label>Collections</label>
+                          <input
+                            value={collectionsToString(it.collections)}
+                            onChange={e=>patchItem(it.id,{collections:normalizeCollections(e.target.value)})}
+                          />
+                        </div>
+                        <div className="fieldRow">
+                          <label>AI Generator</label>
+                          <input
+                            value={it.generator}
+                            onChange={e=>patchItem(it.id,{generator:e.target.value})}
+                          />
+                        </div>
+                        <div className="statLine">
+                          <span>W: {it.wins}</span>
+                          <span>L: {it.losses}</span>
+                          <span>Win%: {pct(it.wins,it.losses).toFixed(3)}</span>
+                          <span>Pts: {computePoints(it.wins,it.losses,it.tourneyBonus||0)}</span>
+                          <span>M: {matchupsCount(it)}</span>
+                        </div>
+                        <div className="toolbar" style={{marginTop:4}}>
+                          <button className="btn ghost sm" onClick={()=>startCropFor(it)}>Crop</button>
+                          <button className="btn danger sm" onClick={()=>removeItem(it.id)}>Delete</button>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+
+          {/* PREVIEW MODAL */}
+          {previewItem && (
+            <div className="modal" onClick={()=>setPreviewId(null)}>
+              <div className="modalInner" onClick={e=>e.stopPropagation()}>
+                <div className="previewImgWrap">
+<img
+  src={
+    previewSrc ||
+    previewItem.thumbnail ||
+    previewItem.fullUrl ||
+    previewItem.dataUrl
+  }
+  alt={previewItem.title || 'Image'}
+/>
+
+                  {renderBadges(previewItem.id,'badgeRow-top-right')}
+                </div>
+                <div className="modalFields">
+                  <div>
+                    <div>Title</div>
+                    <input
+                      value={previewItem.title}
+                      onChange={e=>patchItem(previewItem.id,{title:e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <div>Collections (comma-separated)</div>
+                    <input
+                      value={previewCollectionsText}
+                      onChange={e=>setPreviewCollectionsText(e.target.value)}
+                      onBlur={()=>{
+                        const arr = normalizeCollections(previewCollectionsText);
+                        patchItem(previewItem.id,{collections:arr});
+                        setPreviewCollectionsText(collectionsToString(arr));
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <div>AI Generator</div>
+                    <input
+                      value={previewItem.generator}
+                      onChange={e=>patchItem(previewItem.id,{generator:e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <div>Stats</div>
+                    <div className="smallMuted">
+                      W {previewItem.wins} • L {previewItem.losses} • M {matchupsCount(previewItem)}<br/>
+                      Win% {pct(previewItem.wins,previewItem.losses).toFixed(3)} • Points {computePoints(previewItem.wins,previewItem.losses,previewItem.tourneyBonus||0)}<br/>
+<div style={{whiteSpace:'pre-line'}}>
+  Added {formatAddedAt(previewItem.addedAt)}
+</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="modalFooter">
+                  <button className="btn ghost" onClick={()=>startCropFor(previewItem)}>Crop</button>
+                  <button
+                    className="btn danger"
+                    onClick={()=>{
+                      removeItem(previewItem.id);
+                      setPreviewId(null);
+                    }}
+                  >
+                    Delete
+                  </button>
+                  <button className="btn" onClick={()=>setPreviewId(null)}>Close</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* CROPPER MODAL */}
+          {cropper.crop && (
+            <div className="modal" onClick={()=>cropper.setCrop(null)}>
+              <div className="modalInner" onClick={e=>e.stopPropagation()}>
+                <canvas
+                  ref={cropper.ref}
+                  className="cropCanvas"
+                  onMouseDown={cropper.onPointerDown}
+                  onTouchStart={e=>{e.preventDefault();cropper.onPointerDown(e);}}
+                ></canvas>
+                <div className="cropHint">
+                  Drag inside the square to move. Drag corners to resize. Click Apply to save crop.
+                </div>
+                <div className="modalFooter">
+                  <button className="btn ghost" onClick={()=>cropper.setCrop(null)}>Cancel</button>
+                  <button className="btn" onClick={applyCrop}>Apply crop</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* BATCH EDIT MODAL */}
+          {batchOpen && (
+            <div className="modal" onClick={()=>setBatchOpen(false)}>
+              <div className="modalInner" onClick={e=>e.stopPropagation()}>
+                <h3 style={{margin:'4px 0 6px',fontSize:16}}>Batch edit ({selectedIds.length} images)</h3>
+                <p className="smallMuted">
+                  Collections are added (not cleared). Generator is overwritten only if you enter a value.
+                </p>
+                <div className="modalFields">
+                  <div>
+                    <div>Collections to add (comma-separated)</div>
+                    <input
+                      value={batchCollectionsText}
+                      onChange={e=>setBatchCollectionsText(e.target.value)}
+                      placeholder="e.g. teal, autumn, side-view"
+                    />
+                  </div>
+                  <div>
+                    <div>Set AI Generator (optional)</div>
+                    <input
+                      value={batchGenerator}
+                      onChange={e=>setBatchGenerator(e.target.value)}
+                      placeholder="e.g. Sora, Gemini, etc."
+                    />
+                  </div>
+                </div>
+                <div className="modalFooter">
+                  <button className="btn ghost" onClick={()=>setBatchOpen(false)}>Cancel</button>
+                  <button
+                    className="btn"
+                    onClick={()=>{
+                      const addCols = normalizeCollections(batchCollectionsText);
+                      const gen = batchGenerator.trim();
+                      setItems(prev=>{
+                        const next = prev.map(it=>{
+                          if(!selectedIds.includes(it.id)) return it;
+                          const updated = {...it};
+                          if(addCols.length){
+                            const set = new Set([...(updated.collections||[]),...addCols]);
+                            updated.collections = Array.from(set);
+                          }
+                          if(gen){
+                            updated.generator = gen;
+                          }
+                          idbPut(updated);
+                          return updated;
+                        });
+                        return next;
+                      });
+                      setBatchCollectionsText('');
+                      setBatchGenerator('');
+                      setBatchOpen(false);
+                    }}
+                  >
+                    Apply to selected
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+{/* --- CLEANUP / ORPHAN MODAL --- */}
+      {cleanupModalOpen && (
+        <div className="modal" onClick={()=>setCleanupModalOpen(false)}>
+          <div className="modalInner" onClick={e=>e.stopPropagation()}>
+            <h3 style={{margin:'4px 0 6px',fontSize:16}}>Sync Deletions (Cleanup)</h3>
+            
+            {!orphans && (
+              <>
+                <p className="smallMuted" style={{marginBottom:15}}>
+                  To remove images from Mobile that you already deleted on Desktop:<br/><br/>
+                  1. Export a <b>FULL</b> Metadata file from Desktop.<br/>
+                  2. Upload it here.<br/>
+                  3. We will identify any images here that are missing from that file.
+                </p>
+                <div style={{textAlign:'center', padding:20, border:'1px dashed #1b3a2f', borderRadius:8}}>
+<button
+  className="btn"
+  onClick={()=>{
+    if (cleanupFileRef.current) {
+      cleanupFileRef.current.click();
+    }
+  }}
+>
+  Select Desktop Metadata File
+</button>
+
+                  <input 
+                    type="file" 
+                    ref={cleanupFileRef} 
+                    style={{display:'none'}} 
+                    accept=".json"
+onChange={e => {
+  const files = e.target && e.target.files;
+  if (files && files[0]) {
+    analyzeForOrphans(files[0]);
+  }
+  e.target.value = '';
+}}
+
+                  />
+                </div>
+              </>
+            )}
+
+            {orphans && orphans.length === 0 && (
+              <div style={{textAlign:'center', padding:20}}>
+                <div style={{fontSize:30}}>✅</div>
+                <p>Your library is perfectly synced.<br/>No orphans found.</p>
+              </div>
+            )}
+
+            {orphans && orphans.length > 0 && (
+              <div>
+                <div style={{color:'#ff5f71', marginBottom:10}}>
+                  ⚠️ Found <b>{orphans.length}</b> images on this device that are NOT in your Desktop export.
+                </div>
+                <div style={{maxHeight:'40vh', overflowY:'auto', background:'rgba(0,0,0,0.3)', borderRadius:6, padding:8, marginBottom:10}}>
+                  {orphans.map(o => (
+                    <div key={o.id} style={{fontSize:12, borderBottom:'1px solid #1b3a2f', padding:'4px 0', display:'flex', justifyContent:'space-between'}}>
+                      <span>{o.title || 'Untitled'}</span>
+                      <span style={{opacity:0.5}}>{o.id.slice(0,8)}...</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="smallMuted">
+                  Clicking delete will remove these from this device only.
+                </p>
+              </div>
+            )}
+
+            <div className="modalFooter">
+              <button className="btn ghost" onClick={()=>setCleanupModalOpen(false)}>Close</button>
+              {orphans && orphans.length > 0 && (
+                <button className="btn danger" onClick={deleteOrphans}>
+                  Delete {orphans.length} Orphans
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* --- END CLEANUP / ORPHAN MODAL --- */}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+
+  </script>
+</body>
+</html>

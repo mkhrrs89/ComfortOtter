@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Title Twins – Duplicates</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="app-style.css">
+  <style>
+    .groupCard{
+      border:1px solid var(--borderSoft);
+      border-radius:16px;
+      padding:12px;
+      margin-bottom:16px;
+      background:rgba(15,23,42,.6);
+    }
+    .groupTitle{
+      font-size:15px;
+      font-weight:600;
+      margin-bottom:8px;
+      color:var(--text);
+    }
+    .imgRow{
+      display:flex;
+      flex-wrap:wrap;
+      gap:12px;
+    }
+    .imgCard{
+      width:90px;
+      border:1px solid var(--borderSoft);
+      border-radius:12px;
+      padding:6px;
+      background:rgba(15,23,42,.9);
+      cursor:pointer;
+      text-align:center;
+    }
+    .imgCard:hover{
+      background:rgba(30,64,175,.5);
+    }
+    .imgThumb{
+      width:100%;
+      height:80px;
+      object-fit:cover;
+      border-radius:8px;
+      margin-bottom:6px;
+    }
+    .imgMeta{
+      font-size:10px;
+      color:var(--muted);
+    }
+
+    /* Modal styles copied from main app so preview looks consistent */
+    .modal{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.78);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      z-index:1000;
+    }
+    .modalInner{
+      background:#050c0a;
+      border:1px solid var(--ring);
+      border-radius:12px;
+      max-width:96vw;
+      max-height:96vh;
+      padding:12px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      overflow-y:auto;
+    }
+    .previewImgWrap{
+      position:relative;
+      max-width:92vw;
+      max-height:70vh;
+      margin:0 auto;
+    }
+    .previewImgWrap img{
+      max-width:100%;
+      max-height:70vh;
+      display:block;
+      margin:0 auto;
+      border-radius:10px;
+    }
+    @media (max-width:700px){
+      .previewImgWrap,
+      .previewImgWrap img{
+        max-height:60vh;
+      }
+    }
+    .modalFields{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+      gap:8px;
+      font-size:12px;
+      color:var(--muted);
+    }
+    .modalFields input{
+      width:100%;
+      background:#050c0a;
+      border:1px solid var(--ring);
+      color:var(--text);
+      border-radius:8px;
+      padding:6px 7px;
+      font-size:13px;
+    }
+    .modalFooter{
+      display:flex;
+      justify-content:center;
+      gap:8px;
+      margin-top:8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Title Twins</h1>
+  <div class="subhead">Images that share the same exact title</div>
+
+  <div style="margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap;">
+    <a href="index.html" class="tab">← Back to Library</a>
+    <a href="sizes.html" class="tab">Image Sizes</a>
+    <a href="tourney.html" class="tab">Tournament</a>
+  </div>
+
+  <div id="summary" class="pill" style="margin-bottom:12px;"></div>
+
+  <div id="container"></div>
+
+<script>
+const DB_NAME = 'modelMatchupDB';
+const DB_STORE = 'items';
+
+function openDB(){
+  return new Promise((resolve,reject)=>{
+    const req = indexedDB.open(DB_NAME,1);
+    req.onupgradeneeded = ()=> {
+      const db = req.result;
+      if(!db.objectStoreNames.contains(DB_STORE)){
+        db.createObjectStore(DB_STORE,{keyPath:'id'});
+      }
+    };
+    req.onsuccess = ()=> resolve(req.result);
+    req.onerror = ()=> reject(req.error);
+  });
+}
+
+async function loadAll(){
+  const db = await openDB();
+  const tx = db.transaction(DB_STORE,'readonly');
+  const st = tx.objectStore(DB_STORE);
+  const all = [];
+  return await new Promise((resolve)=>{
+    const req = st.openCursor();
+    req.onsuccess = e=>{
+      const c = e.target.result;
+      if(!c){ resolve(all); return; }
+      all.push(c.value);
+      c.continue();
+    };
+  });
+}
+
+// ----- Helpers shared with main app -----
+const normalizeCollections = (str)=>{
+  if(!str) return [];
+  return Array.from(new Set(
+    String(str).split(',').map(s=>s.trim())
+  ));
+};
+const collectionsToString = arr => (arr && arr.length ? arr.join(', ') : '');
+
+// ----- In-memory cache + render pipeline -----
+let allItems = [];
+
+function buildAndRenderGroups(){
+  const map = new Map();
+  for(const it of allItems){
+    const t = (it.title || '').trim();
+    if(!map.has(t)) map.set(t, []);
+    map.get(t).push(it);
+  }
+
+  const groups = [];
+  for(const [title, arr] of map){
+    if(arr.length > 1){
+      groups.push({title, items: arr});
+    }
+  }
+
+  groups.sort((a,b)=> a.title.localeCompare(b.title));
+  render(groups);
+}
+
+async function patchItem(id, patch){
+  const idx = allItems.findIndex(it => it.id === id);
+  if(idx === -1) return;
+
+  const updated = Object.assign({}, allItems[idx], patch);
+  allItems[idx] = updated;
+
+  const db = await openDB();
+  await new Promise((resolve, reject)=>{
+    const tx = db.transaction(DB_STORE,'readwrite');
+    tx.objectStore(DB_STORE).put(updated);
+    tx.oncomplete = ()=>resolve();
+    tx.onerror = ()=>reject(tx.error);
+  });
+
+  buildAndRenderGroups();
+}
+
+async function deleteItem(id){
+  const db = await openDB();
+  await new Promise((resolve, reject)=>{
+    const tx = db.transaction(DB_STORE,'readwrite');
+    tx.objectStore(DB_STORE).delete(id);
+    tx.oncomplete = ()=>resolve();
+    tx.onerror = ()=>reject(tx.error);
+  });
+
+  allItems = allItems.filter(it => it.id !== id);
+  buildAndRenderGroups();
+}
+
+// ----- Preview modal -----
+function openPreview(item){
+  // remove any existing modal first
+  const existing = document.querySelector('.modal');
+  if(existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal';
+  overlay.onclick = ()=>overlay.remove();
+
+  const inner = document.createElement('div');
+  inner.className = 'modalInner';
+  inner.onclick = e=>e.stopPropagation();
+
+  const imgWrap = document.createElement('div');
+  imgWrap.className = 'previewImgWrap';
+  const img = document.createElement('img');
+  img.src = item.fullUrl || item.thumbnail || item.thumbDataUrl || item.dataUrl || '';
+  img.alt = item.title || 'Image';
+  imgWrap.appendChild(img);
+  inner.appendChild(imgWrap);
+
+  const fields = document.createElement('div');
+  fields.className = 'modalFields';
+
+  // Title field
+  const titleBlock = document.createElement('div');
+  const titleLabel = document.createElement('div');
+  titleLabel.textContent = 'Title';
+  const titleInput = document.createElement('input');
+  titleInput.value = item.title || '';
+  titleInput.addEventListener('blur', ()=>{
+    const val = titleInput.value.trim();
+    patchItem(item.id, { title: val });
+  });
+  titleBlock.appendChild(titleLabel);
+  titleBlock.appendChild(titleInput);
+  fields.appendChild(titleBlock);
+
+  // Collections field
+  const collBlock = document.createElement('div');
+  const collLabel = document.createElement('div');
+  collLabel.textContent = 'Collections';
+  const collInput = document.createElement('input');
+  collInput.value = collectionsToString(item.collections);
+  collInput.addEventListener('blur', ()=>{
+    const arr = normalizeCollections(collInput.value);
+    patchItem(item.id, { collections: arr });
+    collInput.value = collectionsToString(arr);
+  });
+  collBlock.appendChild(collLabel);
+  collBlock.appendChild(collInput);
+  fields.appendChild(collBlock);
+
+// Record (wins / losses / points)
+const recBlock = document.createElement('div');
+const recLabel = document.createElement('div');
+recLabel.textContent = 'Record';
+
+const recValue = document.createElement('div');
+recValue.style.color = 'var(--text)';
+recValue.style.fontSize = '13px';
+recValue.style.padding = '6px 0';
+
+const w = item.wins || 0;
+const l = item.losses || 0;
+const pts = (item.points || 0).toFixed(1);
+
+recValue.textContent = `${w} – ${l} (Points: ${pts})`;
+
+recBlock.appendChild(recLabel);
+recBlock.appendChild(recValue);
+fields.appendChild(recBlock);
+
+// Date Added
+const dateBlock = document.createElement('div');
+const dateLabel = document.createElement('div');
+dateLabel.textContent = 'Date Added';
+
+const dateValue = document.createElement('div');
+dateValue.style.color = 'var(--text)';
+dateValue.style.fontSize = '13px';
+dateValue.style.padding = '6px 0';
+
+const d = item.createdAt ? new Date(item.createdAt) : null;
+dateValue.textContent = d ? d.toLocaleString() : 'Unknown';
+
+dateBlock.appendChild(dateLabel);
+dateBlock.appendChild(dateValue);
+fields.appendChild(dateBlock);
+
+
+  inner.appendChild(fields);
+
+  const footer = document.createElement('div');
+  footer.className = 'modalFooter';
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'btn danger';
+  deleteBtn.textContent = 'Delete';
+  deleteBtn.onclick = async ()=>{
+    if(!confirm('Delete this image? This cannot be undone unless you have an export.')) return;
+    await deleteItem(item.id);
+    overlay.remove();
+  };
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'btn';
+  closeBtn.textContent = 'Close';
+  closeBtn.onclick = ()=>overlay.remove();
+
+  footer.appendChild(deleteBtn);
+  footer.appendChild(closeBtn);
+  inner.appendChild(footer);
+
+  overlay.appendChild(inner);
+  document.body.appendChild(overlay);
+}
+
+function render(groups){
+  const container = document.getElementById('container');
+  container.innerHTML='';
+
+  const titleCount = groups.length;
+  const imgCount = groups.reduce((a,g)=>a+g.items.length,0);
+
+  document.getElementById('summary').textContent =
+    `${titleCount} titles • ${imgCount} images with duplicates`;
+
+  for(const g of groups){
+    const card = document.createElement('div');
+    card.className='groupCard';
+
+    const title = document.createElement('div');
+    title.className='groupTitle';
+    title.textContent = g.title || '(Untitled)';
+    card.appendChild(title);
+
+    const row = document.createElement('div');
+    row.className='imgRow';
+
+    for (const it of g.items) {
+      const div = document.createElement('div');
+      div.className = 'imgCard';
+      div.onclick = () => openPreview(it);
+
+      const img = document.createElement('img');
+      img.className = 'imgThumb';
+      img.src =
+        it.thumbnail ||
+        it.thumbDataUrl ||
+        it.fullUrl ||
+        it.dataUrl ||
+        '';
+
+      div.appendChild(img);
+
+      const meta = document.createElement('div');
+      meta.className = 'imgMeta';
+      meta.textContent = `ID: ${it.id.slice(0, 6)}…`;
+      div.appendChild(meta);
+
+      row.appendChild(div);
+    }
+
+    card.appendChild(row);
+    container.appendChild(card);
+  }
+}
+
+async function init(){
+  allItems = await loadAll();
+  buildAndRenderGroups();
+}
+
+init();
+</script>
+</body>
+</html>

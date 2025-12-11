@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ModelMatchup DB Reset</title>
+  <style>
+    body {
+      background:#020807;
+      color:#e7f5ef;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding:24px;
+    }
+    button {
+      padding:12px 18px;
+      border-radius:999px;
+      border:none;
+      font-size:16px;
+      cursor:pointer;
+      background:linear-gradient(135deg,#0cb39d,#35e5c2);
+      color:#020807;
+      font-weight:600;
+    }
+    .log {
+      margin-top:16px;
+      white-space:pre-wrap;
+      font-size:14px;
+      color:#8fb0a1;
+    }
+  </style>
+</head>
+<body>
+  <h1>ModelMatchup DB Reset</h1>
+  <p>
+    This page deletes the <code>modelMatchupDB</code> IndexedDB database for this site.
+    Use it if your app is crashing on startup.
+  </p>
+  <button id="wipeBtn">Delete IndexedDB</button>
+  <div class="log" id="log"></div>
+
+  <script>
+    const DB_NAME = 'modelMatchupDB';
+    const logEl = document.getElementById('log');
+    const btn   = document.getElementById('wipeBtn');
+
+    function log(msg) {
+      logEl.textContent += msg + "\\n";
+    }
+
+    btn.addEventListener('click', async () => {
+      if (!confirm('Delete the IndexedDB database "'+DB_NAME+'"? This only affects this device.')) return;
+
+      try {
+        const req = indexedDB.deleteDatabase(DB_NAME);
+        req.onsuccess = () => log('✅ Database deleted successfully.');
+        req.onerror   = () => log('❌ Error deleting database: ' + (req.error && req.error.message));
+        req.onblocked = () => log('⚠️ Delete blocked. Close other tabs/apps using this site and try again.');
+      } catch (e) {
+        log('❌ Exception while deleting DB: ' + e.message);
+      }
+    });
+  </script>
+</body>
+</html>

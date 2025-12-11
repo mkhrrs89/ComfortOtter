@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Comforting Otter – Image Sizes</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<link rel="stylesheet" href="app-style.css">
+
+</head>
+<body>
+  <header style="margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+      <div>
+        <h1>Image Size Inspector</h1>
+        <div class="subhead">
+          Quickly see which images are bloating your exports.<br/>
+          Reads from the same IndexedDB as Comforting Otter (no uploads needed).
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+        <a href="index.html" class="btnGhost">← Back to main app</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="card">
+    <div class="topRow">
+      <div class="statRow">
+        <span class="pill">
+          <strong id="total-count">0</strong> images
+        </span>
+        <span class="pill">
+          Total size: <strong id="total-size">—</strong>
+        </span>
+        <span class="pill">
+          Largest: <strong id="max-size">—</strong>
+        </span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button id="reload-btn" class="btn">
+          ⟳ Reload sizes
+        </button>
+      </div>
+    </div>
+
+    <div id="status" class="loading">Opening database…</div>
+    <div id="error" class="errorText" style="display:none;"></div>
+
+    <div style="max-height:65vh;overflow:auto;margin-top:6px;">
+      <table id="sizes-table" style="display:none;">
+        <thead>
+          <tr>
+            <th class="thumbCell">Image</th>
+            <th class="sortable" data-sort="title">
+              Title<span class="sortIcon" id="sort-title">⇅</span>
+            </th>
+            <th class="sortable" data-sort="size">
+              Size<span class="sortIcon" id="sort-size">⇅</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody id="sizes-tbody">
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pager" id="pager" style="display:none;">
+      <div>
+        Showing <span id="page-range">0–0</span> of <span id="total-count-2">0</span>
+      </div>
+      <div class="pagerBtns">
+        <button class="btn" id="prev-page">Prev</button>
+        <button class="btn" id="next-page">Next</button>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const DB_NAME = 'modelMatchupDB';
+    const DB_STORE = 'items';
+
+    const PAGE_SIZE = 50;
+
+    let allRows = [];
+    let sortField = 'size';   // 'size' | 'title'
+    let sortDir = 'desc';     // 'asc' | 'desc'
+    let currentPage = 1;
+
+    function openDB(){
+      return new Promise((resolve,reject)=>{
+        const req = indexedDB.open(DB_NAME,1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if(!db.objectStoreNames.contains(DB_STORE)){
+            db.createObjectStore(DB_STORE,{keyPath:'id'});
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    // Estimate byte size from data URL
+    function approxBytesFromBase64(dataUrl){
+      if(!dataUrl || typeof dataUrl !== 'string') return null;
+      const commaIdx = dataUrl.indexOf(',');
+      const base64 = commaIdx >= 0 ? dataUrl.slice(commaIdx+1) : dataUrl;
+      const len = base64.length;
+      if(!len) return null;
+      return Math.floor(len * 3 / 4);
+    }
+
+    function formatBytes(bytes){
+      if(bytes == null || isNaN(bytes)) return '—';
+      if(bytes <= 0) return '0 B';
+      const mb = bytes / (1024*1024);
+      if(mb >= 1) return mb.toFixed(2) + ' MB';
+      const kb = bytes / 1024;
+      if(kb >= 1) return kb.toFixed(1) + ' KB';
+      return bytes + ' B';
+    }
+
+    async function loadSizeRows(){
+      const statusEl = document.getElementById('status');
+      const errorEl = document.getElementById('error');
+      statusEl.textContent = 'Scanning images…';
+      errorEl.style.display = 'none';
+      errorEl.textContent = '';
+
+      try{
+        const db = await openDB();
+        const tx = db.transaction(DB_STORE,'readonly');
+        const store = tx.objectStore(DB_STORE);
+
+        const rows = [];
+
+        return await new Promise((resolve,reject)=>{
+          const req = store.openCursor();
+          req.onsuccess = (e)=>{
+            const cursor = e.target.result;
+            if(!cursor){
+              resolve(rows);
+              return;
+            }
+            const v = cursor.value || {};
+            const thumb = v.thumbnail || v.thumbDataUrl || null;
+
+            let sizeBytes = null;
+            if(v.dataUrl){
+              sizeBytes = approxBytesFromBase64(v.dataUrl);
+            } else if(thumb){
+              // fallback to thumbnail size if no full image stored
+              sizeBytes = approxBytesFromBase64(thumb);
+            }
+
+            rows.push({
+              id: v.id,
+              title: v.title || '',
+              thumb,
+              sizeBytes
+            });
+
+            cursor.continue();
+          };
+          req.onerror = ()=>{
+            reject(req.error);
+          };
+        });
+      }catch(err){
+        errorEl.style.display = 'block';
+        errorEl.textContent = 'Failed to read from IndexedDB: ' + (err && err.message ? err.message : err);
+        throw err;
+      }finally{
+        statusEl.textContent = '';
+      }
+    }
+
+    function recomputeSummary(){
+      const totalCount = allRows.length;
+      let totalBytes = 0;
+      let maxBytes = 0;
+
+      for(const r of allRows){
+        if(r.sizeBytes != null){
+          totalBytes += r.sizeBytes;
+          if(r.sizeBytes > maxBytes) maxBytes = r.sizeBytes;
+        }
+      }
+
+      document.getElementById('total-count').textContent = totalCount;
+      document.getElementById('total-count-2').textContent = totalCount;
+      document.getElementById('total-size').textContent = totalBytes ? formatBytes(totalBytes) : '—';
+      document.getElementById('max-size').textContent = maxBytes ? formatBytes(maxBytes) : '—';
+    }
+
+    function sortRows(){
+      const dir = sortDir === 'asc' ? 1 : -1;
+      allRows.sort((a,b)=>{
+        if(sortField === 'title'){
+          return a.title.localeCompare(b.title) * dir;
+        }else if(sortField === 'size'){
+          const as = a.sizeBytes ?? 0;
+          const bs = b.sizeBytes ?? 0;
+          if(as === bs) return 0;
+          return as > bs ? dir : -dir;
+        }
+        return 0;
+      });
+
+      document.getElementById('sort-title').textContent =
+        sortField === 'title' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅';
+      document.getElementById('sort-size').textContent =
+        sortField === 'size' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅';
+    }
+
+    function renderPage(){
+      const tbody = document.getElementById('sizes-tbody');
+      const table = document.getElementById('sizes-table');
+      const pager = document.getElementById('pager');
+      tbody.innerHTML = '';
+
+      if(!allRows.length){
+        table.style.display = 'none';
+        pager.style.display = 'none';
+        document.getElementById('status').textContent = 'No images found in this database.';
+        return;
+      }
+
+      table.style.display = '';
+      pager.style.display = '';
+
+      const totalPages = Math.max(1, Math.ceil(allRows.length / PAGE_SIZE));
+      if(currentPage > totalPages) currentPage = totalPages;
+      if(currentPage < 1) currentPage = 1;
+
+      const start = (currentPage - 1) * PAGE_SIZE;
+      const end = Math.min(start + PAGE_SIZE, allRows.length);
+      const slice = allRows.slice(start, end);
+
+      for(const row of slice){
+        const tr = document.createElement('tr');
+
+        const tdImg = document.createElement('td');
+        tdImg.className = 'thumbCell';
+        if(row.thumb){
+          const wrap = document.createElement('div');
+          wrap.className = 'thumbWrap';
+          const img = document.createElement('img');
+          img.src = row.thumb;
+          img.alt = row.title || 'Image';
+          wrap.appendChild(img);
+          tdImg.appendChild(wrap);
+        }else{
+          const span = document.createElement('span');
+          span.className = 'muted';
+          span.textContent = 'No image';
+          tdImg.appendChild(span);
+        }
+        tr.appendChild(tdImg);
+
+        const tdTitle = document.createElement('td');
+        tdTitle.className = 'titleCell';
+        tdTitle.textContent = row.title || '(Untitled)';
+        tr.appendChild(tdTitle);
+
+        const tdSize = document.createElement('td');
+        tdSize.className = 'sizeCell';
+        tdSize.textContent = row.sizeBytes != null ? formatBytes(row.sizeBytes) : '…';
+        tr.appendChild(tdSize);
+
+        tbody.appendChild(tr);
+      }
+
+      document.getElementById('page-range').textContent =
+        `${start + 1}–${end}`;
+    }
+
+    async function refresh(){
+      document.getElementById('status').textContent = 'Scanning images…';
+      document.getElementById('sizes-tbody').innerHTML = '';
+      document.getElementById('sizes-table').style.display = 'none';
+      document.getElementById('pager').style.display = 'none';
+
+      allRows = await loadSizeRows();
+      recomputeSummary();
+      sortRows();
+      currentPage = 1;
+      renderPage();
+      document.getElementById('status').textContent = '';
+    }
+
+    // Wire up UI events
+    document.addEventListener('DOMContentLoaded', ()=>{
+      document.getElementById('reload-btn').addEventListener('click', ()=>{
+        refresh();
+      });
+
+      document.querySelectorAll('th.sortable').forEach(th=>{
+        th.addEventListener('click', ()=>{
+          const field = th.getAttribute('data-sort');
+          if(field === sortField){
+            sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+          }else{
+            sortField = field;
+            sortDir = field === 'size' ? 'desc' : 'asc';
+          }
+          sortRows();
+          renderPage();
+        });
+      });
+
+      document.getElementById('prev-page').addEventListener('click', ()=>{
+        if(currentPage > 1){
+          currentPage--;
+          renderPage();
+        }
+      });
+      document.getElementById('next-page').addEventListener('click', ()=>{
+        const totalPages = Math.max(1, Math.ceil(allRows.length / PAGE_SIZE));
+        if(currentPage < totalPages){
+          currentPage++;
+          renderPage();
+        }
+      });
+
+      // initial load
+      refresh();
+    });
+  </script>
+</body>
+</html>

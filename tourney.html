@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ModelMatchup — Tournament Mode</title>
+  <meta name="theme-color" content="#050c0a" />
+  <style>
+    :root{
+      --bg:#050c0a;
+      --panel:#091612;
+      --panel-soft:#0e1f1a;
+      --muted:#8fb0a1;
+      --text:#e7f5ef;
+      --accent:#1f9d73;
+      --accent-soft:#153e30;
+      --danger:#ff5f71;
+      --ghost:#182621;
+      --ring:#1b3a2f;
+      --card:#07100d;
+      --border-soft:#123427;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background:radial-gradient(circle at top,#103828 0,#050c0a 55%);
+      color:var(--text);
+      font:14px/1.4 system-ui,Segoe UI,Roboto,Arial,sans-serif;
+    }
+    .app{
+      max-width:1180px;
+      margin:0 auto;
+      padding:16px 20px 40px;
+    }
+    .header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      margin-bottom:10px;
+    }
+    h1{
+      font-size:22px;
+      margin:0;
+      letter-spacing:0.03em;
+    }
+    .tabs{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .tab{
+      background:var(--panel);
+      color:var(--text);
+      border:1px solid var(--ring);
+      padding:7px 11px;
+      border-radius:999px;
+      cursor:pointer;
+      font-size:13px;
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .tab.active{
+      outline:2px solid var(--accent);
+      background:linear-gradient(135deg,#1f9d73,#157457);
+    }
+    .pane{
+      background:var(--panel);
+      border:1px solid var(--ring);
+      border-radius:14px;
+      padding:14px;
+      margin-bottom:14px;
+    }
+    .btn{
+      background:var(--accent);
+      color:white;
+      border:none;
+      padding:7px 11px;
+      border-radius:10px;
+      cursor:pointer;
+      font-size:13px;
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn.sm{padding:5px 9px;font-size:12px}
+    .btn.ghost{background:var(--ghost);}
+    .btn.danger{background:var(--danger);}
+    .btn[disabled]{opacity:0.5;cursor:default;}
+    .toolbar{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      align-items:center;
+      justify-content:space-between;
+      margin-bottom:8px;
+    }
+    .smallMuted{
+      font-size:11px;
+      color:var(--muted);
+    }
+    .hint{color:var(--muted);padding:8px 0;font-size:13px}
+    .pill{
+      border-radius:999px;
+      padding:2px 7px;
+      font-size:11px;
+      background:var(--accent-soft);
+      border:1px solid var(--ring);
+      color:#c5f4dc;
+    }
+    /* Match layout */
+    .arena{
+      display:grid;
+      grid-template-columns:1fr auto 1fr;
+      align-items:center;
+      gap:12px;
+      margin:10px 0 6px;
+    }
+    .imageCard{
+      position:relative;
+      border:1px solid var(--ring);
+      border-radius:14px;
+      overflow:hidden;
+      cursor:pointer;
+      background:#000;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:4px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .imageCardBtn{
+      border:none;
+      background:none;
+      padding:0;
+      margin:0;
+      display:block;
+      width:100%;
+      cursor:pointer;
+    }
+    .imageCard img{
+      width:100%;
+      height:64vh;
+      max-height:520px;
+      object-fit:contain;
+      background:#000;
+      display:block;
+    }
+    .vs{
+      font-weight:700;
+      opacity:0.8;
+      font-size:16px;
+    }
+    .matchMetaRow{
+      display:grid;
+      grid-template-columns:1fr auto 1fr;
+      gap:12px;
+      align-items:flex-start;
+      margin-bottom:6px;
+      font-size:13px;
+    }
+    .matchMetaBox{
+      background:var(--panel-soft);
+      border-radius:10px;
+      padding:6px 8px;
+      border:1px solid var(--ring);
+      display:flex;
+      flex-direction:column;
+      gap:3px;
+    }
+    .matchMetaTitle{
+      font-size:11px;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:0.06em;
+    }
+    .matchMetaStats{
+      font-size:13px;
+    }
+    .matchFooter{
+      display:flex;
+      justify-content:center;
+      gap:8px;
+      margin-top:4px;
+    }
+    .badge{
+      border-radius:999px;
+      padding:2px 5px;
+      font-size:11px;
+      line-height:1.1;
+      background:rgba(0,0,0,0.7);
+      border:1px solid rgba(255,255,255,0.18);
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .badge.gold{
+      background:linear-gradient(135deg,#fce38a,#f5a623);
+      border-color:#f8d35a;
+      color:#251a03;
+    }
+
+    /* Bracket */
+    .tBracketWrapper{
+      margin-top:14px;
+      border-top:1px solid var(--ring);
+      padding-top:10px;
+    }
+    .tBracket{
+      display:flex;
+      gap:10px;
+      overflow-x:auto;
+      padding-bottom:4px;
+    }
+    .tRoundCol{
+      min-width:150px;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .tRoundTitle{
+      font-size:12px;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:0.08em;
+      margin-bottom:2px;
+    }
+    .tMatchPair{
+      background:var(--panel-soft);
+      border-radius:8px;
+      border:1px solid var(--ring);
+      padding:4px 6px;
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+      font-size:12px;
+    }
+    .tSlot{
+      padding:2px 4px;
+      border-radius:4px;
+      background:rgba(0,0,0,0.3);
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .tSlot.tWinner{
+      background:rgba(31,157,115,0.35);
+      border:1px solid var(--accent);
+    }
+    .champCard{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) minmax(0,2fr);
+      gap:12px;
+      align-items:center;
+      margin-top:8px;
+    }
+    .champImgWrap{
+      border-radius:12px;
+      border:1px solid var(--ring);
+      background:#000;
+      overflow:hidden;
+    }
+    .champImgWrap img{
+      width:100%;
+      height:auto;
+      display:block;
+      object-fit:contain;
+    }
+    .champMetaTitle{
+      font-size:14px;
+      font-weight:600;
+      margin-bottom:4px;
+    }
+    .champMetaLine{
+      font-size:12px;
+      color:var(--muted);
+      margin-bottom:2px;
+    }
+    @media (max-width:800px){
+      .champCard{
+        grid-template-columns:1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1>ModelMatchup — Tournament</h1>
+      <nav class="tabs">
+        <a href="index.html" class="tab">← Back to main app</a>
+      </nav>
+    </header>
+
+    <section class="pane">
+      <div class="toolbar">
+        <div>
+          <span id="tStatus" class="smallMuted"></span>
+        </div>
+        <div id="tControls">
+          <!-- buttons injected by JS -->
+        </div>
+      </div>
+
+      <div id="tHint" class="hint"></div>
+
+      <div id="tMatch">
+        <!-- current matchup injected -->
+      </div>
+
+      <div id="tBracket" class="tBracketWrapper">
+        <!-- bracket injected -->
+      </div>
+    </section>
+  </div>
+
+  <script>
+
+function getDisplaySrc(item){
+  if (!item) return "";
+  return (
+    item.fullUrl ||
+    item.dataUrl ||
+    item.thumbnail ||
+    item.thumbDataUrl ||
+    ""
+  );
+}
+
+
+function preloadImage(src){
+  if (!src) return;
+  const img = new Image();
+  img.src = src;
+}
+
+
+    // Helper: bind tap for buttons (not images)
+    function addTap(el, handler){
+      if(!el) return;
+      let locked = false;
+      const wrapped = (ev)=>{
+        ev.preventDefault();
+        ev.stopPropagation();
+        if(locked) return;
+        locked = true;
+        try{ handler(); } finally {
+          setTimeout(()=>{ locked = false; }, 150);
+        }
+      };
+      el.addEventListener('click', wrapped);
+      el.addEventListener('touchstart', wrapped, {passive:false});
+    }
+
+    // === MAIN ITEMS DB (same as index.html) ===
+    const DB_NAME = 'modelMatchupDB';
+    const DB_STORE = 'items';
+
+    // === TOURNAMENT STATE DB ===
+    const TOURNEY_DB_NAME = 'modelMatchupTourneyDB';
+    const TOURNEY_STORE = 'tourneyState_256';
+    const TOURNEY_STATE_ID = 'tourneyState_256';
+
+    function openItemsDB(){
+      return new Promise((resolve,reject)=>{
+        const req = indexedDB.open(DB_NAME,1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if(!db.objectStoreNames.contains(DB_STORE)){
+            db.createObjectStore(DB_STORE,{keyPath:'id'});
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    function openTourneyDB(){
+      return new Promise((resolve,reject)=>{
+        const req = indexedDB.open(TOURNEY_DB_NAME,1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if(!db.objectStoreNames.contains(TOURNEY_STORE)){
+            db.createObjectStore(TOURNEY_STORE,{keyPath:'id'});
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function idbGetAllItems(){
+      const db = await openItemsDB();
+      return new Promise((res,rej)=>{
+        const tx = db.transaction(DB_STORE,'readonly');
+        const st = tx.objectStore(DB_STORE);
+        const out = [];
+        const cur = st.openCursor();
+        cur.onsuccess = e=>{
+          const c = e.target.result;
+          if(c){ out.push(c.value); c.continue(); }
+          else res(out);
+        };
+        cur.onerror = ()=>rej(cur.error);
+      });
+    }
+
+    async function idbPutItem(item){
+      const db = await openItemsDB();
+      return new Promise((res,rej)=>{
+        const tx = db.transaction(DB_STORE,'readwrite');
+        tx.objectStore(DB_STORE).put(item);
+        tx.oncomplete = ()=>res();
+        tx.onerror = ()=>rej(tx.error);
+      });
+    }
+
+    async function loadTourneyState(){
+      const db = await openTourneyDB();
+      return new Promise((res,rej)=>{
+        const tx = db.transaction(TOURNEY_STORE,'readonly');
+        const st = tx.objectStore(TOURNEY_STORE);
+        const req = st.get(TOURNEY_STATE_ID);
+        req.onsuccess = ()=>res(req.result || null);
+        req.onerror = ()=>rej(req.error);
+      });
+    }
+
+    async function saveTourneyState(state){
+      const db = await openTourneyDB();
+      return new Promise((res,rej)=>{
+        const tx = db.transaction(TOURNEY_STORE,'readwrite');
+        const st = tx.objectStore(TOURNEY_STORE);
+        st.put({...state,id:TOURNEY_STATE_ID});
+        tx.oncomplete = ()=>res();
+        tx.onerror = ()=>rej(tx.error);
+      });
+    }
+
+    async function clearTourneyState(){
+      const db = await openTourneyDB();
+      return new Promise((res,rej)=>{
+        const tx = db.transaction(TOURNEY_STORE,'readwrite');
+        const st = tx.objectStore(TOURNEY_STORE);
+        st.delete(TOURNEY_STATE_ID);
+        tx.oncomplete = ()=>res();
+        tx.onerror = ()=>rej(tx.error);
+      });
+    }
+
+    function pct(w,l){
+      const t = (w||0)+(l||0);
+      return t===0 ? 0 : (w||0)/t;
+    }
+    function matchupsCount(it){
+      return (it.wins||0)+(it.losses||0);
+    }
+    function computePoints(w,l,tourneyBonus){
+      const W = w||0;
+      const L = l||0;
+      const B = tourneyBonus||0;
+      let pts = W*2 - L + B;
+      if(W>0 && L===0) pts += 5;
+      return pts;
+    }
+
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, s=>{
+    switch(s){
+      case '&': return '&amp;';
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '"': return '&quot;';
+      case "'": return '&#39;';
+      default: return s;
+    }
+  });
+}
+
+    const statusEl = document.getElementById('tStatus');
+    const controlsEl = document.getElementById('tControls');
+    const hintEl = document.getElementById('tHint');
+    const matchEl = document.getElementById('tMatch');
+    const bracketEl = document.getElementById('tBracket');
+
+let items = [];
+let itemsById = new Map();
+let tourneyState = null;
+let isProcessing = false;
+let currentPool = '__ALL__'; // "__ALL__" means use all images
+
+    function roundLabel(size){
+      if(size === 2) return 'Championship';
+      if(size === 4) return 'Final 4';
+      if(size === 8) return 'Elite 8';
+      if(size === 16) return 'Sweet 16';
+      return 'Round of '+size;
+    }
+
+    function getEntrantsForRound(size,state){
+      if(!state) return [];
+      if(size === state.initialSize){
+        return state.participantIds || [];
+      }
+      const prevSize = size*2;
+      const winners = (state.bracketProgress && state.bracketProgress[String(prevSize)]) || [];
+      return winners;
+    }
+
+    function shortLabelForId(id){
+      const it = itemsById.get(id);
+      if(!it) return '(deleted)';
+      if(it.title) return it.title;
+      return id.slice(0,8);
+    }
+
+    function formatDate(dIso){
+      if(!dIso) return '';
+      try{
+        const d = new Date(dIso);
+        return d.toLocaleString();
+      }catch(e){
+        return dIso;
+      }
+    }
+
+    async function initTournamentPage(){
+      try{
+        items = await idbGetAllItems();
+        itemsById = new Map(items.map(it=>[it.id, it]));
+        tourneyState = await loadTourneyState();
+      }catch(e){
+        console.error(e);
+      }
+      renderAll();
+    }
+
+    function isTourneyStateValid(state){
+      if(!state) return false;
+      if(!Array.isArray(state.participantIds) || state.participantIds.length < 2) return false;
+      for(const id of state.participantIds){
+        if(!itemsById.has(id)) return false;
+      }
+      return true;
+    }
+
+    function renderAll(){
+      controlsEl.innerHTML = '';
+      matchEl.innerHTML = '';
+      bracketEl.innerHTML = '';
+      hintEl.textContent = '';
+
+      const totalImgs = items.length;
+
+      if(!totalImgs){
+        statusEl.textContent = 'No images found. Add images in the main app to run a tournament.';
+        controlsEl.innerHTML = '<button class="btn" id="tBackBtn">Go to main app</button>';
+        const backBtn = document.getElementById('tBackBtn');
+        if(backBtn) addTap(backBtn, ()=>{ window.location.href = 'index.html'; });
+        return;
+      }
+
+      if(!isTourneyStateValid(tourneyState)){
+        tourneyState = null;
+      }
+
+if(!tourneyState){
+  statusEl.textContent = 'No active tournament.';
+
+  hintEl.textContent =
+    'Tournament uses up to 256 random images from the selected pool in a single-elimination bracket.';
+
+  // Build collection counts so we know which pools qualify (>=256 images)
+  const collCounts = {};
+  for(const it of items){
+    if(Array.isArray(it.collections)){
+      for(const c of it.collections){
+        if(!c) continue;
+        collCounts[c] = (collCounts[c] || 0) + 1;
+      }
+    }
+  }
+
+  const eligibleCollections = Object.entries(collCounts)
+    .filter(([name,count]) => count >= 256)
+    .sort((a,b) => a[0].localeCompare(b[0]));
+
+  // Build the dropdown + button (layout B: Pool [select]   Start button)
+  let poolSelectHtml = '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">';
+  poolSelectHtml += '<span class="smallMuted">Pool:</span>';
+  poolSelectHtml += '<select id="tPoolSelect" style="font-size:13px;padding:4px 6px;border-radius:8px;border:1px solid var(--ring);background:var(--ghost);color:var(--text);">';
+
+  // "All images" option
+  poolSelectHtml += '<option value="__ALL__"'+(currentPool==='__ALL__'?' selected':'')+'>All images</option>';
+
+  // One option per eligible collection
+  for(const [name,count] of eligibleCollections){
+    const sel = (currentPool === name) ? ' selected' : '';
+    poolSelectHtml += '<option value="'+escapeHtml(name)+'"'+sel+'>'+
+      escapeHtml(name)+' ('+count+')</option>';
+  }
+
+  poolSelectHtml += '</select>';
+  poolSelectHtml += '</div>';
+
+  controlsEl.innerHTML =
+    poolSelectHtml +
+    '<button class="btn" id="tStartBtn">Start new tournament</button>';
+
+  const poolSelect = document.getElementById('tPoolSelect');
+  if(poolSelect){
+    poolSelect.addEventListener('change', (e)=>{
+      const val = e.target.value || '__ALL__';
+      currentPool = val;
+    });
+  }
+
+  const btn = document.getElementById('tStartBtn');
+  if(btn) addTap(btn, startNewTournament);
+
+  return;
+}
+
+
+const s = tourneyState;
+const initialSize = s.initialSize;
+const size = s.currentRoundSize;
+const matchIndex = s.currentMatchIndex;
+const totalMatchesThisRound = size/2;
+
+let poolLabel = '';
+if(s.pool && s.pool !== '__ALL__'){
+  poolLabel = ' • Pool: '+s.pool;
+}
+
+const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
+
+
+      const hasHistory = Array.isArray(s.matchHistory) && s.matchHistory.length > 0;
+
+      if(s.completed){
+        const champ = itemsById.get(s.championId);
+        statusEl.textContent = 'Tournament complete.';
+        hintEl.textContent = fieldInfo;
+
+        controlsEl.innerHTML =
+          (hasHistory ? '<button class="btn" id="tUndoBtn">Undo last result</button> ' : '') +
+          '<button class="btn" id="tNewBtn">Start new tournament</button>' +
+          ' <button class="btn ghost" id="tResetBtn">Reset / clear</button>';
+        const newBtn = document.getElementById('tNewBtn');
+        const resetBtn = document.getElementById('tResetBtn');
+        const undoBtn = document.getElementById('tUndoBtn');
+        if(newBtn) addTap(newBtn, startNewTournament);
+        if(resetBtn) addTap(resetBtn, resetTournament);
+        if(undoBtn) addTap(undoBtn, undoLastResult);
+
+        if(!champ){
+          matchEl.innerHTML = '<div class="hint">Champion image could not be found (may have been deleted).</div>';
+        }else{
+          const m = matchupsCount(champ);
+          const pts = computePoints(champ.wins,champ.losses,champ.tourneyBonus||0);
+          const winPct = pct(champ.wins,champ.losses);
+
+          matchEl.innerHTML =
+            '<div class="champCard">' +
+'<div class="champImgWrap">' +
+  '<img src="'+(champ.thumbnail || champ.thumbDataUrl || champ.fullUrl || champ.dataUrl || '')+'" alt="Champion" />' +
+'</div>' +
+
+              '<div>' +
+                '<div class="champMetaTitle">🏆 Tournament Champion</div>' +
+                '<div class="champMetaLine">'+(champ.title || 'Untitled image')+'</div>' +
+                '<div class="champMetaLine">W '+champ.wins+' • L '+champ.losses+' • M '+m+'</div>' +
+                '<div class="champMetaLine">Win% '+winPct.toFixed(3)+' • Points '+pts+'</div>' +
+                '<div class="champMetaLine">Tournament bonus: '+(champ.tourneyBonus||0)+'</div>' +
+                '<div class="champMetaLine">Started: '+formatDate(s.createdAt)+'</div>' +
+              '</div>' +
+            '</div>';
+        }
+
+        renderBracket();
+        return;
+      }
+
+      const entrants = getEntrantsForRound(size,s);
+      const currentMatch = matchIndex + 1;
+
+      statusEl.textContent =
+        roundLabel(size) + ' • Match ' + currentMatch + ' of ' + totalMatchesThisRound;
+      hintEl.textContent = fieldInfo;
+
+      controlsEl.innerHTML =
+        (hasHistory ? '<button class="btn" id="tUndoBtn">Undo last result</button> ' : '') +
+        '<button class="btn" id="tNewBtn">New tournament</button>' +
+        ' <button class="btn ghost" id="tResetBtn">Reset / clear</button>';
+      const newBtn = document.getElementById('tNewBtn');
+      const resetBtn = document.getElementById('tResetBtn');
+      const undoBtn = document.getElementById('tUndoBtn');
+      if(newBtn) addTap(newBtn, startNewTournament);
+      if(resetBtn) addTap(resetBtn, resetTournament);
+      if(undoBtn) addTap(undoBtn, undoLastResult);
+
+      if(entrants.length < size){
+        matchEl.innerHTML =
+          '<div class="hint">Bracket data is inconsistent. You may need to reset the tournament.</div>';
+        renderBracket();
+        return;
+      }
+
+      const idxA = matchIndex * 2;
+      const idxB = idxA + 1;
+      const idA = entrants[idxA];
+      const idB = entrants[idxB];
+      const left = itemsById.get(idA);
+      const right = itemsById.get(idB);
+
+      if(!left || !right){
+        matchEl.innerHTML =
+          '<div class="hint">One or more images are missing. You may need to reset the tournament.</div>';
+        renderBracket();
+        return;
+      }
+
+      const leftPts = computePoints(left.wins,left.losses,left.tourneyBonus||0);
+      const rightPts = computePoints(right.wins,right.losses,right.tourneyBonus||0);
+
+      matchEl.innerHTML =
+'<div class="arena">' +
+  '<button class="imageCardBtn" id="tLeftImgBtn">' +
+    '<div class="imageCard">' +
+      '<img src="'+(left.thumbnail || left.thumbDataUrl || left.fullUrl || left.dataUrl || '')+'" alt="Left" />' +
+    '</div>' +
+  '</button>' +
+  '<div class="vs">VS</div>' +
+  '<button class="imageCardBtn" id="tRightImgBtn">' +
+    '<div class="imageCard">' +
+      '<img src="'+(right.thumbnail || right.thumbDataUrl || right.fullUrl || right.dataUrl || '')+'" alt="Right" />' +
+    '</div>' +
+  '</button>' +
+'</div>' +
+
+        '<div class="matchMetaRow">' +
+          '<div class="matchMetaBox">' +
+            '<div class="matchMetaTitle">Left image</div>' +
+            '<div class="matchMetaStats">' +
+              (left.title || 'Untitled') + '<br/>' +
+              'W '+left.wins+' • L '+left.losses+' • Pts '+leftPts+' • M '+matchupsCount(left) +
+            '</div>' +
+          '</div>' +
+          '<div></div>' +
+          '<div class="matchMetaBox">' +
+            '<div class="matchMetaTitle">Right image</div>' +
+            '<div class="matchMetaStats">' +
+              (right.title || 'Untitled') + '<br/>' +
+              'W '+right.wins+' • L '+right.losses+' • Pts '+rightPts+' • M '+matchupsCount(right) +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="matchFooter">' +
+          '<button class="btn sm" id="tLeftWinBtn">Left wins</button>' +
+          '<button class="btn sm" id="tRightWinBtn">Right wins</button>' +
+        '</div>';
+
+      const leftImgBtn = document.getElementById('tLeftImgBtn');
+      const rightImgBtn = document.getElementById('tRightImgBtn');
+      const leftWinBtn = document.getElementById('tLeftWinBtn');
+      const rightWinBtn = document.getElementById('tRightWinBtn');
+
+      // Images: click only (allow scroll/zoom)
+      if(leftImgBtn){
+        leftImgBtn.addEventListener('click', (e)=>{
+          e.preventDefault();
+          pickWinner('left');
+        });
+      }
+      if(rightImgBtn){
+        rightImgBtn.addEventListener('click', (e)=>{
+          e.preventDefault();
+          pickWinner('right');
+        });
+      }
+
+      // Buttons: full tap helper
+      addTap(leftWinBtn, ()=>pickWinner('left'));
+      addTap(rightWinBtn, ()=>pickWinner('right'));
+
+      renderBracket();
+    }
+
+    function renderBracket(){
+      bracketEl.innerHTML = '';
+
+      if(!tourneyState) return;
+
+      const s = tourneyState;
+      const initialSize = s.initialSize;
+
+      // Show bracket from Sweet 16 onward
+      if(!s.completed && s.currentRoundSize > 16) return;
+
+      const sizes = [16,8,4,2].filter(sz => sz <= initialSize);
+      if(sizes.length === 0) return;
+
+      let html = '';
+      html += '<div class="smallMuted" style="margin-bottom:6px;">Bracket (Sweet 16 onward)</div>';
+      html += '<div class="tBracket">';
+
+      for(const sz of sizes){
+        const entrants = getEntrantsForRound(sz,s);
+        const winners = (s.bracketProgress && s.bracketProgress[String(sz)]) || [];
+        const roundsMatches = Math.floor(entrants.length / 2);
+
+        html += '<div class="tRoundCol">';
+        html += '<div class="tRoundTitle">'+roundLabel(sz)+'</div>';
+
+        if(roundsMatches === 0){
+          html += '<div class="smallMuted">TBD</div>';
+        }else{
+          for(let i=0;i<roundsMatches;i++){
+            const aId = entrants[i*2];
+            const bId = entrants[i*2+1];
+            const winnerId = winners[i];
+            const aName = shortLabelForId(aId);
+            const bName = shortLabelForId(bId);
+            const aClass = 'tSlot' + (winnerId === aId ? ' tWinner' : '');
+            const bClass = 'tSlot' + (winnerId === bId ? ' tWinner' : '');
+            html += '<div class="tMatchPair">';
+            html += '<div class="'+aClass+'">'+aName+'</div>';
+            html += '<div class="'+bClass+'">'+bName+'</div>';
+            html += '</div>';
+          }
+        }
+
+        html += '</div>';
+      }
+
+      html += '</div>';
+
+      bracketEl.innerHTML = html;
+    }
+
+async function startNewTournament(){
+  if(items.length < 2){
+    alert('You need at least 2 images to run a tournament.');
+    return;
+  }
+  if(tourneyState && !confirm('Start a new tournament? This will overwrite the current tournament progress.')){
+    return;
+  }
+
+  // Decide which images to use based on the selected pool
+  let poolItems;
+  if(!currentPool || currentPool === '__ALL__'){
+    poolItems = items.slice();
+  }else{
+    poolItems = items.filter(it =>
+      Array.isArray(it.collections) && it.collections.includes(currentPool)
+    );
+  }
+
+  if(poolItems.length < 2){
+    alert('Not enough images in the selected pool to run a tournament.');
+    return;
+  }
+
+  const ids = poolItems.map(it=>it.id);
+  for(let i=ids.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [ids[i],ids[j]] = [ids[j],ids[i]];
+  }
+
+  let initialSize = Math.min(256, ids.length);
+  let pow = 1;
+  while(pow*2 <= initialSize){ pow *= 2; }
+  initialSize = Math.max(2, pow);
+
+  const participantIds = ids.slice(0,initialSize);
+
+  // NEW: bump tourneyCount once for everyone in this field
+  try{
+    await incrementTourneyCountsForParticipants(participantIds);
+  }catch(e){
+    console.error('Failed to increment tourney counts', e);
+  }
+
+  tourneyState = {
+    id: TOURNEY_STATE_ID,
+    createdAt: new Date().toISOString(),
+    initialSize,
+    currentRoundSize: initialSize,
+    currentMatchIndex: 0,
+    participantIds,
+    bracketProgress: {},
+    completed: false,
+    championId: null,
+    matchHistory: [],
+    pool: currentPool || '__ALL__'  // 👈 track which pool this tourney used
+  };
+
+  try{
+    await saveTourneyState(tourneyState);
+  }catch(e){
+    console.error(e);
+  }
+  renderAll();
+}
+
+
+    async function resetTournament(){
+      if(!confirm('Clear tournament state? This does not affect image stats or points.')){
+        return;
+      }
+      try{
+        await clearTourneyState();
+      }catch(e){
+        console.error(e);
+      }
+      tourneyState = null;
+      renderAll();
+    }
+
+    async function applyWinLoss(winnerId, loserId){
+      const w = itemsById.get(winnerId);
+      const l = itemsById.get(loserId);
+      if(w){
+        w.wins = Math.max(0, (w.wins||0) + 1);
+        if(typeof w.tourneyBonus !== 'number') w.tourneyBonus = Number(w.tourneyBonus||0);
+        try{ await idbPutItem(w); }catch(e){ console.error(e); }
+      }
+      if(l){
+        l.losses = Math.max(0, (l.losses||0) + 1);
+        if(typeof l.tourneyBonus !== 'number') l.tourneyBonus = Number(l.tourneyBonus||0);
+        try{ await idbPutItem(l); }catch(e){ console.error(e); }
+      }
+    }
+
+    async function reverseWinLoss(winnerId, loserId){
+      const w = itemsById.get(winnerId);
+      const l = itemsById.get(loserId);
+      if(w){
+        w.wins = Math.max(0, (w.wins||0) - 1);
+        try{ await idbPutItem(w); }catch(e){ console.error(e); }
+      }
+      if(l){
+        l.losses = Math.max(0, (l.losses||0) - 1);
+        try{ await idbPutItem(l); }catch(e){ console.error(e); }
+      }
+    }
+
+async function incrementTourneyCountsForParticipants(participantIds){
+  if (!Array.isArray(participantIds) || !participantIds.length) return;
+
+  for (const id of participantIds){
+    const item = itemsById.get(id);
+    if (!item) continue;
+
+    // bump in-memory
+    const prev = Number(item.tourneyCount || 0);
+    item.tourneyCount = prev + 1;
+
+    // persist to main items DB
+    try{
+      await idbPutItem(item);
+    }catch(e){
+      console.error('Failed to bump tourneyCount for', id, e);
+    }
+  }
+}
+
+    async function applyChampionBonus(championId){
+      const champ = itemsById.get(championId);
+      if(!champ) return;
+      const prev = Number(champ.tourneyBonus || 0);
+      champ.tourneyBonus = prev + 5;
+      try{
+        await idbPutItem(champ);
+      }catch(e){
+        console.error(e);
+      }
+    }
+
+    async function removeChampionBonus(championId){
+      const champ = itemsById.get(championId);
+      if(!champ) return;
+      const prev = Number(champ.tourneyBonus || 0);
+      champ.tourneyBonus = Math.max(0, prev - 5);
+      try{
+        await idbPutItem(champ);
+      }catch(e){
+        console.error(e);
+      }
+    }
+
+    async function pickWinner(side){
+      if(isProcessing) return;
+      if(!tourneyState || tourneyState.completed) return;
+      isProcessing = true;
+
+      try{
+        const s = tourneyState;
+        const size = s.currentRoundSize;
+        const entrants = getEntrantsForRound(size,s);
+        if(entrants.length < size){
+          alert('Bracket data is inconsistent. Please reset the tournament.');
+          isProcessing = false;
+          return;
+        }
+
+        const idxA = s.currentMatchIndex * 2;
+        const idxB = idxA + 1;
+        const idA = entrants[idxA];
+        const idB = entrants[idxB];
+        if(!idA || !idB){
+          alert('Match data is incomplete. Please reset the tournament.');
+          isProcessing = false;
+          return;
+        }
+
+        const winnerId = (side === 'left') ? idA : idB;
+        const loserId = (side === 'left') ? idB : idA;
+
+        await applyWinLoss(winnerId, loserId);
+
+        // record history
+        if(!Array.isArray(s.matchHistory)) s.matchHistory = [];
+        s.matchHistory.push({
+          roundSize: size,
+          winnerId,
+          loserId
+        });
+
+        const key = String(size);
+        if(!s.bracketProgress) s.bracketProgress = {};
+        if(!Array.isArray(s.bracketProgress[key])) s.bracketProgress[key] = [];
+        s.bracketProgress[key].push(winnerId);
+        s.currentMatchIndex += 1;
+
+        const finishedRound = s.currentMatchIndex >= size/2;
+
+        if(finishedRound){
+          if(size === 2){
+            s.completed = true;
+            s.championId = winnerId;
+            await applyChampionBonus(winnerId);
+          }else{
+            s.currentRoundSize = size/2;
+            s.currentMatchIndex = 0;
+          }
+        }
+
+        await saveTourneyState(s);
+        tourneyState = s;
+        renderAll();
+      }catch(e){
+        console.error(e);
+      }finally{
+        isProcessing = false;
+      }
+    }
+
+    async function undoLastResult(){
+      if(isProcessing) return;
+      if(!tourneyState || !Array.isArray(tourneyState.matchHistory) || tourneyState.matchHistory.length === 0){
+        alert('No tournament result to undo.');
+        return;
+      }
+      isProcessing = true;
+
+      try{
+        const s = tourneyState;
+        const last = s.matchHistory[s.matchHistory.length - 1];
+
+        // If the tournament was completed and this last match was the championship, remove bonus
+        const wasCompleted = s.completed;
+        const wasChampionMatch = (last.roundSize === 2 && s.championId === last.winnerId);
+
+        // Reverse stats
+        await reverseWinLoss(last.winnerId, last.loserId);
+        if(wasCompleted && wasChampionMatch){
+          await removeChampionBonus(last.winnerId);
+        }
+
+        // Pop history entry
+        s.matchHistory.pop();
+
+        // Rebuild bracketProgress, round, etc. from remaining history
+        const baseState = {
+          id: s.id,
+          createdAt: s.createdAt,
+          initialSize: s.initialSize,
+          participantIds: s.participantIds.slice(),
+          bracketProgress: {},
+          currentRoundSize: s.initialSize,
+          currentMatchIndex: 0,
+          completed: false,
+          championId: null,
+          matchHistory: s.matchHistory.slice()
+        };
+
+        // replay winners into bracketProgress
+        for(const h of baseState.matchHistory){
+          const sz = h.roundSize;
+          const key = String(sz);
+          if(!baseState.bracketProgress[key]) baseState.bracketProgress[key] = [];
+          baseState.bracketProgress[key].push(h.winnerId);
+        }
+
+        // compute current round / match / completion
+        let currentSize = baseState.initialSize;
+        while(true){
+          const key = String(currentSize);
+          const winnersArr = baseState.bracketProgress[key] || [];
+          const matchesInRound = currentSize / 2;
+
+          if(winnersArr.length < matchesInRound){
+            baseState.currentRoundSize = currentSize;
+            baseState.currentMatchIndex = winnersArr.length;
+            baseState.completed = false;
+            baseState.championId = null;
+            break;
+          }
+
+          if(currentSize === 2){
+            baseState.currentRoundSize = 2;
+            baseState.currentMatchIndex = matchesInRound; // 1
+            baseState.completed = true;
+            baseState.championId = winnersArr[0] || null;
+            break;
+          }else{
+            currentSize = currentSize / 2;
+          }
+        }
+
+        tourneyState = baseState;
+        await saveTourneyState(tourneyState);
+        renderAll();
+      }catch(e){
+        console.error(e);
+      }finally{
+        isProcessing = false;
+      }
+    }
+
+    window.addEventListener('load', initTournamentPage);
+  </script>
+</body>
+</html>

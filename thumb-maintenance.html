@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ModelMatchup Thumbnail Maintenance</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body{
+      background:#050c0a;
+      color:#e7f5ef;
+      font-family:system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      min-height:100vh;
+      margin:0;
+    }
+    .panel{
+      background:#091612;
+      border:1px solid #143b2e;
+      border-radius:16px;
+      padding:24px 28px;
+      max-width:460px;
+      box-shadow:0 16px 40px rgba(0,0,0,0.6);
+    }
+    h1{
+      font-size:20px;
+      margin:0 0 8px;
+    }
+    p{
+      font-size:14px;
+      color:#9bb9aa;
+      margin:4px 0;
+    }
+    button{
+      margin-top:16px;
+      padding:8px 16px;
+      border-radius:999px;
+      border:none;
+      background:linear-gradient(135deg,#179c6b,#44c08d);
+      color:#020706;
+      font-weight:600;
+      cursor:pointer;
+    }
+    button[disabled]{
+      opacity:0.5;
+      cursor:default;
+    }
+    .status{
+      margin-top:12px;
+      font-size:13px;
+      color:#d2efe1;
+      white-space:pre-line;
+    }
+    .meta{
+      margin-top:10px;
+      font-size:12px;
+      color:#8fb0a1;
+    }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <h1>Thumbnail Maintenance</h1>
+    <p>This page talks directly to your <b>modelMatchupDB</b> and generates thumbnails
+    <b>one image at a time</b> with minimal memory use.</p>
+
+    <button id="genBtn">Generate next thumbnail</button>
+    <button id="scanBtn" style="margin-left:8px;">Scan counts</button>
+
+    <div id="status" class="status">Idle.</div>
+    <div id="meta" class="meta"></div>
+  </div>
+
+   <script>
+    // --- Same DB name + store as main app ---
+    const DB_NAME  = 'modelMatchupDB';
+    const DB_STORE = 'items';
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains(DB_STORE)) {
+            db.createObjectStore(DB_STORE, { keyPath: 'id' });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror   = () => reject(req.error);
+      });
+    }
+
+    async function idbGet(id) {
+      const db = await openDB();
+      return db
+        .transaction(DB_STORE, 'readonly')
+        .objectStore(DB_STORE)
+        .get(id);
+    }
+
+    async function idbPut(item) {
+      const db = await openDB();
+      return db
+        .transaction(DB_STORE, 'readwrite')
+        .objectStore(DB_STORE)
+        .put(item);
+    }
+
+    async function idbGetAllKeys() {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx    = db.transaction(DB_STORE, 'readonly');
+        const store = tx.objectStore(DB_STORE);
+        const req   = store.getAllKeys();
+
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror   = () => reject(req.error);
+      });
+    }
+
+    function fitWithin(w, h, maxSide) {
+      if (w <= maxSide && h <= maxSide) return { w, h };
+      const scale = (w > h) ? maxSide / w : maxSide / h;
+      return {
+        w: Math.round(w * scale),
+        h: Math.round(h * scale),
+      };
+    }
+
+    // Tiny thumbnail generator: 1 image → small canvas → dataURL
+    async function dataUrlToThumbDataUrl(src, maxSide = 320, quality = 0.7) {
+      const img = await new Promise((resolve, reject) => {
+        const image = new Image();
+        image.crossOrigin = 'anonymous'; // important for Firebase URLs
+        image.onload  = () => resolve(image);
+        image.onerror = reject;
+        image.src = src;
+      });
+
+      const dims = fitWithin(
+        img.naturalWidth || img.width,
+        img.naturalHeight || img.height,
+        maxSide
+      );
+
+      const c = document.createElement('canvas');
+      c.width  = dims.w;
+      c.height = dims.h;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0, dims.w, dims.h);
+
+      return c.toDataURL('image/jpeg', quality);
+    }
+
+    const statusEl = document.getElementById('status');
+    const metaEl   = document.getElementById('meta');
+    const genBtn   = document.getElementById('genBtn');
+    const scanBtn  = document.getElementById('scanBtn');
+
+    function setStatus(msg) {
+      statusEl.textContent = msg;
+    }
+
+    // Scan DB and count who has / doesn't have thumbs (no image decoding)
+    async function scanCounts() {
+      scanBtn.disabled = true;
+      setStatus('Scanning records (metadata only)...');
+
+      try {
+        const keys = await idbGetAllKeys();
+        let withThumb       = 0;
+        let noThumb         = 0;
+        let totalWithSource = 0;
+
+        for (const id of keys) {
+          const item = await idbGet(id);
+          if (!item) continue;
+
+          // consider any stored image field as a valid source we can use
+          const hasSource =
+            item.dataUrl ||
+            item.fullUrl ||
+            item.thumbnail ||
+            item.thumbDataUrl;
+
+          if (!hasSource) continue;
+
+          totalWithSource++;
+
+          if (item.thumbDataUrl || item.thumbnail) {
+            withThumb++;
+          } else {
+            noThumb++;
+          }
+        }
+
+        metaEl.textContent =
+          `Total items with image source (any of dataUrl/fullUrl/thumbnail/thumbDataUrl): ${totalWithSource}\n` +
+          `With thumbnail: ${withThumb}\n` +
+          `Missing thumbnail: ${noThumb}`;
+
+        setStatus('Scan complete.');
+      } catch (e) {
+        console.error(e);
+        setStatus('Scan failed. See console for details.');
+      } finally {
+        scanBtn.disabled = false;
+      }
+    }
+
+    // Generate ONE thumbnail per click, for the first item missing thumbDataUrl
+    async function generateNextThumbnail() {
+      genBtn.disabled = true;
+      setStatus('Looking for an item that needs a thumbnail...');
+
+      try {
+        const keys = await idbGetAllKeys();
+        if (!keys || !keys.length) {
+          setStatus('No records found in DB.');
+          genBtn.disabled = false;
+          return;
+        }
+
+        let processedId = null;
+
+        for (const id of keys) {
+          const item = await idbGet(id);
+          if (!item) continue;
+
+          // Already has a real thumbnail
+          if (item.thumbDataUrl || item.thumbnail) {
+            continue;
+          }
+
+          // pick a source: prefer local dataUrl, then fullUrl, then any existing thumbnail
+          const src =
+            item.dataUrl ||
+            item.fullUrl ||
+            item.thumbnail ||
+            item.thumbDataUrl;
+
+          if (!src) continue;
+
+          setStatus(`Generating thumbnail for ID ${id}...`);
+
+          const thumb = await dataUrlToThumbDataUrl(src, 320, 0.7);
+
+          item.thumbnail    = thumb;
+          item.thumbDataUrl = thumb;
+          await idbPut(item);
+
+          processedId = id;
+          break;
+        }
+
+        if (processedId === null) {
+          setStatus('No more items need thumbnails. 🎉');
+        } else {
+          setStatus(`Thumbnail generated for ID ${processedId}. Click again to process the next one.`);
+        }
+      } catch (e) {
+        console.error('Thumbnail generation failed:', e);
+        setStatus('Error during thumbnail generation. See console for details.');
+      } finally {
+        // Give the browser a breather
+        await new Promise(r => setTimeout(r, 0));
+        genBtn.disabled = false;
+      }
+    }
+
+    genBtn.addEventListener('click', generateNextThumbnail);
+    scanBtn.addEventListener('click', scanCounts);
+  </script>
+
+</body>
+</html>

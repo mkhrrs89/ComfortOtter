@@ -1,0 +1,337 @@
+/* ------------------------------------------------------
+   GLOBAL THEME VARIABLES
+------------------------------------------------------ */
+:root {
+  color-scheme: dark;
+
+  /* Core palette — shared across index, tourney, sizes */
+  --bg: #020617;
+  --bgElevated: #020617;
+  --panel: #020617;
+  --panel-soft: #0e1f1a;
+
+  --border: #1f2937;
+  --borderSoft: #111827;
+  --muted: #9ca3af;
+  --text: #e5e7eb;
+
+  --accent: #38bdf8;
+  --accentSoft: rgba(56,189,248,0.1);
+
+  --danger: #f97373;
+
+  --ring: #1b3a2f;
+  --ghost: #182621;
+
+  --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* ------------------------------------------------------
+   GLOBAL RESET
+------------------------------------------------------ */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ------------------------------------------------------
+   BODY
+------------------------------------------------------ */
+body {
+  min-height: 100vh;
+  background: radial-gradient(circle at top, #0b1120 0, #020617 45%, #000 100%);
+  color: var(--text);
+  font: 14px/1.4 var(--font);
+  padding: 16px;
+}
+
+/* ------------------------------------------------------
+   LINKS
+------------------------------------------------------ */
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* ------------------------------------------------------
+   HEADERS
+------------------------------------------------------ */
+h1 {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.subhead {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+
+/* ------------------------------------------------------
+   CARDS AND PANELS
+------------------------------------------------------ */
+.card,
+.pane {
+  border-radius: 16px;
+  border: 1px solid var(--borderSoft);
+  background: radial-gradient(circle at top left, rgba(56,189,248,0.12), transparent 55%),
+              radial-gradient(circle at bottom right, rgba(16,185,129,0.12), transparent 55%),
+              rgba(15,23,42,0.96);
+  padding: 12px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+  margin-bottom: 14px;
+}
+
+/* ------------------------------------------------------
+   BUTTONS
+------------------------------------------------------ */
+.btn {
+  border-radius: 999px;
+  border: 1px solid var(--borderSoft);
+  background: rgba(15,23,42,0.9);
+  color: var(--text);
+  padding: 6px 12px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.chip-high {
+  background: rgba(180, 83, 9, 0.18) !important;
+  border: 1px solid #f97316 !important;
+  color: #f97316 !important; /* matches archive behavior */
+}
+.btn.sm {
+  padding: 5px 9px;
+  font-size: 12px;
+}
+.btn.primary {
+  border-color: var(--accent);
+  background: linear-gradient(135deg, #0ea5e9, #22c55e);
+  color: #0b1120;
+  font-weight: 600;
+}
+.btn.ghost {
+  background: var(--ghost);
+}
+.btn.danger {
+  background: var(--danger);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ------------------------------------------------------
+   TABS
+------------------------------------------------------ */
+.tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.tab,
+a.tab {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--ring);
+  padding: 7px 11px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 13px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.tab.active {
+  outline: 2px solid var(--accent);
+  background: linear-gradient(135deg, #1f9d73, #157457);
+}
+
+/* ------------------------------------------------------
+   TABLES
+------------------------------------------------------ */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+thead {
+  background: rgba(15,23,42,0.9);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+th, td {
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(15,23,42,0.85);
+  text-align: left;
+  vertical-align: middle;
+}
+th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 500;
+}
+th.sortable {
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------
+   THUMBNAILS
+------------------------------------------------------ */
+.thumbWrap {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  border: 1px solid rgba(148,163,184,0.4);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: #020617;
+}
+.thumbWrap img {
+  max-width: 100%;
+  max-height: 100%;
+  display: block;
+}
+
+/* ------------------------------------------------------
+   MISC
+------------------------------------------------------ */
+.pill {
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 11px;
+  background: var(--accentSoft);
+  border: 1px solid var(--ring);
+  color: #c5f4dc;
+}
+.smallMuted {
+  font-size: 11px;
+  color: var(--muted);
+}
+.hint {
+  color: var(--muted);
+  padding: 8px 0;
+  font-size: 13px;
+}
+.loading {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------
+   MATCHUP LAYOUT (shared with tournament)
+------------------------------------------------------ */
+.matchupWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin: 18px 0;
+}
+
+.arenaImgBtn, .imageCardBtn {
+  border: none;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+  border-radius: 20px;
+}
+
+.arenaImgBtn:hover, .imageCardBtn:hover {
+  opacity: 0.9;
+}
+
+.matchImg,
+.imageCard img {
+  width: 160px;
+  height: 225px;
+  object-fit: cover;
+  border-radius: 14px;
+  box-shadow: 0 0 12px rgba(0,0,0,0.4);
+  border: 1px solid var(--ring);
+}
+
+.vs {
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--accent);
+  text-shadow: 0 0 10px rgba(56,189,248,0.5);
+}
+
+/* green gradient background */
+body.tourney-bg {
+  background: radial-gradient(circle at top, #0B271F, #051612, #000);
+}
+
+
+.matchupWrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 28px;
+  margin: 18px auto;
+}
+
+.matchImg {
+  width: 600px;
+  height: 600px;
+  object-fit: contain;
+  border-radius: 18px;
+  border: 1px solid var(--ring);
+  box-shadow: 0 0 10px rgba(0,0,0,0.6);
+}
+
+
+
+.vs {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--accent);
+  text-shadow: 0 0 10px rgba(56,189,248,0.6);
+}
+
+.matchMetaRow {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 30px;
+  margin-top: 20px;
+}
+
+.matchMetaCell {
+  background: var(--card);
+  padding: 14px 18px;
+  border-radius: 14px;
+  box-shadow: 0 0 14px rgba(0,0,0,0.4);
+  min-width: 260px;
+}
+
+.metaTitle {
+  font-weight: 700;
+  margin-bottom: 4px;
+  color: var(--accent);
+}
+
+.metaLine,
+.metaStats {
+  font-size: 13px;
+  margin-bottom: 6px;
+  color: var(--muted);
+}
+

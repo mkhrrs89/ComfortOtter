@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ModelMatchup – URL & Thumbnail Normalizer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="app-style.css" />
+  <style>
+    body {
+      background:#050510;
+      color:#e7f5ef;
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      padding:20px;
+    }
+    h1 { margin-bottom:4px; }
+    .sub { color:#9fb6c4; font-size:14px; margin-bottom:16px; }
+    button {
+      background:#0ea5e9;
+      color:#020617;
+      border:none;
+      border-radius:999px;
+      padding:8px 16px;
+      font-size:14px;
+      cursor:pointer;
+    }
+    button[disabled]{
+      opacity:.6;
+      cursor:default;
+    }
+    #status { margin-top:10px; font-size:14px; }
+    #log {
+      margin-top:16px;
+      max-height:60vh;
+      overflow:auto;
+      font-size:12px;
+      background:#020617;
+      border-radius:12px;
+      padding:10px;
+      white-space:pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <h1>URL & Thumbnail Normalizer</h1>
+  <div class="sub">
+    This passes over <code>modelMatchupDB</code> and standardizes each record:<br/>
+    • <code>thumbnail</code> becomes the one true thumb field (copying from <code>thumbDataUrl</code> if needed).<br/>
+    • <code>thumbDataUrl</code> is removed when redundant.<br/>
+    • Optionally, <code>dataUrl</code> is dropped when a <code>fullUrl</code> exists (toggle below).
+  </div>
+
+  <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:10px;">
+    <input type="checkbox" id="dropDataWithFull" checked />
+    Remove <code>dataUrl</code> when a <code>fullUrl</code> is present (recommended once you trust Firebase).
+  </label>
+
+  <button id="runBtn">Scan & normalize records</button>
+  <div id="status"></div>
+  <pre id="log"></pre>
+
+  <script>
+    const DB_NAME  = 'modelMatchupDB';
+    const DB_STORE = 'items';
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains(DB_STORE)) {
+            db.createObjectStore(DB_STORE, { keyPath: 'id' });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror   = () => reject(req.error);
+      });
+    }
+
+    function idbGetAll() {
+      return openDB().then(db => {
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction(DB_STORE, 'readonly');
+          const store = tx.objectStore(DB_STORE);
+          const rows = [];
+          const req = store.openCursor();
+          req.onsuccess = e => {
+            const cursor = e.target.result;
+            if (!cursor) { resolve(rows); return; }
+            rows.push(cursor.value);
+            cursor.continue();
+          };
+          req.onerror = () => reject(req.error);
+        });
+      });
+    }
+
+    function idbPut(item) {
+      return openDB().then(db => {
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction(DB_STORE, 'readwrite');
+          tx.objectStore(DB_STORE).put(item);
+          tx.oncomplete = () => resolve();
+          tx.onerror    = () => reject(tx.error);
+        });
+      });
+    }
+
+    const statusEl = document.getElementById('status');
+    const logEl    = document.getElementById('log');
+    const runBtn   = document.getElementById('runBtn');
+    const dropDataCheckbox = document.getElementById('dropDataWithFull');
+
+    function setStatus(msg) {
+      statusEl.textContent = msg;
+    }
+    function log(msg) {
+      logEl.textContent += msg + '\n';
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+async function normalizeAll() {
+  runBtn.disabled = true;
+  logEl.textContent = '';
+  setStatus('Loading all records…');
+
+  try {
+    const items = await idbGetAll();
+    log(`Found ${items.length} items.`);
+
+    let changed = 0;
+    let thumbFixes = 0;
+    let thumbDrops = 0;
+    let dataDrops  = 0;
+
+    // NEW: basic stats so we can see what fields actually exist
+    let withThumb = 0;
+    let withThumbData = 0;
+    let withDataUrl = 0;
+    let withFullUrl = 0;
+
+    const dropDataWhenFull = dropDataCheckbox.checked;
+
+    for (const item of items) {
+      if (!item || !item.id) continue;
+
+      let dirty = false;
+
+      const origThumb      = item.thumbnail || null;
+      const origThumbData  = item.thumbDataUrl || null;
+      const origDataUrl    = item.dataUrl || null;
+      const origFullUrl    = item.fullUrl || null;
+
+      if (origThumb)     withThumb++;
+      if (origThumbData) withThumbData++;
+      if (origDataUrl)   withDataUrl++;
+      if (origFullUrl)   withFullUrl++;
+
+      // --- 1) Normalize thumbnail field ---
+      const preferredThumb = origThumb || origThumbData || null;
+
+      if (preferredThumb && preferredThumb !== origThumb) {
+        item.thumbnail = preferredThumb;
+        thumbFixes++;
+        dirty = true;
+      }
+
+      if (item.thumbDataUrl && item.thumbDataUrl === item.thumbnail) {
+        delete item.thumbDataUrl;
+        thumbDrops++;
+        dirty = true;
+      }
+
+      // --- 2) Optionally drop dataUrl when a fullUrl exists ---
+      if (dropDataWhenFull && origFullUrl && origDataUrl) {
+        delete item.dataUrl;
+        dataDrops++;
+        dirty = true;
+      }
+
+      if (dirty) {
+        await idbPut(item);
+        changed++;
+      }
+    }
+
+    setStatus(`Done. Updated ${changed} items.`);
+    log(`Records with thumbnail:      ${withThumb}`);
+    log(`Records with thumbDataUrl:   ${withThumbData}`);
+    log(`Records with dataUrl:        ${withDataUrl}`);
+    log(`Records with fullUrl:        ${withFullUrl}`);
+    log('---');
+    log(`Thumbnail fixed / set:       ${thumbFixes}`);
+    log(`Redundant thumbDataUrl drop: ${thumbDrops}`);
+    log(`dataUrl removed (fullUrl):   ${dataDrops}`);
+    log('All done ✅');
+  } catch (err) {
+    console.error(err);
+    setStatus('Error during normalization.');
+    log('ERROR: ' + (err.message || err));
+  } finally {
+    runBtn.disabled = false;
+  }
+}
+
+    runBtn.addEventListener('click', () => {
+      normalizeAll().catch(err => {
+        console.error(err);
+        setStatus('Unexpected error. See console.');
+        runBtn.disabled = false;
+      });
+    });
+  </script>
+</body>
+</html>
