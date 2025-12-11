@@ -2106,9 +2106,9 @@ async function importLibraryFiles(fileList){
 
     const firstItems = firstJson.items;
 
-    const isFullExport = firstItems.some(
-      it => typeof it.dataUrl === 'string' && it.dataUrl.length > 50
-    );
+// New logic: decide based on payload type instead of dataUrl
+const isMetadataOnly = firstJson.type === 'metadata-only';
+const isFullExport   = !isMetadataOnly;
 
     // ======================================================
     // PATH A: FULL EXPORT IMPORT (images + metadata)
@@ -3940,3 +3940,4 @@ onChange={e => {
   </script>
 </body>
 </html>
+
