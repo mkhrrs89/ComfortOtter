@@ -1495,6 +1495,7 @@ function preloadImage(src){
       const [libraryViewMode,setLibraryViewMode] = useState('cards'); // cards | gallery
       const [librarySort, setLibrarySort] = useState({field:'points', dir:'asc'});
       const [libraryFilter, setLibraryFilter] = useState('all'); // all | unassigned
+      const [librarySearch, setLibrarySearch] = useState('');
       const [libraryCollectionFilter,setLibraryCollectionFilter] = useState({include:[],exclude:[]});
       const [statsSort,setStatsSort] = useState({field:'points',dir:'asc'});
       const [collStatsSort,setCollStatsSort] = useState({field:'pct',dir:'desc'});
@@ -2449,6 +2450,13 @@ for (let idx = 1; idx < files.length; idx++) {
         if(libraryFilter==='unassigned'){
           list = list.filter(it=>!it.collections || it.collections.length===0);
         }
+        const searchTerm = librarySearch.trim().toLowerCase();
+        if(searchTerm){
+          list = list.filter(it => {
+            const title = (it.title || '').toLowerCase();
+            return title.includes(searchTerm);
+          });
+        }
         const include = libraryCollectionFilter.include || [];
         const exclude = libraryCollectionFilter.exclude || [];
         if(include.length){
@@ -2482,7 +2490,7 @@ for (let idx = 1; idx < files.length; idx++) {
           return 0;
         });
         return list;
-      },[items,librarySort,libraryFilter,libraryCollectionFilter]);
+      },[items,librarySort,libraryFilter,libraryCollectionFilter,librarySearch]);
 
 // stats rows (with win% tie-breaker by wins then matchups)
 const statsRows = useMemo(()=>{
@@ -2834,6 +2842,17 @@ if (dt && dt.files && dt.files.length) {
                         <option value="all">All images</option>
                         <option value="unassigned">No collections</option>
                       </select>
+                    </label>
+                    <label className="smallMuted" style={{display:'flex',flexDirection:'column',gap:4}}>
+                      Search
+                      <input
+                        className="input"
+                        type="text"
+                        placeholder="Search titles..."
+                        value={librarySearch}
+                        onChange={e=>{ setLibrarySearch(e.target.value); setLibraryPage(1); }}
+                        style={{minWidth:180}}
+                      />
                     </label>
                   </div>
                   <div className="flexRow">
