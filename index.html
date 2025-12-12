@@ -580,185 +580,111 @@
 <body>
   <div id="root"></div>
 
-<script data-cfasync="false" type="module" crossorigin="anonymous">
-try {
-  // Set safe defaults so the rest of the app can continue even if Firebase fails to load
-  window.firebaseApp     = null;
-  window.firebaseAuth    = null;
-  window.firebaseDb      = null;
-  window.firebaseStorage = null;
-  window.saveItemToCloud = () => {};
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
-  const firebaseModules = Promise.all([
-    import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js")
-      .catch(e => { throw new Error("Failed to load firebase-app.js: " + e); }),
-    import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js")
-      .catch(e => { throw new Error("Failed to load firebase-auth.js: " + e); }),
-    import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js")
-      .catch(e => { throw new Error("Failed to load firebase-firestore.js: " + e); }),
-    import("https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js")
-      .catch(e => { throw new Error("Failed to load firebase-storage.js: " + e); })
-  ]);
-
-  firebaseModules.then(([{ initializeApp }, { getAuth, signInAnonymously, onAuthStateChanged }, { getFirestore, doc, setDoc }, { getStorage }]) => {
-    // Comforting Otter config
-    const firebaseConfig = {
-      apiKey: "AIzaSyBOVGz7QH_iPtxoM25baGqTIR-2yxUQwH8",
-      authDomain: "comforting-otter.firebaseapp.com",
-      projectId: "comforting-otter",
-      storageBucket: "comforting-otter.firebasestorage.app",
-      messagingSenderId: "1074346290690",
-      appId: "1:1074346290690:web:bd2721e73fbdf029e7411b",
-      measurementId: "G-2JT31JFGNJ"
-    };
-
-    const app     = initializeApp(firebaseConfig);
-    const auth    = getAuth(app);
-    const db      = getFirestore(app);
-    const storage = getStorage(app);
-
-    // --- AUTH ---
-    signInAnonymously(auth).catch(err => {
-      console.error("Anonymous sign-in failed:", err);
-    });
-
-    onAuthStateChanged(auth, user => {
-      if (user) {
-        console.log("✅ Firebase ready. Anonymous UID:", user.uid);
-      } else {
-        console.log("ℹ️ Not signed in yet");
-      }
-    });
-
-    // --- METADATA MIRRORING ---
-    function stripBigFields(item) {
-      if (!item || !item.id) return null;
-
-      const { dataUrl, thumbnail, thumbDataUrl, ...rest } = item;
-      return { ...rest, updatedAt: new Date().toISOString() };
-    }
-
-    async function saveItemToCloud(item) {
-      const meta = stripBigFields(item);
-      if (!meta) return;
-
-      try {
-        const ref = doc(db, "images", meta.id);
-        await setDoc(ref, meta, { merge: true });
-      } catch (err) {
-        console.error("Cloud save failed for", meta && meta.id, err);
-      }
-    }
-
-    // Expose to the rest of your app
-    window.firebaseApp     = app;
-    window.firebaseAuth    = auth;
-    window.firebaseDb      = db;
-    window.firebaseStorage = storage;
-    window.saveItemToCloud = saveItemToCloud;
-
-  }).catch(err => {
-    console.error("Firebase bootstrap failed; running without cloud sync", err);
-  });
-
-} catch (err) {
-  const pre = document.createElement("pre");
-  pre.style.cssText =
-    "position:fixed;inset:10px;background:#000;color:#0f0;" +
-    "padding:12px;z-index:999999;overflow:auto;font-size:12px;white-space:pre-wrap;";
-  pre.textContent =
-    "TOP-LEVEL MODULE ERROR\n\n" +
-    (err?.message || err) +
-    "\n\n" +
-    (err?.stack || "(no stack)");
-  document.body.appendChild(pre);
-  console.error(err);
-}
-</script>
-
-
-
-<script data-cfasync="false">
-(function(){
-  function ensureBox(){
-    let box = document.getElementById('errbox');
-    if(box) return box;
-    box = document.createElement('pre');
-    box.id = 'errbox';
-    box.style.cssText =
-      'position:fixed;left:8px;right:8px;bottom:8px;max-height:45vh;overflow:auto;' +
-      'background:rgba(0,0,0,.85);color:#fff;padding:10px;border-radius:12px;z-index:999999;' +
-      'font:12px/1.35 -apple-system,BlinkMacSystemFont,system-ui,Segoe UI,Roboto,Arial;' +
-      'white-space:pre-wrap;display:none;';
-    document.addEventListener('DOMContentLoaded', () => document.body.appendChild(box));
-    return box;
-  }
-
-  function log(msg){
-    const box = ensureBox();
-    box.style.display = 'block';
-    box.textContent += msg + "\n\n";
-  }
-
-  window.addEventListener('error', (e) => {
-    log(
-      "JS ERROR:\n" +
-      (e.message || "(no message)") +
-      "\nsource: " + (e.filename || "(no filename)") +
-      "\nline: " + (e.lineno || "?") + ":" + (e.colno || "?") +
-      "\nstack:\n" + ((e.error && e.error.stack) ? e.error.stack : "(no stack)")
-    );
-  });
-
-  window.addEventListener('unhandledrejection', (e) => {
-    const r = e.reason;
-    log(
-      "PROMISE ERROR:\n" +
-      (r && r.message ? r.message : String(r)) +
-      "\nstack:\n" + (r && r.stack ? r.stack : "(no stack)")
-    );
-  });
-
-  window.__scriptFail = function(name, src){
-    log("FAILED TO LOAD SCRIPT:\n" + name + "\n" + src);
+  // Comforting Otter config
+  const firebaseConfig = {
+    apiKey: "AIzaSyBOVGz7QH_iPtxoM25baGqTIR-2yxUQwH8",
+    authDomain: "comforting-otter.firebaseapp.com",
+    projectId: "comforting-otter",
+    storageBucket: "comforting-otter.firebasestorage.app",
+    messagingSenderId: "1074346290690",
+    appId: "1:1074346290690:web:bd2721e73fbdf029e7411b",
+    measurementId: "G-2JT31JFGNJ"
   };
-})();
+
+  const app     = initializeApp(firebaseConfig);
+  const auth    = getAuth(app);
+  const db      = getFirestore(app);
+  const storage = getStorage(app);
+
+  // --- AUTH ---
+
+  signInAnonymously(auth).catch(err => {
+    console.error("Anonymous sign-in failed:", err);
+  });
+
+  onAuthStateChanged(auth, user => {
+    if (user) {
+      console.log("✅ Firebase ready. Anonymous UID:", user.uid);
+    } else {
+      console.log("ℹ️ Not signed in yet");
+    }
+  });
+
+  // --- METADATA MIRRORING ---
+
+  // Remove heavy fields before sending to Firestore
+  function stripBigFields(item) {
+    if (!item || !item.id) return null;
+
+    const {
+      dataUrl,
+      thumbnail,
+      thumbDataUrl,
+      // future big fields can be stripped here
+      ...rest
+    } = item;
+
+    return {
+      ...rest,
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  async function saveItemToCloud(item) {
+    const meta = stripBigFields(item);
+    if (!meta) return;
+
+    try {
+      const ref = doc(db, "images", meta.id); // one doc per image
+      await setDoc(ref, meta, { merge: true });
+      // console.log("☁️ mirrored to Firestore", meta.id);
+    } catch (err) {
+      console.error("Cloud save failed for", meta && meta.id, err);
+      // don't throw – local save should still succeed
+    }
+  }
+
+  // Expose to the rest of your app
+  window.firebaseApp     = app;
+  window.firebaseAuth    = auth;
+  window.firebaseDb      = db;
+  window.firebaseStorage = storage;
+  window.saveItemToCloud = saveItemToCloud;
 </script>
 
 
 
-<!-- React + Babel (keep ONE copy). data-cfasync prevents Cloudflare Rocket Loader from deferring/rewriting these. -->
+<!-- React + Babel (ONE copy). data-cfasync disables Cloudflare Rocket Loader interference. -->
 <script data-cfasync="false">
-  if (!window.React) __scriptFail('React global missing', 'https://unpkg.com/react@18/umd/react.production.min.js');
-  if (!window.ReactDOM) __scriptFail('ReactDOM global missing', 'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js');
-  if (!window.Babel) __scriptFail('Babel global missing', 'https://unpkg.com/@babel/standalone/babel.min.js');
+  window.__fail = (label, src) => {
+    const msg = `FAILED TO LOAD SCRIPT:\n${label}\n${src}`;
+    console.error(msg);
+    alert(msg);
+  };
+</script>
+<script data-cfasync="false" crossorigin="anonymous"
+  src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"
+  onerror="__fail('React failed to load', this.src)"></script>
+<script data-cfasync="false" crossorigin="anonymous"
+  src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"
+  onerror="__fail('ReactDOM failed to load', this.src)"></script>
+<script data-cfasync="false" crossorigin="anonymous"
+  src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"
+  onerror="__fail('Babel failed to load', this.src)"></script>
+<script data-cfasync="false">
+  if (!window.React) __fail('React global missing (post-load)', 'react@18');
+  if (!window.ReactDOM) __fail('ReactDOM global missing (post-load)', 'react-dom@18');
+  if (!window.Babel) __fail('Babel global missing (post-load)', '@babel/standalone');
 </script>
 
 <script data-cfasync="false" type="text/babel">
-async function idbPut(item){
-  const db = await openDB();
-  return new Promise((res,rej)=>{
-    const tx = db.transaction(DB_STORE,'readwrite');
-    tx.objectStore(DB_STORE).put(item);
-    tx.oncomplete = () => {
-      res();
-      // after local save succeeds, mirror to Firestore (non-blocking)
-      if (window.saveItemToCloud) {
-        window.saveItemToCloud(item);
-      }
-    };
-    tx.onerror = () => rej(tx.error);
-  });
-}
 
-</script>
-
-
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-  <script data-cfasync="false" type="text/babel">
     const { useState, useEffect, useMemo, useRef } = React;
 
     // ---------- IndexedDB ----------
@@ -808,8 +734,11 @@ async function idbPut(item){
       return new Promise((res,rej)=>{
         const tx = db.transaction(DB_STORE,'readwrite');
         tx.objectStore(DB_STORE).put(item);
-        tx.oncomplete = () => res();
-        tx.onerror = () => rej(tx.error);
+        tx.oncomplete = () => {
+        res();
+        if (window.saveItemToCloud) window.saveItemToCloud(item);
+      };
+      tx.onerror = () => rej(tx.error);
       });
     }
     async function idbDelete(id){
@@ -1305,31 +1234,7 @@ async function dataUrlToThumbDataUrl(src, maxSide = 320, quality = 0.80){
       }
       useEffect(()=>{ if(crop) draw(crop); },[crop]);
 
-      async function startForItem(item){
-        async function resolveSrc(){
-          if(item.dataUrl) return item.dataUrl;
-
-          // Try loading the full item from IndexedDB so we can crop the highest fidelity image
-          if(item.id){
-            const stored = await idbGet(item.id);
-            if(stored?.dataUrl) return stored.dataUrl;
-            if(stored?.fullUrl) return stored.fullUrl;
-            if(stored?.thumbDataUrl) return stored.thumbDataUrl;
-            if(stored?.thumbnail) return stored.thumbnail;
-          }
-
-          if(item.fullUrl) return item.fullUrl;
-          if(item.thumbDataUrl) return item.thumbDataUrl;
-          if(item.thumbnail) return item.thumbnail;
-          return null;
-        }
-
-        const src = await resolveSrc();
-        if(!src){
-          alert('Could not load image data for cropping.');
-          return;
-        }
-
+      function startForItem(item){
         const img = new Image();
         img.onload = ()=>{
           const iw = img.naturalWidth;
@@ -1337,12 +1242,11 @@ async function dataUrlToThumbDataUrl(src, maxSide = 320, quality = 0.80){
           const size = Math.min(iw,ih)*0.8;
           setCrop({
             img, iw, ih,
-            rect:{ x:(iw-size)/2, y:(ih-size)/2, w:size, h:size },
-
+            rect:{x:(iw-size)/2,y:(ih-size)/2,w:size,h:size},
             targetId:item.id
           });
         };
-        img.src = src;
+        img.src = item.dataUrl;
       }
 
       function onPointerDown(e){
@@ -1559,25 +1463,14 @@ useEffect(() => {
 // Pick the best image source for matchups / small thumbs
 function getDisplaySrc(item){
   if (!item) return "";
-
-  // Prefer HD / canonical sources first
-  const candidates = [
-    item.fullUrl,
-    item.dataUrl,
-    item.thumbnail,
-    item.thumbDataUrl
-  ];
-
-  for (const c of candidates){
-    if (typeof c === 'string'){
-      const s = c.trim();
-      if (s) return s;
-    }
-  }
-  return "";
+  return (
+    item.thumbnail ||
+    item.thumbDataUrl ||
+    item.fullUrl ||
+    item.dataUrl ||
+    ""
+  );
 }
-
-
 
 // Very small preloader helper
 function preloadImage(src){
@@ -1834,29 +1727,21 @@ useEffect(() => {
   preloadImage(rightSrc);
 }, [matchIds, items]);
 
-function hasAnyImage(item){
-  if (!item) return false;
-  const candidates = [item.fullUrl, item.dataUrl, item.thumbnail, item.thumbDataUrl];
-  return candidates.some(c => typeof c === 'string' && c.trim().length > 0);
-}
 
 function getMatchPool(all,mode){
-  // Only consider items that actually have some kind of image source
-  const basePool = all.filter(hasAnyImage);
-
-  if (basePool.length < 2) return basePool;
-
-  let pool = basePool;
+  let pool = all;
 
   if(mode.type==='bottom'){
-    const sorted = [...basePool].sort(
+    // Bottom 50% by total matchups
+    const sorted = [...all].sort(
       (a,b)=> matchupsCount(a) - matchupsCount(b)
     );
     const cutoff = Math.ceil(sorted.length/2);
     pool = sorted.slice(0,cutoff);
 
   }else if(mode.type==='bottom25' || mode.type==='bottom10'){
-    const sorted = [...basePool].sort(
+    // Bottom 25% / 10% by total matchups
+    const sorted = [...all].sort(
       (a,b)=> matchupsCount(a) - matchupsCount(b)
     );
     const fraction = mode.type==='bottom25' ? 0.25 : 0.10;
@@ -1864,14 +1749,17 @@ function getMatchPool(all,mode){
     pool = sorted.slice(0, cutoff);
 
   }else if(mode.type==='topWinPct10' || mode.type==='bottomWinPct10'){
-    const sorted = [...basePool].sort((a,b)=>{
+    // Top/Bottom 10% by win%
+    const sorted = [...all].sort((a,b)=>{
       const pa = pct(a.wins||0, a.losses||0);
       const pb = pct(b.wins||0, b.losses||0);
 
       if(pa !== pb){
+        // For top: highest first. For bottom: lowest first.
         return mode.type === 'topWinPct10' ? (pb - pa) : (pa - pb);
       }
 
+      // Tie-breaker: use matchups
       const ma = matchupsCount(a);
       const mb = matchupsCount(b);
       return mode.type === 'topWinPct10' ? (mb - ma) : (ma - mb);
@@ -1881,16 +1769,16 @@ function getMatchPool(all,mode){
     pool = sorted.slice(0, cutoff);
 
   }else if(mode.type==='collection' && mode.collection){
-    pool = basePool.filter(it=> (it.collections||[]).includes(mode.collection));
+    pool = all.filter(it=> (it.collections||[]).includes(mode.collection));
 
-  }else if(mode.type==='freshLeaf'){
-    pool = basePool.filter(it=> matchupsCount(it) < 4);
+} else if(mode.type==='freshLeaf'){
+  // Only images that would show the 🌱 icon ("fresh")
+  // New = fewer than 4 matchups (M < 4)
+  pool = all.filter(it=> matchupsCount(it) < 4);
+}
 
-  }else{
-    pool = basePool;
-  }
-
-  if(pool.length<2) pool = basePool;
+  // Fallback safety
+  if(pool.length<2) pool = all;
   return pool;
 }
 
@@ -2194,9 +2082,9 @@ async function importLibraryFiles(fileList){
 
     const firstItems = firstJson.items;
 
-// New logic: decide based on payload type instead of dataUrl
-const isMetadataOnly = firstJson.type === 'metadata-only';
-const isFullExport   = !isMetadataOnly;
+    const isFullExport = firstItems.some(
+      it => typeof it.dataUrl === 'string' && it.dataUrl.length > 50
+    );
 
     // ======================================================
     // PATH A: FULL EXPORT IMPORT (images + metadata)
@@ -2786,10 +2674,6 @@ function labelForMatchMode(){
   <a href="duplicates.html" className="tab">Title Twins</a>
   <a href="tourney.html" className="tab">Tournament</a>
   <a href="thumb-maintenance.html" className="tab">Thumb Maintenance</a>
-  <a href="normalize-urls.html" className="tab">Normalize URLs</a>
-  <a href="unmigrated-report.html" className="tab">Unmigrated Report</a>
-  <a href="migrate.html" className="tab">Migrate</a>
-
 </nav>
 
 
@@ -3299,53 +3183,20 @@ if (dt && dt.files && dt.files.length) {
 <div className="arena">
   <button className="imageCard" onClick={()=>recordWin(left.id)}>
     <img
-      src={getDisplaySrc(left)}
+      src={left.thumbnail || left.thumbDataUrl || left.fullUrl || left.dataUrl}
       alt="left"
-      onError={e=>{
-        // Fallback if primary src fails
-        const fallback =
-          (left.thumbnail && left.thumbnail.trim()) ||
-          (left.thumbDataUrl && left.thumbDataUrl.trim()) ||
-          (left.dataUrl && left.dataUrl.trim()) ||
-          "";
-
-        // Only switch if we actually have a different fallback
-        if (fallback && e.target.src !== fallback){
-          e.target.src = fallback;
-        }else{
-          // If nothing at all works, just hide the broken icon
-          e.target.style.visibility = 'hidden';
-        }
-      }}
     />
     {renderBadges(left.id,'badgeRow-top-right')}
   </button>
-
   <div className="vs">VS</div>
-
   <button className="imageCard" onClick={()=>recordWin(right.id)}>
     <img
-      src={getDisplaySrc(right)}
+      src={right.thumbnail || right.thumbDataUrl || right.fullUrl || right.dataUrl}
       alt="right"
-      onError={e=>{
-        const fallback =
-          (right.thumbnail && right.thumbnail.trim()) ||
-          (right.thumbDataUrl && right.thumbDataUrl.trim()) ||
-          (right.dataUrl && right.dataUrl.trim()) ||
-          "";
-
-        if (fallback && e.target.src !== fallback){
-          e.target.src = fallback;
-        }else{
-          e.target.style.visibility = 'hidden';
-        }
-      }}
     />
     {renderBadges(right.id,'badgeRow-top-right')}
   </button>
 </div>
-
-
 
                   <div className="matchMetaRow">
                     <div className="matchMetaBox">
@@ -4025,9 +3876,7 @@ onChange={e => {
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 
 
-  </script>
+  
+</script>
 </body>
 </html>
-
-
-
