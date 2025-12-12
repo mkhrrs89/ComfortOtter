@@ -2084,15 +2084,10 @@ async function importLibraryFiles(fileList){
     const firstItems = firstJson.items;
     const fileType = firstJson.type || null;
 
-    // Some older exports may be missing the explicit type flag, so we look for
-    // any evidence of inline image data in both the parsed items and raw text.
-    const itemsIncludeData = Array.isArray(firstItems) && firstItems.some(
-      it => typeof it.dataUrl === 'string' && it.dataUrl.startsWith('data:image')
-    );
-    const rawTextIncludesData = /"data:image\//i.test(firstText) || /"dataUrl"\s*:\s*"/i.test(firstText);
-
-    const isMetadataOnly = fileType === 'metadata-only' || (!itemsIncludeData && !rawTextIncludesData);
-    const isFullExport = fileType === 'library-full' || (!isMetadataOnly && (itemsIncludeData || rawTextIncludesData));
+    const isMetadataOnly = fileType === 'metadata-only';
+    const isFullExport = fileType === 'library-full' || (!isMetadataOnly && firstItems.some(
+      it => typeof it.dataUrl === 'string' && it.dataUrl.length > 50
+    ));
 
     // ======================================================
     // PATH A: FULL EXPORT IMPORT (images + metadata)
