@@ -38,11 +38,43 @@
       font-size: 0.8rem;
       white-space: pre-wrap;
     }
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .tab {
+      background: #0b1224;
+      color: #f5f5f5;
+      border: 1px solid #123427;
+      padding: 7px 11px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 13px;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .tab.active {
+      outline: 2px solid #16a085;
+      background: linear-gradient(135deg, #1f9d73, #157457);
+    }
   </style>
 </head>
 <body>
   <h1>ModelMatchup → Firebase Migration</h1>
   <p>This tool uploads any items that still have <code>dataUrl</code> and no <code>fullUrl</code> into Firebase Storage + Firestore.</p>
+
+  <div class="toolbar">
+    <a href="index.html" class="tab">← Back to Library</a>
+    <a href="sizes.html" class="tab">Image Sizes</a>
+    <a href="duplicates.html" class="tab">Title Twins</a>
+    <a href="normalize-urls.html" class="tab">Normalize URLs</a>
+    <a href="unmigrated-report.html" class="tab">Unmigrated Report</a>
+    <a href="migrate.html" class="tab active">Firebase Migration</a>
+  </div>
 
   <button id="migrateBtn">Migrate unmigrated items</button>
   <span id="status"></span>
