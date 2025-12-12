@@ -65,8 +65,17 @@
 <body>
   <h1>Unmigrated Images Report</h1>
   <div class="sub">
-    Shows any records in <code>modelMatchupDB / items</code> that don’t have a <code>fullUrl</code>.  
+    Shows any records in <code>modelMatchupDB / items</code> that don’t have a <code>fullUrl</code>.
     These are the ones that still need to be migrated to Firebase.
+  </div>
+
+  <div style="margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap;">
+    <a href="index.html" class="tab">← Back to Library</a>
+    <a href="sizes.html" class="tab">Image Sizes</a>
+    <a href="duplicates.html" class="tab">Title Twins</a>
+    <a href="normalize-urls.html" class="tab">Normalize URLs</a>
+    <a href="unmigrated-report.html" class="tab active">Unmigrated Report</a>
+    <a href="migrate.html" class="tab">Firebase Migration</a>
   </div>
 
   <button id="scanBtn">Scan IndexedDB</button>
