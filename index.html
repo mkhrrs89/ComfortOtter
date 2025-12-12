@@ -1337,7 +1337,8 @@ async function dataUrlToThumbDataUrl(src, maxSide = 320, quality = 0.80){
           const size = Math.min(iw,ih)*0.8;
           setCrop({
             img, iw, ih,
-            rect:{x:(iw-size)/2,y:(ih-size)/2,w:size,h=size},
+            rect:{ x:(iw-size)/2, y:(ih-size)/2, w:size, h:size },
+
             targetId:item.id
           });
         };
