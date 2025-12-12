@@ -2077,17 +2077,27 @@ async function importLibraryFiles(fileList){
     const firstText = await firstFile.text();
     const firstJson = JSON.parse(firstText);
 
-    if(!firstJson.items || !Array.isArray(firstJson.items)){
-      throw new Error(`Bad file format in ${firstFile.name}`);
-    }
+if(!firstJson.items || !Array.isArray(firstJson.items)){
+  throw new Error(`Bad file format in ${firstFile.name}`);
+}
 
-    const firstItems = firstJson.items;
-    const fileType = firstJson.type || null;
+const firstItems = firstJson.items;
+const fileType = firstJson.type || null;
 
-    const isMetadataOnly = fileType === 'metadata-only';
-    const isFullExport = fileType === 'library-full' || (!isMetadataOnly && firstItems.some(
-      it => typeof it.dataUrl === 'string' && it.dataUrl.length > 50
-    ));
+// Detect export mode safely (works for fullUrl-only exports too)
+const sample = firstItems.slice(0, 300);
+const hasAnyImagePayload = sample.some(it =>
+  (typeof it.dataUrl === 'string' && it.dataUrl.length > 50) ||
+  (typeof it.fullUrl === 'string' && it.fullUrl.trim().length > 0) ||
+  (typeof it.mediumUrl === 'string' && it.mediumUrl.trim().length > 0) ||
+  (typeof it.thumbUrl === 'string' && it.thumbUrl.trim().length > 0) ||
+  (typeof it.thumbnail === 'string' && it.thumbnail.trim().length > 0) ||
+  (typeof it.thumbDataUrl === 'string' && it.thumbDataUrl.trim().length > 50)
+);
+
+const isMetadataOnly = fileType === 'metadata-only' || (!fileType && !hasAnyImagePayload);
+const isFullExport   = fileType === 'library-full' || (!isMetadataOnly && hasAnyImagePayload);
+
 
     // ======================================================
     // PATH A: FULL EXPORT IMPORT (images + metadata)
@@ -3883,3 +3893,4 @@ onChange={e => {
 </script>
 </body>
 </html>
+
