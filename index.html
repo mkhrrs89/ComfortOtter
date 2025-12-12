@@ -581,6 +581,7 @@
   <div id="root"></div>
 
 <script type="module" crossorigin="anonymous">
+try {
   // Set safe defaults so the rest of the app can continue even if Firebase fails to load
   window.firebaseApp     = null;
   window.firebaseAuth    = null;
@@ -589,10 +590,14 @@
   window.saveItemToCloud = () => {};
 
   const firebaseModules = Promise.all([
-    import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"),
-    import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js"),
-    import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js"),
+    import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js")
+      .catch(e => { throw new Error("Failed to load firebase-app.js: " + e); }),
+    import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js")
+      .catch(e => { throw new Error("Failed to load firebase-auth.js: " + e); }),
+    import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js")
+      .catch(e => { throw new Error("Failed to load firebase-firestore.js: " + e); }),
     import("https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js")
+      .catch(e => { throw new Error("Failed to load firebase-storage.js: " + e); })
   ]);
 
   firebaseModules.then(([{ initializeApp }, { getAuth, signInAnonymously, onAuthStateChanged }, { getFirestore, doc, setDoc }, { getStorage }]) => {
@@ -613,7 +618,6 @@
     const storage = getStorage(app);
 
     // --- AUTH ---
-
     signInAnonymously(auth).catch(err => {
       console.error("Anonymous sign-in failed:", err);
     });
@@ -627,23 +631,11 @@
     });
 
     // --- METADATA MIRRORING ---
-
-    // Remove heavy fields before sending to Firestore
     function stripBigFields(item) {
       if (!item || !item.id) return null;
 
-      const {
-        dataUrl,
-        thumbnail,
-        thumbDataUrl,
-        // future big fields can be stripped here
-        ...rest
-      } = item;
-
-      return {
-        ...rest,
-        updatedAt: new Date().toISOString()
-      };
+      const { dataUrl, thumbnail, thumbDataUrl, ...rest } = item;
+      return { ...rest, updatedAt: new Date().toISOString() };
     }
 
     async function saveItemToCloud(item) {
@@ -651,12 +643,10 @@
       if (!meta) return;
 
       try {
-        const ref = doc(db, "images", meta.id); // one doc per image
+        const ref = doc(db, "images", meta.id);
         await setDoc(ref, meta, { merge: true });
-        // console.log("☁️ mirrored to Firestore", meta.id);
       } catch (err) {
         console.error("Cloud save failed for", meta && meta.id, err);
-        // don't throw – local save should still succeed
       }
     }
 
@@ -666,10 +656,26 @@
     window.firebaseDb      = db;
     window.firebaseStorage = storage;
     window.saveItemToCloud = saveItemToCloud;
+
   }).catch(err => {
     console.error("Firebase bootstrap failed; running without cloud sync", err);
   });
+
+} catch (err) {
+  const pre = document.createElement("pre");
+  pre.style.cssText =
+    "position:fixed;inset:10px;background:#000;color:#0f0;" +
+    "padding:12px;z-index:999999;overflow:auto;font-size:12px;white-space:pre-wrap;";
+  pre.textContent =
+    "TOP-LEVEL MODULE ERROR\n\n" +
+    (err?.message || err) +
+    "\n\n" +
+    (err?.stack || "(no stack)");
+  document.body.appendChild(pre);
+  console.error(err);
+}
 </script>
+
 
 
 <script>
@@ -4019,5 +4025,6 @@ onChange={e => {
   </script>
 </body>
 </html>
+
 
 
