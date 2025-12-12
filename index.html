@@ -2407,11 +2407,16 @@ for (let idx = 1; idx < files.length; idx++) {
           const cols = it.collections || [];
           for(const name of cols){
             if(!name) continue;
-            const cur = map.get(name) || {name,wins:0,losses:0,bonus:0,images:new Set()};
+            const cur = map.get(name) || {name,wins:0,losses:0,bonus:0,images:new Set(),bestItem:null,bestItemPoints:-Infinity};
+            const itemPoints = computePoints(it.wins,it.losses,it.tourneyBonus||0);
             cur.wins += it.wins||0;
             cur.losses += it.losses||0;
             cur.bonus += Number(it.tourneyBonus||0);
             cur.images.add(it.id);
+            if(!cur.bestItem || itemPoints>cur.bestItemPoints){
+              cur.bestItem = it;
+              cur.bestItemPoints = itemPoints;
+            }
             map.set(name,cur);
           }
         }
@@ -2422,7 +2427,8 @@ for (let idx = 1; idx < files.length; idx++) {
           imagesCount: r.images.size,
           matchups: r.wins + r.losses,
           pct: pct(r.wins,r.losses),
-          points: computePoints(r.wins,r.losses,r.bonus)
+          points: computePoints(r.wins,r.losses,r.bonus),
+          bestItem: r.bestItem
         }));
         rows.sort((a,b)=>{
           const dir = collStatsSort.dir==='asc' ? 1 : -1;
@@ -3382,6 +3388,7 @@ if (dt && dt.files && dt.files.length) {
                   <thead>
                     <tr>
                       <th>#</th>
+                      <th>Preview</th>
                       <th className="sortable" onClick={()=>changeCollStatsSort('name')}>
                         Collection{sortIndicator(collStatsSort.field==='name',collStatsSort.dir)}
                       </th>
@@ -3409,6 +3416,37 @@ if (dt && dt.files && dt.files.length) {
                     {collectionStats.map((c,i)=>(
                       <tr key={c.name}>
                         <td>{i+1}</td>
+                        <td>
+                          {c.bestItem ? (
+                            <div className="thumbWrap">
+                              <img
+                                className="thumb"
+                                src={c.bestItem.thumbnail || c.bestItem.fullUrl || c.bestItem.dataUrl || c.bestItem.thumbDataUrl || ''}
+                                alt={c.bestItem.title || 'Image'}
+                                onClick={() => openPreviewFor(c.bestItem)}
+                                onError={e => {
+                                  const fallbacks = [
+                                    c.bestItem.fullUrl,
+                                    c.bestItem.dataUrl,
+                                    c.bestItem.thumbnail,
+                                    c.bestItem.thumbDataUrl
+                                  ].filter(Boolean);
+
+                                  const current = e.target.src;
+                                  const next = fallbacks.find(url => url && url !== current);
+
+                                  if (next) {
+                                    e.target.src = next;
+                                  } else {
+                                    e.target.style.visibility = 'hidden';
+                                  }
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <span className="smallMuted">—</span>
+                          )}
+                        </td>
                         <td>
                           <button
                             className="btn sm ghost"
