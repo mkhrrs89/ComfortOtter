@@ -580,87 +580,108 @@
 <body>
   <div id="root"></div>
 
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-  import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+<script type="module" crossorigin="anonymous">
+  // Set safe defaults so the rest of the app can continue even if Firebase fails to load
+  window.firebaseApp     = null;
+  window.firebaseAuth    = null;
+  window.firebaseDb      = null;
+  window.firebaseStorage = null;
+  window.saveItemToCloud = () => {};
 
-  // Comforting Otter config
-  const firebaseConfig = {
-    apiKey: "AIzaSyBOVGz7QH_iPtxoM25baGqTIR-2yxUQwH8",
-    authDomain: "comforting-otter.firebaseapp.com",
-    projectId: "comforting-otter",
-    storageBucket: "comforting-otter.firebasestorage.app",
-    messagingSenderId: "1074346290690",
-    appId: "1:1074346290690:web:bd2721e73fbdf029e7411b",
-    measurementId: "G-2JT31JFGNJ"
-  };
+  const firebaseModules = Promise.all([
+    import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"),
+    import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js"),
+    import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js"),
+    import("https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js")
+  ]);
 
-  const app     = initializeApp(firebaseConfig);
-  const auth    = getAuth(app);
-  const db      = getFirestore(app);
-  const storage = getStorage(app);
-
-  // --- AUTH ---
-
-  signInAnonymously(auth).catch(err => {
-    console.error("Anonymous sign-in failed:", err);
-  });
-
-  onAuthStateChanged(auth, user => {
-    if (user) {
-      console.log("✅ Firebase ready. Anonymous UID:", user.uid);
-    } else {
-      console.log("ℹ️ Not signed in yet");
-    }
-  });
-
-  // --- METADATA MIRRORING ---
-
-  // Remove heavy fields before sending to Firestore
-  function stripBigFields(item) {
-    if (!item || !item.id) return null;
-
-    const {
-      dataUrl,
-      thumbnail,
-      thumbDataUrl,
-      // future big fields can be stripped here
-      ...rest
-    } = item;
-
-    return {
-      ...rest,
-      updatedAt: new Date().toISOString()
+  firebaseModules.then(([{ initializeApp }, { getAuth, signInAnonymously, onAuthStateChanged }, { getFirestore, doc, setDoc }, { getStorage }]) => {
+    // Comforting Otter config
+    const firebaseConfig = {
+      apiKey: "AIzaSyBOVGz7QH_iPtxoM25baGqTIR-2yxUQwH8",
+      authDomain: "comforting-otter.firebaseapp.com",
+      projectId: "comforting-otter",
+      storageBucket: "comforting-otter.firebasestorage.app",
+      messagingSenderId: "1074346290690",
+      appId: "1:1074346290690:web:bd2721e73fbdf029e7411b",
+      measurementId: "G-2JT31JFGNJ"
     };
-  }
 
-  async function saveItemToCloud(item) {
-    const meta = stripBigFields(item);
-    if (!meta) return;
+    const app     = initializeApp(firebaseConfig);
+    const auth    = getAuth(app);
+    const db      = getFirestore(app);
+    const storage = getStorage(app);
 
-    try {
-      const ref = doc(db, "images", meta.id); // one doc per image
-      await setDoc(ref, meta, { merge: true });
-      // console.log("☁️ mirrored to Firestore", meta.id);
-    } catch (err) {
-      console.error("Cloud save failed for", meta && meta.id, err);
-      // don't throw – local save should still succeed
+    // --- AUTH ---
+
+    signInAnonymously(auth).catch(err => {
+      console.error("Anonymous sign-in failed:", err);
+    });
+
+    onAuthStateChanged(auth, user => {
+      if (user) {
+        console.log("✅ Firebase ready. Anonymous UID:", user.uid);
+      } else {
+        console.log("ℹ️ Not signed in yet");
+      }
+    });
+
+    // --- METADATA MIRRORING ---
+
+    // Remove heavy fields before sending to Firestore
+    function stripBigFields(item) {
+      if (!item || !item.id) return null;
+
+      const {
+        dataUrl,
+        thumbnail,
+        thumbDataUrl,
+        // future big fields can be stripped here
+        ...rest
+      } = item;
+
+      return {
+        ...rest,
+        updatedAt: new Date().toISOString()
+      };
     }
-  }
 
-  // Expose to the rest of your app
-  window.firebaseApp     = app;
-  window.firebaseAuth    = auth;
-  window.firebaseDb      = db;
-  window.firebaseStorage = storage;
-  window.saveItemToCloud = saveItemToCloud;
+    async function saveItemToCloud(item) {
+      const meta = stripBigFields(item);
+      if (!meta) return;
+
+      try {
+        const ref = doc(db, "images", meta.id); // one doc per image
+        await setDoc(ref, meta, { merge: true });
+        // console.log("☁️ mirrored to Firestore", meta.id);
+      } catch (err) {
+        console.error("Cloud save failed for", meta && meta.id, err);
+        // don't throw – local save should still succeed
+      }
+    }
+
+    // Expose to the rest of your app
+    window.firebaseApp     = app;
+    window.firebaseAuth    = auth;
+    window.firebaseDb      = db;
+    window.firebaseStorage = storage;
+    window.saveItemToCloud = saveItemToCloud;
+  }).catch(err => {
+    console.error("Firebase bootstrap failed; running without cloud sync", err);
+  });
 </script>
 
 <script>
-window.addEventListener("error", e => { alert("JS ERROR: " + e.message); });
-window.addEventListener("unhandledrejection", e => { alert("PROMISE ERROR: " + e.reason); });
+window.addEventListener("error", e => {
+  const location = e.filename ? `\n${e.filename}${e.lineno ? ":" + e.lineno : ""}` : "";
+  const msg = e.message || "Unknown error";
+  alert(`JS ERROR: ${msg}${location}`);
+  console.error("Window error:", e.error || msg, e);
+});
+window.addEventListener("unhandledrejection", e => {
+  alert("PROMISE ERROR: " + (e.reason && e.reason.message ? e.reason.message : e.reason));
+  console.error("Unhandled rejection:", e.reason);
+});
 </script>
 
 
