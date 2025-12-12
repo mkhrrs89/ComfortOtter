@@ -671,19 +671,53 @@
   });
 </script>
 
-<script>
-window.addEventListener("error", e => {
-  const location = e.filename ? `\n${e.filename}${e.lineno ? ":" + e.lineno : ""}` : "";
-  const msg = e.message || "Unknown error";
-  alert(`JS ERROR: ${msg}${location}`);
-  console.error("Window error:", e.error || msg, e);
-});
-window.addEventListener("unhandledrejection", e => {
-  alert("PROMISE ERROR: " + (e.reason && e.reason.message ? e.reason.message : e.reason));
-  console.error("Unhandled rejection:", e.reason);
-});
-</script>
 
+<script>
+(function(){
+  function ensureBox(){
+    let box = document.getElementById('errbox');
+    if(box) return box;
+    box = document.createElement('pre');
+    box.id = 'errbox';
+    box.style.cssText =
+      'position:fixed;left:8px;right:8px;bottom:8px;max-height:45vh;overflow:auto;' +
+      'background:rgba(0,0,0,.85);color:#fff;padding:10px;border-radius:12px;z-index:999999;' +
+      'font:12px/1.35 -apple-system,BlinkMacSystemFont,system-ui,Segoe UI,Roboto,Arial;' +
+      'white-space:pre-wrap;display:none;';
+    document.addEventListener('DOMContentLoaded', () => document.body.appendChild(box));
+    return box;
+  }
+
+  function log(msg){
+    const box = ensureBox();
+    box.style.display = 'block';
+    box.textContent += msg + "\n\n";
+  }
+
+  window.addEventListener('error', (e) => {
+    log(
+      "JS ERROR:\n" +
+      (e.message || "(no message)") +
+      "\nsource: " + (e.filename || "(no filename)") +
+      "\nline: " + (e.lineno || "?") + ":" + (e.colno || "?") +
+      "\nstack:\n" + ((e.error && e.error.stack) ? e.error.stack : "(no stack)")
+    );
+  });
+
+  window.addEventListener('unhandledrejection', (e) => {
+    const r = e.reason;
+    log(
+      "PROMISE ERROR:\n" +
+      (r && r.message ? r.message : String(r)) +
+      "\nstack:\n" + (r && r.stack ? r.stack : "(no stack)")
+    );
+  });
+
+  window.__scriptFail = function(name, src){
+    log("FAILED TO LOAD SCRIPT:\n" + name + "\n" + src);
+  };
+})();
+</script>
 
 
 
@@ -3985,4 +4019,5 @@ onChange={e => {
   </script>
 </body>
 </html>
+
 
