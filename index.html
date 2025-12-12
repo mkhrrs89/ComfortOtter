@@ -1907,6 +1907,7 @@ async function exportLibrary(){
   // Build and download JSON (full image export)
   const payload = {
     version: 2,
+    type: 'library-full',
     exportedAt: new Date().toISOString(),
     items: exportItems
   };
@@ -2081,10 +2082,12 @@ async function importLibraryFiles(fileList){
     }
 
     const firstItems = firstJson.items;
+    const fileType = firstJson.type || null;
 
-    const isFullExport = firstItems.some(
+    const isMetadataOnly = fileType === 'metadata-only';
+    const isFullExport = fileType === 'library-full' || (!isMetadataOnly && firstItems.some(
       it => typeof it.dataUrl === 'string' && it.dataUrl.length > 50
-    );
+    ));
 
     // ======================================================
     // PATH A: FULL EXPORT IMPORT (images + metadata)
