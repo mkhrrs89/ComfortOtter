@@ -1242,7 +1242,31 @@ async function dataUrlToThumbDataUrl(src, maxSide = 320, quality = 0.80){
       }
       useEffect(()=>{ if(crop) draw(crop); },[crop]);
 
-      function startForItem(item){
+      async function startForItem(item){
+        async function resolveSrc(){
+          if(item.dataUrl) return item.dataUrl;
+
+          // Try loading the full item from IndexedDB so we can crop the highest fidelity image
+          if(item.id){
+            const stored = await idbGet(item.id);
+            if(stored?.dataUrl) return stored.dataUrl;
+            if(stored?.fullUrl) return stored.fullUrl;
+            if(stored?.thumbDataUrl) return stored.thumbDataUrl;
+            if(stored?.thumbnail) return stored.thumbnail;
+          }
+
+          if(item.fullUrl) return item.fullUrl;
+          if(item.thumbDataUrl) return item.thumbDataUrl;
+          if(item.thumbnail) return item.thumbnail;
+          return null;
+        }
+
+        const src = await resolveSrc();
+        if(!src){
+          alert('Could not load image data for cropping.');
+          return;
+        }
+
         const img = new Image();
         img.onload = ()=>{
           const iw = img.naturalWidth;
@@ -1250,11 +1274,11 @@ async function dataUrlToThumbDataUrl(src, maxSide = 320, quality = 0.80){
           const size = Math.min(iw,ih)*0.8;
           setCrop({
             img, iw, ih,
-            rect:{x:(iw-size)/2,y:(ih-size)/2,w:size,h:size},
+            rect:{x:(iw-size)/2,y:(ih-size)/2,w:size,h=size},
             targetId:item.id
           });
         };
-        img.src = item.dataUrl;
+        img.src = src;
       }
 
       function onPointerDown(e){
