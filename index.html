@@ -76,6 +76,21 @@
   margin-left: auto;
   display: flex;
   gap: 14px;
+  flex-wrap: wrap;
+}
+
+.badgeItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (max-width: 600px){
+  .badgeSummary {
+    width: 100%;
+    gap: 12px;
+    white-space: nowrap;
+  }
 }
 
     .pane{
@@ -2676,13 +2691,10 @@ function labelForMatchMode(){
 <h1>ModelMatchup</h1>
 
   <div className="badgeSummary">
-    ⭐ {totalUndefeated}
-    &nbsp;&nbsp;
-    💩 {totalWinless}
-    &nbsp;&nbsp;
-    🖼 {items.length}
-    &nbsp;&nbsp;
-    🌱 {totalNew}
+    <span className="badgeItem">⭐ {totalUndefeated}</span>
+    <span className="badgeItem">💩 {totalWinless}</span>
+    <span className="badgeItem">🖼 {items.length}</span>
+    <span className="badgeItem">🌱 {totalNew}</span>
   </div>
 
 
