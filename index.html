@@ -42,6 +42,11 @@
       gap:16px;
       margin-bottom:10px;
     }
+    .titleBlock{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
     h1{
       font-size:22px;
       margin:0;
@@ -73,24 +78,15 @@
 .badgeSummary {
   font-size: 14px;
   opacity: 0.85;
-  margin-left: auto;
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
 }
 
 .badgeItem {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-}
-
-@media (max-width: 600px){
-  .badgeSummary {
-    width: 100%;
-    gap: 12px;
-    white-space: nowrap;
-  }
 }
 
     .pane{
@@ -2688,13 +2684,15 @@ function labelForMatchMode(){
         <div className="app">
 
 <header className="header">
-<h1>ModelMatchup</h1>
+  <div className="titleBlock">
+    <h1>ModelMatchup</h1>
 
-  <div className="badgeSummary">
-    <span className="badgeItem">⭐ {totalUndefeated}</span>
-    <span className="badgeItem">💩 {totalWinless}</span>
-    <span className="badgeItem">🖼 {items.length}</span>
-    <span className="badgeItem">🌱 {totalNew}</span>
+    <div className="badgeSummary">
+      <span className="badgeItem">⭐ {totalUndefeated}</span>
+      <span className="badgeItem">💩 {totalWinless}</span>
+      <span className="badgeItem">🖼 {items.length}</span>
+      <span className="badgeItem">🌱 {totalNew}</span>
+    </div>
   </div>
 
 
