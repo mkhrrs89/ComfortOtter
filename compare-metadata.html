@@ -181,7 +181,7 @@
         </div>
 
         <button class="btn warn" id="btnExport" disabled>Download missing as export</button>
-        <button class="btn" id="btnEmbed" disabled>Download missing as IMPORTABLE export (embed images)</button>
+        <button class="btn" id="btnEmbed" disabled>Download missing as IMPORTABLE export (from this device’s library)</button>
       </div>
 
       <div class="small">
@@ -412,6 +412,46 @@
   });
 }
 
+async function openLocalDb(){
+  const DB_NAME = 'modelMatchupDB';
+  const DB_STORE = 'items';
+  return new Promise((resolve, reject) => {
+    try{
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onerror = () => reject(req.error || new Error('IndexedDB open failed'));
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if(!db.objectStoreNames.contains(DB_STORE)){
+          db.createObjectStore(DB_STORE, { keyPath: 'id' });
+        }
+      };
+      req.onsuccess = () => resolve({ db: req.result, store: DB_STORE });
+    }catch(err){
+      reject(err);
+    }
+  });
+}
+
+async function idbGetById(db, storeName, id){
+  return new Promise((resolve, reject) => {
+    try{
+      const tx = db.transaction(storeName, 'readonly');
+      const st = tx.objectStore(storeName);
+      const r = st.get(id);
+      r.onsuccess = () => resolve(r.result || null);
+      r.onerror = () => reject(r.error || new Error('IndexedDB get failed'));
+    }catch(err){
+      reject(err);
+    }
+  });
+}
+
+/**
+ * Build an importable export by pulling the full records (including any embedded dataUrl/thumbnail)
+ * directly out of THIS DEVICE's local IndexedDB.
+ *
+ * IMPORTANT: run this page on the device that actually HAS the missing images in its library.
+ */
 async function downloadMissingAsEmbeddedExport(mode){
   let chosen = [];
   if(mode === 'AminusB') chosen = aMinusB.map(x => x.item);
@@ -423,89 +463,83 @@ async function downloadMissingAsEmbeddedExport(mode){
     return;
   }
 
-  setStatus(`Building importable export (embedding images) for ${chosen.length} items…`);
+  const ids = chosen.map(it => it && it.id).filter(Boolean);
+  const missingIdsCount = chosen.length - ids.length;
+
+  setStatus(
+    `Building importable export from LOCAL library for ${ids.length}/${chosen.length} items…` +
+    (missingIdsCount ? `
+(${missingIdsCount} items had no id — cannot pull from IndexedDB)` : '')
+  );
+
+  let ctx = null;
+  try{
+    ctx = await openLocalDb();
+  }catch(err){
+    setStatus("Could not open local IndexedDB on this device.
+" + (err?.message || err));
+    return;
+  }
 
   const outItems = [];
   const failures = [];
   let ok = 0;
 
-  for(let i=0; i<chosen.length; i++){
-    const item = chosen[i];
-    const id = item?.id || null;
-    const title = item?.title || item?.name || "";
-
-    // If already embedded, keep as-is (this is already importable)
-    if(typeof item?.dataUrl === 'string' && item.dataUrl.startsWith('data:image/') && item.dataUrl.length > 100){
-      outItems.push(item);
-      ok++;
-      continue;
-    }
-
-    const url = pickBestUrl(item);
-
-    if(!url || url.startsWith('blob:')){
-      failures.push({ id, title, reason: "No usable URL (empty or blob:)" });
-      continue;
-    }
-
-    setStatus(`Embedding ${i+1}/${chosen.length}…\nOK: ${ok}  Failed: ${failures.length}\n${id || title}`);
+  for(let i=0; i<ids.length; i++){
+    const id = ids[i];
+    setStatus(`Fetching from local library ${i+1}/${ids.length}…
+OK: ${ok}  Failed: ${failures.length}
+${id}`);
 
     try{
-      const res = await fetch(url, { mode: 'cors', cache: 'no-store' });
+      const rec = await idbGetById(ctx.db, ctx.store, id);
 
-      if(!res.ok){
-        failures.push({ id, title, url, reason: `Fetch failed (${res.status})` });
+      if(!rec){
+        failures.push({ id, reason: "Not found in local IndexedDB (run this on the device that has the image)" });
         continue;
       }
 
-      const ct = (res.headers.get('content-type') || '').toLowerCase();
-      const blob = await res.blob();
-      const bt = (blob.type || '').toLowerCase();
+      const hasPayload =
+        (typeof rec.dataUrl === 'string' && rec.dataUrl.startsWith('data:image/') && rec.dataUrl.length > 100) ||
+        (typeof rec.fullUrl === 'string' && rec.fullUrl.trim().length > 0) ||
+        (typeof rec.mediumUrl === 'string' && rec.mediumUrl.trim().length > 0) ||
+        (typeof rec.thumbUrl === 'string' && rec.thumbUrl.trim().length > 0) ||
+        (typeof rec.thumbnail === 'string' && rec.thumbnail.trim().length > 0) ||
+        (typeof rec.thumbDataUrl === 'string' && rec.thumbDataUrl.startsWith('data:image/') && rec.thumbDataUrl.length > 100);
 
-      // IMPORTANT: only embed actual images. If we fetched HTML/text (CORS error page, login page, etc.), skip.
-      const mime = bt || ct;
-      if(!mime.startsWith('image/')){
-        failures.push({ id, title, url, reason: `Not an image (content-type: ${ct || '(none)'}; blob.type: ${bt || '(none)'})` });
+      if(!hasPayload){
+        failures.push({ id, reason: "Record found locally, but has no usable image payload/URL fields" });
         continue;
       }
 
-      const dataUrl = await blobToDataUrl(blob);
-
-      if(!dataUrl.startsWith('data:image/') || dataUrl.length < 100){
-        failures.push({ id, title, url, reason: "Failed to convert to image dataUrl" });
-        continue;
-      }
-
-      // Preserve metadata, but ensure embedded payload exists
-      outItems.push({
-        ...item,
-        dataUrl,
-        // keep any existing url fields too; they don't hurt imports
-        embeddedAt: new Date().toISOString()
-      });
-
+      outItems.push(rec);
       ok++;
     }catch(err){
-      failures.push({ id, title, url, reason: err?.message || String(err) });
+      failures.push({ id, reason: err?.message || String(err) });
     }
   }
+
+  try{ ctx.db && ctx.db.close && ctx.db.close(); }catch(_){}
 
   const payload = {
     version: 2,
     type: "library-full",
     exportedAt: new Date().toISOString(),
-    source: "compare-metadata (embed)",
+    source: "compare-metadata (local library export)",
     mode,
-    counts: { requested: chosen.length, ok, failed: failures.length },
+    counts: { requested: chosen.length, ids: ids.length, ok, failed: failures.length },
     failures,
     items: outItems
   };
 
-  downloadJson(`missing_embedded_${mode}.json`, payload);
+  downloadJson(`missing_local_${mode}.json`, payload);
 
   setStatus(
-    `Done.\nEmbedded export downloaded.\nOK: ${ok}  Failed: ${failures.length}` +
-    (failures.length ? `\n(If failed > 0, open the JSON and check failures[] for reasons.)` : '')
+    `Done.
+Importable export downloaded.
+OK: ${ok}  Failed: ${failures.length}` +
+    (failures.length ? `
+(Open the JSON and check failures[] for which IDs were missing locally.)` : '')
   );
 }
 
