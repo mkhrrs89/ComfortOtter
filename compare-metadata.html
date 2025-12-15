@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Compare Library Exports — Missing Images</title>
+  <style>
+    :root{
+      --bg:#06130e;
+      --panel: rgba(255,255,255,.06);
+      --panel2: rgba(255,255,255,.09);
+      --text:#eafff4;
+      --muted: rgba(234,255,244,.75);
+      --border: rgba(234,255,244,.14);
+      --accent:#35d07f;
+      --danger:#ff5b5b;
+      --warn:#ffcc66;
+      --radius: 14px;
+    }
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color:var(--text);
+      background: radial-gradient(1200px 600px at 20% 10%, rgba(53,208,127,.25), transparent 60%),
+                  radial-gradient(900px 500px at 80% 0%, rgba(53,208,127,.18), transparent 55%),
+                  linear-gradient(180deg, #071812, #020805 70%);
+      padding:18px;
+    }
+    h1{margin:0 0 10px 0; font-size:18px; letter-spacing:.2px;}
+    .sub{color:var(--muted); font-size:13px; margin-bottom:16px;}
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:12px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    @media (min-width: 980px){
+      .grid{grid-template-columns: 1fr 1fr;}
+    }
+    .card{
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      box-shadow: 0 14px 30px rgba(0,0,0,.28);
+    }
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+    .row > * {flex: 0 0 auto;}
+    label{font-size:12px; color:var(--muted);}
+    input[type="file"], select{
+      background: var(--panel2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      width: 100%;
+    }
+    .btn{
+      background: rgba(53,208,127,.14);
+      border: 1px solid rgba(53,208,127,.35);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor:pointer;
+      font-weight: 700;
+      letter-spacing:.2px;
+    }
+    .btn:disabled{opacity:.45; cursor:not-allowed}
+    .btn.danger{background: rgba(255,91,91,.12); border-color: rgba(255,91,91,.35);}
+    .btn.warn{background: rgba(255,204,102,.12); border-color: rgba(255,204,102,.35);}
+    .pill{
+      display:inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.07);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+      margin-left: 6px;
+    }
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;}
+    .list{
+      margin-top: 10px;
+      max-height: 42vh;
+      overflow:auto;
+      background: rgba(0,0,0,.22);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+    }
+    .item{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      padding: 8px 6px;
+      border-bottom: 1px dashed rgba(255,255,255,.10);
+      font-size: 12px;
+    }
+    .item:last-child{border-bottom:none}
+    .small{font-size:12px; color: var(--muted);}
+    .topbar{
+      max-width:1100px;
+      margin:0 auto 12px auto;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .status{
+      max-width:1100px;
+      margin: 0 auto 12px auto;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,.22);
+      color: var(--muted);
+      font-size: 12px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>Compare Exports — Find Missing Images</h1>
+    <span class="pill">Drop-in tool</span>
+    <span class="pill">2 files</span>
+    <span class="pill">Exports missing as JSON</span>
+  </div>
+  <div class="status" id="status">Load two JSON export files to begin.</div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="row" style="margin-bottom:10px;">
+        <div style="flex:1 1 340px;">
+          <label>File A</label>
+          <input id="fileA" type="file" accept=".json,application/json" />
+        </div>
+      </div>
+
+      <div class="row" style="margin-bottom:8px;">
+        <div style="flex:1 1 340px;">
+          <label>File B</label>
+          <input id="fileB" type="file" accept=".json,application/json" />
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px;">
+        <div style="flex:1 1 240px;">
+          <label>Match key</label>
+          <select id="keyMode">
+            <option value="auto" selected>Auto (id → fullUrl → src/title)</option>
+            <option value="id">id only</option>
+            <option value="fullUrl">fullUrl only</option>
+            <option value="src">src/url fields (best-effort)</option>
+            <option value="title">title only</option>
+          </select>
+          <div class="small" style="margin-top:6px;">
+            Auto is recommended unless you know your IDs are unreliable.
+          </div>
+        </div>
+
+        <button class="btn" id="btnCompare" disabled>Compare</button>
+        <button class="btn danger" id="btnReset">Reset</button>
+      </div>
+
+      <hr style="border:none;border-top:1px solid var(--border);margin:14px 0;" />
+
+      <div class="row" style="margin-bottom:10px;">
+        <div style="flex:1 1 240px;">
+          <label>Export mode</label>
+          <select id="exportMode">
+            <option value="AminusB" selected>Export items in A but not in B</option>
+            <option value="BminusA">Export items in B but not in A</option>
+            <option value="both">Export both sets (two files)</option>
+          </select>
+          <div class="small" style="margin-top:6px;">
+            This exports the actual item objects from whichever file has them.
+          </div>
+        </div>
+
+        <button class="btn warn" id="btnExport" disabled>Download missing as export</button>
+      </div>
+
+      <div class="small">
+        Output export format:
+        <span class="mono">{"version":2,"type":"library-full","exportedAt":"...","items":[...]}</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between;">
+        <div>
+          <div style="font-weight:800;">Results</div>
+          <div class="small">Counts + missing keys (preview)</div>
+        </div>
+        <div class="pill mono" id="counts">A: 0 · B: 0</div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <div style="font-weight:800;">In A but not in B <span class="pill mono" id="countAminusB">0</span></div>
+        <div class="list" id="listAminusB"></div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <div style="font-weight:800;">In B but not in A <span class="pill mono" id="countBminusA">0</span></div>
+        <div class="list" id="listBminusA"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const els = {
+    status: document.getElementById('status'),
+    fileA: document.getElementById('fileA'),
+    fileB: document.getElementById('fileB'),
+    btnCompare: document.getElementById('btnCompare'),
+    btnReset: document.getElementById('btnReset'),
+    btnExport: document.getElementById('btnExport'),
+    keyMode: document.getElementById('keyMode'),
+    exportMode: document.getElementById('exportMode'),
+    counts: document.getElementById('counts'),
+    countAminusB: document.getElementById('countAminusB'),
+    countBminusA: document.getElementById('countBminusA'),
+    listAminusB: document.getElementById('listAminusB'),
+    listBminusA: document.getElementById('listBminusA'),
+  };
+
+  let A = null, B = null;
+  let AItems = [], BItems = [];
+  let aMinusB = [], bMinusA = [];
+
+  function setStatus(msg){ els.status.textContent = msg; }
+
+  function safeText(x){
+    if (x == null) return '';
+    return String(x);
+  }
+
+  function normalizeUrl(u){
+    if(!u) return '';
+    try{
+      // normalize google storage url variations somewhat
+      // NOTE: we don't fetch; just normalize strings for comparison
+      const s = String(u).trim();
+      // remove fragment
+      const noHash = s.split('#')[0];
+      // collapse accidental double spaces
+      return noHash.replace(/\s+/g,' ');
+    }catch{
+      return '';
+    }
+  }
+
+  // Build a key for an item depending on user-selected mode
+  function makeKey(item, mode){
+    const id = safeText(item?.id).trim();
+    const title = safeText(item?.title || item?.name).trim();
+
+    const fullUrl = normalizeUrl(item?.fullUrl || item?.full || item?.urlFull);
+    const mediumUrl = normalizeUrl(item?.mediumUrl || item?.urlMedium);
+    const thumbUrl = normalizeUrl(item?.thumbUrl || item?.thumbnailUrl);
+    const thumbDataUrl = safeText(item?.thumbDataUrl).trim();
+    const thumbnail = normalizeUrl(item?.thumbnail);
+
+    // best-effort "src/url fields"
+    const srcCandidate =
+      fullUrl || mediumUrl || thumbUrl ||
+      normalizeUrl(item?.src || item?.url || item?.href || item?.imageUrl) ||
+      (thumbnail.startsWith('http') ? thumbnail : '') ||
+      (thumbDataUrl.startsWith('data:') ? thumbDataUrl.slice(0,80) : '');
+
+    if(mode === 'id') return id || '';
+    if(mode === 'fullUrl') return fullUrl || '';
+    if(mode === 'title') return title || '';
+    if(mode === 'src') return srcCandidate || '';
+
+    // auto
+    return (id || fullUrl || srcCandidate || title || '').trim();
+  }
+
+  function parseExport(json){
+    // supports {items:[...]} and raw arrays
+    if (Array.isArray(json)) return json;
+    if (json && Array.isArray(json.items)) return json.items;
+    return null;
+  }
+
+  async function readJsonFile(file){
+    const text = await file.text();
+    return JSON.parse(text);
+  }
+
+  function renderList(container, items, limit=400){
+    container.innerHTML = '';
+    if(!items.length){
+      container.innerHTML = `<div class="small">None 🎉</div>`;
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    items.slice(0, limit).forEach(({key, item}) => {
+      const div = document.createElement('div');
+      div.className = 'item';
+      const left = document.createElement('div');
+      left.className = 'mono';
+      left.textContent = key || '(empty key)';
+      const right = document.createElement('div');
+      right.className = 'small';
+      right.textContent = safeText(item?.title || item?.name || item?.id || '');
+      div.appendChild(left);
+      div.appendChild(right);
+      frag.appendChild(div);
+    });
+    container.appendChild(frag);
+    if(items.length > limit){
+      const more = document.createElement('div');
+      more.className = 'small';
+      more.style.marginTop = '8px';
+      more.textContent = `Showing first ${limit} of ${items.length}. Export to get the full set.`;
+      container.appendChild(more);
+    }
+  }
+
+  function buildIndex(items, mode){
+    const map = new Map(); // key -> first item
+    const dup = new Map(); // key -> count
+    for(const it of items){
+      const k = makeKey(it, mode);
+      if(!k) continue;
+      if(map.has(k)){
+        dup.set(k, (dup.get(k)||1)+1);
+      }else{
+        map.set(k, it);
+      }
+    }
+    return { map, dup };
+  }
+
+  function diff(Aitems, Bitems, mode){
+    const aIndex = buildIndex(Aitems, mode);
+    const bIndex = buildIndex(Bitems, mode);
+
+    const inA_NotB = [];
+    const inB_NotA = [];
+
+    for(const [k, it] of aIndex.map.entries()){
+      if(!bIndex.map.has(k)){
+        inA_NotB.push({ key:k, item:it });
+      }
+    }
+    for(const [k, it] of bIndex.map.entries()){
+      if(!aIndex.map.has(k)){
+        inB_NotA.push({ key:k, item:it });
+      }
+    }
+
+    // sort for stability
+    inA_NotB.sort((x,y)=> (x.key||'').localeCompare(y.key||''));
+    inB_NotA.sort((x,y)=> (x.key||'').localeCompare(y.key||''));
+
+    return { inA_NotB, inB_NotA, aDup:aIndex.dup, bDup:bIndex.dup };
+  }
+
+  function downloadJson(filename, obj){
+    const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=> URL.revokeObjectURL(url), 2500);
+  }
+
+  function buildExportPayload(items){
+    return {
+      version: 2,
+      type: "library-full",
+      exportedAt: new Date().toISOString(),
+      items
+    };
+  }
+
+  function updateButtons(){
+    const ok = !!(els.fileA.files?.length && els.fileB.files?.length);
+    els.btnCompare.disabled = !ok;
+  }
+
+  els.fileA.addEventListener('change', updateButtons);
+  els.fileB.addEventListener('change', updateButtons);
+
+  els.btnReset.addEventListener('click', () => {
+    els.fileA.value = '';
+    els.fileB.value = '';
+    A = B = null;
+    AItems = []; BItems = [];
+    aMinusB = []; bMinusA = [];
+    els.counts.textContent = 'A: 0 · B: 0';
+    els.countAminusB.textContent = '0';
+    els.countBminusA.textContent = '0';
+    els.listAminusB.innerHTML = '';
+    els.listBminusA.innerHTML = '';
+    els.btnCompare.disabled = true;
+    els.btnExport.disabled = true;
+    setStatus('Load two JSON export files to begin.');
+  });
+
+  els.btnCompare.addEventListener('click', async () => {
+    try{
+      els.btnCompare.disabled = true;
+      els.btnExport.disabled = true;
+      setStatus('Reading files…');
+
+      const fA = els.fileA.files[0];
+      const fB = els.fileB.files[0];
+
+      A = await readJsonFile(fA);
+      B = await readJsonFile(fB);
+
+      const parsedA = parseExport(A);
+      const parsedB = parseExport(B);
+      if(!parsedA) throw new Error('File A does not look like an export (missing items array).');
+      if(!parsedB) throw new Error('File B does not look like an export (missing items array).');
+
+      AItems = parsedA;
+      BItems = parsedB;
+
+      const mode = els.keyMode.value;
+      setStatus('Comparing…');
+
+      const { inA_NotB, inB_NotA, aDup, bDup } = diff(AItems, BItems, mode);
+      aMinusB = inA_NotB;
+      bMinusA = inB_NotA;
+
+      els.counts.textContent = `A: ${AItems.length} · B: ${BItems.length}`;
+      els.countAminusB.textContent = String(aMinusB.length);
+      els.countBminusA.textContent = String(bMinusA.length);
+
+      renderList(els.listAminusB, aMinusB);
+      renderList(els.listBminusA, bMinusA);
+
+      const dupMsgA = aDup.size ? `A duplicate keys: ${aDup.size}` : 'A duplicate keys: 0';
+      const dupMsgB = bDup.size ? `B duplicate keys: ${bDup.size}` : 'B duplicate keys: 0';
+      setStatus(
+        `Done.\n` +
+        `Mode: ${mode}\n` +
+        `${dupMsgA}\n` +
+        `${dupMsgB}\n` +
+        `Missing: A→B ${aMinusB.length}, B→A ${bMinusA.length}\n`
+      );
+
+      els.btnExport.disabled = (aMinusB.length === 0 && bMinusA.length === 0);
+    }catch(err){
+      console.error(err);
+      setStatus('Error: ' + (err?.message || err));
+      els.btnExport.disabled = true;
+    }finally{
+      updateButtons();
+    }
+  });
+
+  els.btnExport.addEventListener('click', () => {
+    const mode = els.exportMode.value;
+
+    const nameA = els.fileA.files?.[0]?.name?.replace(/\.json$/i,'') || 'A';
+    const nameB = els.fileB.files?.[0]?.name?.replace(/\.json$/i,'') || 'B';
+
+    if(mode === 'AminusB'){
+      const items = aMinusB.map(x => x.item);
+      downloadJson(`missing_from_${nameB}__source_${nameA}.json`, buildExportPayload(items));
+      return;
+    }
+    if(mode === 'BminusA'){
+      const items = bMinusA.map(x => x.item);
+      downloadJson(`missing_from_${nameA}__source_${nameB}.json`, buildExportPayload(items));
+      return;
+    }
+    // both
+    const items1 = aMinusB.map(x => x.item);
+    const items2 = bMinusA.map(x => x.item);
+    downloadJson(`missing_from_${nameB}__source_${nameA}.json`, buildExportPayload(items1));
+    downloadJson(`missing_from_${nameA}__source_${nameB}.json`, buildExportPayload(items2));
+  });
+
+  updateButtons();
+})();
+</script>
+</body>
+</html>
