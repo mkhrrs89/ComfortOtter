@@ -511,12 +511,26 @@ async function downloadMissingAsEmbeddedExport(mode){
 
 
   function updateButtons(){
-    const ok = !!(els.fileA.files?.length && els.fileB.files?.length);
-    els.btnCompare.disabled = !ok;
+    try{
+      const hasA = (els.fileA && ((els.fileA.files && els.fileA.files.length>0) || !!els.fileA.value));
+      const hasB = (els.fileB && ((els.fileB.files && els.fileB.files.length>0) || !!els.fileB.value));
+      const ok = !!(hasA && hasB);
+      els.btnCompare.disabled = !ok;
+    }catch(err){
+      console.error(err);
+      setStatus('UI error enabling Compare: ' + (err && err.message ? err.message : err));
+      // keep button disabled on failure
+      if(els.btnCompare) els.btnCompare.disabled = true;
+    }
   }
 
-  els.fileA.addEventListener('change', updateButtons);
-  els.fileB.addEventListener('change', updateButtons);
+  function delayedEnable(){
+    updateButtons();
+    setTimeout(updateButtons, 250);
+    setTimeout(updateButtons, 1000);
+  }
+  els.fileA.addEventListener('change', delayedEnable);
+  els.fileB.addEventListener('change', delayedEnable);
 
   els.btnReset.addEventListener('click', () => {
     els.fileA.value = '';
