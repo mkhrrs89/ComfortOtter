@@ -1,1050 +1,625 @@
-FantasyMapSimulator — 8/8/24, 12:10 PM
-Dear Players,
-We are excited to announce that our game demo is now live with a series of important updates. Here are the main features of this update:
-New Features
-
-Save Function: You can now save your game progress!
-Game Speed Control:
-
-Demo version: Adjust game speed from 0.5x to 3x
-Full version: May be adjusted up to 5x speed
-
-
-Global Command Panel: New panel allowing global actions such as cease-fire
-Country Diplomacy Control: New feature to disable autonomous diplomacy for individual countries in the country panel
-
-Gameplay Improvements
-
-Camera Control: Use WASD keys to move the camera
-Game Pause: Press the Spacebar to pause the game
-Menu Shortcut: Press ESC to quickly bring up the menu
-UI Interaction Improvements:
-
-Mouse scrolling speed in scrollview adjusted to normal
-Scrolling on UI panels no longer affects map zoom
-
-
-
-Content Enrichment
-
-City and Country Names: Added more Eastern city and country names
-Custom Country Traits: Opened trait.json file for modification, allowing players to experiment with country characteristics (experimental feature)
-
-Brush System Update
-
-Simplified brush mode, removing complex options
-Fixed an issue where the brush couldn't draw when adjusted to minimum size
-I cordially invite all players to try the new brush system and provide feedback
-
-Bug Fixes
-
-Fixed a bug where entering names in the country placement panel was ineffective
-Fixed an issue where placing countries could occasionally freeze the map
-
-I greatly appreciate your support and feedback, which drive the continuous improvement of the game. I hope these updates enhance your gaming experience, and I look forward to hearing your thoughts!
-Enjoy the game!
-Best regards,
-The Author
-FantasyMapSimulator — 8/9/24, 12:31 PM
-The full-screen mode toggle for the window has been implemented, and the window size can be freely resized by dragging. The shortcut key is Alt + Enter.
-FantasyMapSimulator — 8/10/24, 12:43 PM
-Added a shortcut: Shift + Left Click now brings up the province panel. Province-specific information is still in development, but renaming is now possible.
-Implemented a new configuration save feature.
-Fixed encoding issues.
-Added misclick protection for the production map. 
-FantasyMapSimulator — 8/12/24, 10:49 AM
-Game Performance Update:
-Reduced lag
-Improved smoothness
-Please test and share feedback. Thanks for your support!
-Fixed nation army bug after loading saves 
-Wallpaper mode: bottom UI bar wouldn't respond if desktop wasn't in focus 
-Placing nations on empty continents no longer alters terrain
-FantasyMapSimulator — 8/12/24, 11:14 AM
-Adjusted scrolling speed for all panels
-FantasyMapSimulator — 8/14/24, 12:47 PM
-The military will now prioritize garrisoning border and coastal cities during peacetime. Some issues with game lag and crashes have been fixed.The maximum number of people in a legion has been adjusted from 200 to 2,000.
-FantasyMapSimulator — 8/20/24, 12:36 PM
-Dear Fantasy Map Simulator players:
-
-I am pleased to announce the latest major update to the game. This update brings many new features, system optimizations, and bug fixes, aimed at providing you with a richer, more realistic, and smoother gaming experience. Here are the main contents of this update:
-[New Systems]
-Economic System: A brand new economic simulation, adding a new dimension to your country management.
-Population System: More realistic population dynamics, affecting your country's development.
-Religious System:
-New religion management panel
-Holy Site System: Each religion has its unique holy sites
-Religion Spread System: Observe and influence the flow of faith
-Specialty Product System:
-Currently affects economic performance
-Rare resources with special effects to be added in the future
-Corruption System:
-New reform mechanism (reform events still in development)
-Triggers reform when corruption level is too high
-[Gameplay Mechanism Updates]
-Government System Impact: Relevant economic simulations and calculations based on different government systems and ethnic characteristics
-Enhanced Ethnic System:
-Visualized country restoration system
-Nations leave ethnic imprints in core areas
-Provinces can view potential country restoration ethnic forces
-[Interface and Visual Optimizations]
-Map Icon Updates:
-More prominent capital icons
-New port icons
-New fortress/pass icons, marking higher difficulty to conquer
-Population Density Display:
-Using red circles to intuitively show population density in various regions
-Enriched Province Panel Information, newly displaying:
-Province defense (based on terrain)
-Ecosystems
-Resource distribution
-Occupation progress
-Home field combat efficiency
-Potential country restoration ethnicities
-Religious proportions
-Core province identification
-Population numbers
-Specialty products
-War status
-Statistics redesigned, newly adding:
-Population statistics
-Economic statistics
-War statistics
-Religious power statistics
-[Operation Optimizations]
-Map Operation Improvements:
-Faster zooming speed
-Zooming centered on mouse position instead of screen center
-Added more mistouch protection mechanisms, including during map generation process
-Bug Fixes]
-Fixed the issue of one-sided alliances
-Corrected the display error of national army numbers
-Resolved display issues with Windows taskbar on left and right sides of the screen in wallpaper mode
-Fixed the flickering issue of the speed-up button
-
-[Technical Updates]
-Added government system configuration json files (located in culture set subdirectories)
-[Important Announcements]
-Trial Version Removal Notice:
-The trial version will be removed on August 25th
-Thanks to all trial players for their valuable feedback
-EA Version Release:
-Release Date: September 4th
-EA version will include more new features, stay tuned
-Recent Development Plans:
-Focus for the next two weeks:
-Fix various localization issues
-Correct UI display errors
-Redo the save system
-Overall optimization of AI perception, mainly related to the rebellion system
-BGM, although it might not sound great, I have prepared some music
-Game attribute configurability:
-Various attributes of countries can be configured, including government systems
-More content may be added:
-New event system
-Simple special resource system
-Steam Workshop:
-Opening soon
-Main features in the first phase:
-Map sharing
-Culture set sharing
-I have seen players' opinions in QQ groups, Discord channels, and Steam discussion forums. Although I cannot respond to each one due to tight schedules and language barriers, some have been implemented, some are still in planning, and others are part of longer-term plans. I sincerely thank everyone for their love of the game.
-
-Zero
-Author of Fantasy Map Simulator
-FantasyMapSimulator — 8/23/24, 9:48 AM
-Provincial Panel Updates:
-Added new provincial actions
-Implemented ability to designate provincial rebellions
-Added capital relocation feature
-Fixed port icon display error
-
-Bug Fixes:
-Resolved issue where armies were assigned to incorrect countries after loading saves
-Fixed perpetual political stability bug
-Corrected problem with inability to declare war
-Addressed issue where countries in the bottom-left region never collapsed
-Fixed bug where theocratic national ideas affected atheist countries
-Resolved problem where old saves couldn't conduct independent diplomacy
-
-New Features:
-Implemented language selection panel, available when starting a new game
-Refined AI behavior
-Adjusted transparency of population red circles
-
-Military Adjustments:
-Fixed issues causing excessive army numbers in certain situations
-For old saves with too many troops, army sizes should gradually decrease during gameplay
-
-Localization:
-Various localization translation fixes
-Added Korean localization
-
-Other Improvements:
-Adjusted population red circle transparency
-
-Note: Due to recent busy schedules, we are unable to respond to all Discord messages individually. We apologize for any inconvenience! 
-FantasyMapSimulator — 8/25/24, 12:06 PM
-AI Rebellion Related Adjustments
-
-Bug Fixes:
-Fixed a bug where national economies would collapse and struggle to recover
-Fixed a bug where defunct nations could still expand
-
-Save Data Optimization:
-Historical playback functionality for older version saves is no longer available
-Save functionality will continue to be optimized until the EA (Early Access) version
-Saves prior to the EA version will lose historical playback functionality. We sincerely apologize for this.
-
-Other Fixes:
-Fixed occasional sudden lag issues in certain situations
-Fixed an issue where armies would disappear when placed during peacetime
-Fixed a problem preventing consecutive placement of nations
-
-Important Note:
-We've decided to extend the trial period by two days. The trial version will now close on the 27th instead of the originally planned 25th. We'd like to thank everyone for participating in the trial and for your valuable feedback. We hope you enjoy these extra days of gameplay!
-FantasyMapSimulator — 8/26/24, 8:32 AM
-AI adjustments related to rebellions
-Fixed an issue with abnormal names for rebelling countries
-Religious holy sites can no longer be occupied by other religions
-Fixed an issue where the country panel wasn't displaying correctly in some special cases
-Fixed a problem where some provinces were isolated during the initial country map generation
-Continued adjustments to saved game data
-Corrected the flickering of historical names during review
-FantasyMapSimulator — 9/3/24, 11:57 AM
-🎉 Exciting News: EA Released! 🎉
-
-We're thrilled to announce a massive update to our game! Here are the highlights:
-
-🏭 Workshop Now Open
-Upload custom maps, religions, and culture sets
-Edit national attributes, specialties, and localization files locally
-Remember to backup your mods!
-
-🔊 New Features
-Volume control
-Province campaign information
-Army camera follow function
-Random appearance display with 8 map templates
-National editing panel
-
-⏳ Unlimited Game Time
-700-year limit removed
-Be cautious with extremely long games (10,000+ years) due to save file sizes
-
-📚 More Documentation Added
-
-🌐 Localization Fixes
-
-🔮 Future Plans
-Check in-game for our upcoming update roadmap!
-
-📣 Note: Please backup your custom mods before updating, as they may be affected.
-
-We can't wait to see what you create with these new features! Share your experiences and creations in the #showcase channel.
-
-Happy gaming! 🎮 
-Image
-release time
-FantasyMapSimulator — 9/3/24, 12:06 PM
-Game AI Mechanics
-
-Corruption Mechanism
-• After state establishment, corruption value gradually increases over time
-• Corruption accumulation speed affected by:
-  
-Population: High population (Malthusian trap) accelerates corruption
-Economy: Treasury deficit accelerates corruption
-• High corruption triggers potential background reform event (no event text yet), resetting corruption value
-
-Population System
-• Provincial population cap based on current ecosystem
-• Population growth rate affected by ethnic attributes
-• Wars cause population decline
-• Low population reduces willingness to initiate wars
-• Population determines troop replenishment rate
-
-Economy and Specialty System
-• Provincial resources determined by ecosystem
-• Economic output affected by ethnic attributes and state system
-• Military expenses depend on troop mobilization
-• Administrative efficiency determined by territorial size
-• Taxation based on population and specialties
-• Wars reduce economic output to zero
-• Corruption affects tax efficiency
-• Treasury deficit reduces willingness to initiate wars
-
-Core Area
-• Expands over time from capital
-• Emergency mobilization when threatened
-• Mobilization scale affected by corruption and economy
-• Leaves national ethnic imprint, deepening with time
-• Removes extinct nations' imprints
-
-Rebellion and Nation Restoration System
-• Rebellion probability increases with distance from core
-• Remote areas prone to rebellion during high corruption
-• Rebellions may restore old nations in provinces
-• Extreme corruption may cause core area rebellions 
-Combat System
-• Army effectiveness affected by terrain, economy, corruption, national traits
-• Internal operations: easier supply, lower expenses
-• Expeditions/overseas: higher consumption and expenses
-• Surrounded troops in "salient", halved effectiveness
-• Island strategy: Frequent harassment of continental nations
-  
-May overextend continental armies
-• Distant overseas operations: maritime, commercial, or powerful nations only
-• Armies prioritize border deployment
-• Army types: garrison, imperial guards, field troops
-  
-Field: foreign attacks
-Guards: rebellion suppression
-Garrison: stationing
-• Threatened capital improves army efficiency, changes troop roles
-• Fortresses: Mountain-built, hard to conquer
-
-Diplomatic System
-Basic Political System Relations
-Republic/Federal
-• Friendly: republics, federal systems
-• Good: kingdoms
-• Tense: tribal systems
-• Opposed: empires, theocracies
-
-Empire
-• Close: kingdoms
-• Neutral: tribal, theocratic
-• Tense: republics, federal
-• Competitive: other empires
-
-Kingdom
-• Good: republics, federal, other kingdoms
-• Slightly good: theocracies
-• Neutral: tribal
-• Slightly tense: empires
-
-Tribal
-• Close: other tribes
-• Neutral: kingdoms, theocracies
-• Tense: republics, federal, empires
-
-Theocracy
-• Good: kingdoms
-• Neutral: tribal
-• Tense: republics, federal, empires
-• Potential conflicts: other theocracies
-• Special: Strong religious propagation
-
-National Power and Diplomacy
-Strong Country Effect:
-• Overly powerful countries face deteriorating relations
-Corruption and War Risk:
-• Powerful but corrupt countries vulnerable to attacks
-
-Dynamic Diplomacy
-• Relations change based on: common enemies, history, power, corruption
-• Theocracies: strong religious conversion
-• Overly powerful allies may dissolve alliances
-
-Randomness
-• Systems not absolute, random factors simulate low-probability events
-FantasyMapSimulator — 9/3/24, 12:14 PM
-@everyone
-FantasyMapSimulator — 9/4/24, 5:02 AM
-@everyone  Fantasy Map Simulator EA released !
-https://store.steampowered.com/app/3035500/
-Steam
-Fantasy Map Simulator
-Fantasy Map Simulator: Witness the Rise and Fall of Dynasties on Your WallpaperJoin our Discord channel！In this innovative simulation game, you'll become the creator and witness of a fantasy world, allowing imaginary history to unfold in your daily life.Key Features1. Generate or edit custom fantasy maps, building your unique imaginary world2. S...
-Price
-$7.19
-FantasyMapSimulator — 9/4/24, 9:42 AM
-Fixed workshop-related issues
-Now you can upload religious and cultural collections
-The subscribed religious and cultural collections will be automatically loaded when the game starts
-The subscribed maps will appear in the loading archives
-FantasyMapSimulator — 9/5/24, 10:53 AM
-New Features:
-Music volume settings can now be saved in the game configuration file
-
-Bug Fixes:
-Fixed an issue where province names were displayed incorrectly after placing a country
-Some Localization Fix
-FantasyMapSimulator — 9/7/24, 4:03 AM
-📢 Game Update Announcement
-
-🆕 New Features:
-• Added the function to delete saved games
-
-🔧 Interface Improvements:
-• Separated the pause button from the speed adjustment feature
-
-🐞 Bug Fixes:
-• Fixed an issue where continuing the game during historical playback would cause map distortion
-• Resolved a problem where armies were abnormally large in certain situations
-FantasyMapSimulator — 9/7/24, 4:12 AM
-The map upload button has now been moved to the Workshop panel, and removed from the original load save location.
-FantasyMapSimulator — 9/10/24, 12:16 PM
-✅ New Feature:
-
-Added functionality to upload and update workshop item covers
-
-🐛 Fixes:
-
-Fixed an issue where placing countries would sometimes freeze the game
-Fixed a problem where countries in the bottom-left corner couldn't be eliminated
-FantasyMapSimulator — 9/11/24, 11:05 PM
-🔔 Update Highlights
-
-• Archive interface: Added workshop prefix for Steam Workshop maps
-• New feature: Historical year small window (toggle in map appearance)
-• New option: Turn off historical event top notifications (in map appearance)
-• Bug fix: Placing countries on empty continents no longer changes terrain
-• Bug fix: Resolved game freezes when placing countries in certain situations
-FantasyMapSimulator — 9/21/24, 1:12 AM
-🎮 Game Update Log : Editor Improvement 🚀
-🗺️ Map Editing Features:
-🧹 Eraser Function Improvement
-The land eraser brush can now directly erase administrative maps
-No need to regenerate countries for land erasure to take effect
-
-🌿 New Ecology Generation Panel
-📍 Location: Can be selected in the editing panel
-🛠️ Functions:
-Perform ecological map adjustment calculations
-After erasing existing land, clicking the "Regenerate Ecology" button will:
-🔄 Recalculate the ecology map
-🗑️ Clear uninitialized elevation maps
-🚢 Recalculate shipping routes
-
-🏰 Fortress/Pass Calculation Logic Change
-Now determines whether it's a plateau or mountain range based on the standard deviation of elevation
-
-🎛️ New Adjustment Features
-🌡️ Overall temperature adjustment
-💧 Overall humidity adjustment
-
-🏛️ Country Management:
-🔄 Country Panel Update
-Expansion button function change:
-🖱️ Clicking on an uninitialized blank continent will occupy that continent
-
-🐛 Bug Fixes:
-Fixed a bug where placing a country on a blank continent would alter terrain elevation
-
----
-
-🎉 That's all for this update, gamers! Keep exploring and building your world! 🌍✨ 
-FantasyMapSimulator — 9/28/24, 11:02 AM
-🎮 Game Update Log 🆕
-
-New Features:
-
-🗺️ Map Editing
-Added province editing panel
-Draw new provinces
-Change province capital locations
-New country editing brush
-Edit country-occupied provinces with brush tool
-New option in map editing panel
-Choose to place countries only on land
-Added latitude and longitude adjustment
-Found in map editing ecology options
-
-🖥️ Interface Improvements
-Camera zoom speed adjustment
-Adjustable in settings panel
-Attack arrow display distance adjustment
-Located in map appearance panel
-Added numerical display for some sliders
-
-🏛️ Country Behavior Panel Updates
-New function buttons:
-Reduce corruption
-Increase corruption
-Turn off all traits
-Turn on all traits
-New input box for army placement quantity
-Place multiple troops at once
-
-🔧 Other Improvements
-New prompt information
-Overlays event prompt panel on specific button clicks
-
-Bug Fixes:
-Fixed: Placed armies not saving
-Fixed: Ecology regeneration warning panel not auto-hiding
-
----
-We hope you enjoy these updates! Your feedback is always welcome. Happy gaming! 🎉
-FantasyMapSimulator — 10/8/24, 7:34 AM
-🎮 Game Update Announcement 🚀
-Hello everyone! We've got some exciting updates and fixes for you. Check out what's new:
-
-🔧 Improvements
-• Religion and ethnicity selection in the country edit panel now use dropdown lists
-• Special resources are recalculated based on ecology when a province's environment changes
-• Reduced troop garrisons in border provinces adjacent to allies
-• Allies now automatically grant military access to each other - support your buddies on the frontlines!
-
-✨ New Features
-• Added a toggle for latitude and longitude lines
-• New global command panel option: Auto-abandon isolated provinces
-• New "Assist Allies in Land Conquest" option in the global command panel:
-  
-When enabled, newly conquered provinces adjacent to allies (but not to you) will be given to your ally
-• Added a warning to prevent exceeding troop placement limits
-
-🐛 Bug Fixes
-• Fixed garbled text in existence time display
-• Corrected land height value display in the edit panel
-• Fixed city names at the map's upper edge being obscured by map boundaries
-• Fixed ecological statistics errors for newly added provinces
-• Corrected the bug where new provinces had 0 defense
-• Fixed population cap calculation errors for new provinces
-
----
-
-If you have any questions or suggestions about this update, feel free to discuss in the comments below! 💬
-
-Enjoy the game! 🎉 
-FantasyMapSimulator — 10/13/24, 12:51 AM
-🎮 Game Update Announcement - October 13, 2024 📆
-Hey everyone! We've got a fresh batch of updates, improvements, and fixes for you. Check out what's new:
-
-✨ New Features
-• Added Turkish language localization - Merhaba, Turkish friends! 🦃
-
-🔧 Improvements
-• Overhauled troop movement mechanics:
-  
-Slower movement in mountains, plateaus, snow, and deserts
-Check your troops' movement status in the army panel
-• Tweaked army panel font display for better readability
-• Revamped religious statistics:
-  
-Now shows population ranking for each religion
-Separate section for basic religious info
-Optimized performance - no more lag in the religious stats interface!
-
-🐛 Bug Fixes
-• Fixed a critical error preventing the game from running when subscribing to certain mods in Korean language
-• Squashed the Y10K bug - your empires can now last over 10,000 years without crashing! 👴
-• Population visualization circles no longer appear for provinces that have been edited out of existence
-• Country names on the map now update correctly when changing government systems
-• Province defense, combat efficiency, and ecosystem now update properly after adjusting province borders
-  
-Note: Old saves may need a manual edit to trigger an update
-
----
-
-ℹ️ Remember to update your game to access these new features and fixes!
-
-Got questions or feedback? Drop them below! We're always eager to hear from you. 💬
-
-Happy gaming, and may your empires stand the test of time! 🌎 👑
-FantasyMapSimulator — 10/21/24, 8:09 AM
-🌎 Major Update: Eco-Editor and More! 🎨
-Hey cartographers and world-builders! We've got a massive update focusing on map editing tools. Check out these exciting new features:
-
-✨ New Features
-🌳 Custom Ecology Drawing
-• Now you can paint ecosystems directly on the map in Map Editor -> Edit Ecology
-• 11 diverse ecosystem types available:
-  
-Hot desert
-Cold desert
-Savannah
-Steppe
-Tropical seasonal forest
-Temperate deciduous broadleaf forest
-Tropical rainforest
-Subtropical evergreen broadleaf forest
-Taiga
-Tundra
-Snow-covered land
-• Each ecosystem affects:
-  
-Population cap
-Population growth rate
-Special products
-Troop movement speed
-Home field combat efficiency
-• Population cap and special products recalculate as you paint!
-
-🌊 River and Sea Lane Refresh
-• New button to refresh rivers and sea lanes (located below the Erase Land tool)
-
-🖌️ Improved Editing Tools
-• Increased maximum radius for province editing brush
-
-🔧 Improvements
-• Added logic to assign random religion to countries when loading maps without certain religion mods installed
-
-🐛 Bug Fixes
-• Fixed issues with destroyed provinces not unloading correctly
-• Resolved save loading errors caused by incorrect war objects
-• Fixed camera movement when typing in text boxes
-• Corrected update issues in the country panel when certain mods aren't installed
-
-🔜 Coming Soon
-• River and sea lane drawing tools
-• Import grayscale height maps
-• More simulation logic updates after editor features are complete
-
----
-
-ℹ️ Note: Recent updates have focused on the editor. Simulation logic updates will follow once major editor features are complete.
-
-Excited about painting your own ecosystems? Have ideas for future features? Let us know in the comments below! 💬
-
-Happy world-crafting, everyone! 🌐 🎨
-FantasyMapSimulator — 10/26/24, 9:38 AM
-🗺️ Update Announcement - October 26, 2024 ⛰️
-Hey map makers! We've got an exciting new update that brings heightmap importing and performance improvements. Let's dive in!
-
-✨ New Features
-🏔️ Heightmap Import Tool
-• Now available in Map Editor -> Edit Height
-• How it works:
-  
-Darker colors (closer to black) = Lower elevation
-Lighter colors (closer to white) = Higher elevation
-• Set ocean threshold (1-255)
-  
-Areas below threshold become oceans
-• Import your own heightmaps from third-party tools or websites!
-
-⚙️ Quality of Life
-• Added confirmation dialog when refreshing rivers and sea lanes
-
-🚀 Performance Improvements
-• Enhanced pathfinding performance for armies
-  
-Reduced lag when starting a new game
-Less stuttering after country eliminations
-• Optimized province drawing performance
-• Fixed game crashes caused by memory overflow when drawing provinces and ecosystems
-
----
-
-ℹ️ Note: You can use any third-party tool or website to create your custom heightmaps and import them directly into the game!
-
-❓ Having issues or suggestions? Drop them in the comments below! 💬
-
-Happy mapping! 🌎
-FantasyMapSimulator — 11/8/24, 9:32 AM
-🎮 Game Update - River Drawing!
-
-🌟 New Features
-• River Drawing System
-Now available in Map Editor > Edit Ecology > Draw Rivers
-Left-click to select and edit rivers
-SHIFT + Left-click to create new rivers
-ALT + Left-click to add control points
-DELETE to remove selected rivers
-
-• War Statistics System
-New casualties and elimination statistics
-View in Nation Panel and Statistics Panel:
-Battle casualties data for both sides
-Combat elimination statistics
-
-🔧 Improvements
-• Nation Placement System
-Updated nation initialization on height maps:
-New nations now start with a single province
-No longer occupies the entire map by default
-Gradually expands from the initial province
-
-• AI Improvements
-Enhanced army AI decision-making
-Fixed armies getting stuck in loops when defending against island nation invasions
-
-🐛 Bug Fixes
-• Fixed invalid burg names appearing during province editing
-• Fixed save files failing to load due to time overflow issues 
-FantasyMapSimulator — 11/27/24, 9:31 AM
-🗺️ Update November 27: Unconquerable Regions, Mountain & Desert Icons
-
-🏜️ New Unconquerable Regions
-• Added three types of unconquerable territories:
-   
-Gobi
-Desert
-Tundra
-• Visible region markers after map generation
-• New environmental icons:
-   
-Cactus icons for desert regions
-Mountain/Highland icons for elevated terrain
-
-⚙️ Map Editor Updates
-• New features in Map Editor -> Edit Ecology:
-   
-Draw unconquerable regions
-Region management panel
-• Customize regions:
-   
-Adjust region colors
-Modify region names
-
-📊 Interface Improvements
-• Extended nation information panel
-• Access to more detailed national statistics
-
-🗺️ Terrain Editing Enhancements
-• Height modification now available for territories with existing nations
-• Unified height editing color scheme:
-   
-Standardized red-yellow-white display mode
-• Improved nation regeneration:
-   
-Preserves manually drawn province distributions
-Maintains custom province names
-
-🌿 Ecology System Update
-• New ecology editing for blank maps:
-   
-Edit biomes before nation generation
-Ecological distributions preserved after nation generation
-
-🔄 Pathfinding Improvements
-• Enhanced army pathfinding logic
-• Armies now automatically avoid:
-   
-Tundra regions
-Desert areas
-Gobi terrain
-
-🔮 Future Development Plans
-We will be working on updates for puppet states, alliances, religions, cultural map displays, and doubling the current number of tiles.
-FantasyMapSimulator — 12/25/24, 11:06 AM
-@everyone 
-🎮 Update: Vassal System, Economy & Combat Power, and Fortress Features
-
-📋 Major Features:
-
-Vassal State System
-
-• Defeated nations may become vassals
-• 30% annual tribute to overlord
-• Military access for overlords
-• Forced alliance termination
-• No independent diplomacy
-• Independence system based on:
-  
-Power growth relative to overlord
-Overlord's military situation
-Corruption levels
-Time as vassal
-• UI improvements:
-  
-New vassal controls in nation panel
-Vassal borders shown in green
-Overlord borders shown in purple
-
-Provincial Fortress System
-
-• Manual fortress editing (Shift + Left Click)
-• New fortification options for provincial capitals
-
-Treasury Impact on Combat Power
-
-• Government-specific effects:
-  
-Tribal (Minimal impact)
-Imperial (Moderate impact)
-Republican (Major impact)
-• Cultural variations:
-  
-Nomadic (Least dependent)
-Hunter-gatherer/Agricultural (Moderate)
-Maritime (More dependent)
-Commercial (Most dependent)
-
-Note: Vassal independence chances adjust dynamically based on power comparison with overlord.
-FantasyMapSimulator — 1/7/25, 11:45 AM
-Fixed an issue where players from certain countries could only see height maps but not country borders when loading Workshop maps.
-FantasyMapSimulator — 1/16/25, 6:29 AM
-🎮 Fantasy Map Simulator - Update Notes (Jan 16, 2025)
-
-⚙️ Editor Logic Changes:
-Now the view automatically switches to match the selected editing option, no need to adjust administrative map transparency and background map type in map appearance settings. When closing the editing panel, the map will display according to map appearance settings.
-
-📝 Editor Updates:
-In province editing panel, added "Regenerate Provinces" button and average cell count per province option. Province generation density can be adjusted by modifying average cells per province.
-Added extensive editor-related tooltips, hover over buttons to see their functions.
-
-📖 New Map Editing Tutorial:
-Map Principle:
-Based on Voronoi diagram, each province consists of multiple adjacent cells
-The smallest unit a country can occupy is a province
-Must edit provinces before countries
-
-Editing Sequence:
-Open global command panel, disable autonomous diplomacy and rebellion
-Generate height map, edit with brush tools
-Generate biome map from height map, edit with brush tools or adjust ecological parameters
-Generate province map from biome map, edit with brush tools
-Generate country map from province map, or place countries to occupy provinces
-Enable autonomous diplomacy and rebellion to play
-
-To modify country attributes (religion, government type, etc.), left-click country on map to open info panel
-
-To modify province names/categories, shift + left-click province on map to open info panel
-
-🐛 Bug Fixes:
-   
-Fixed Latin script and Korean text displaying Chinese incorrectly
-Workshop maps with Chinese/Japanese now display properly
-Fixed lag caused by excessive alliances
-Fixed: Regenerating ecology no longer clears rivers or prevents biome map refresh
-
-✨ New Features:
-   
-Added global command option: Toggle generation of unconquerable regions in tundra and desert. Can be disabled if you don't want these regions. @everyone
- 
-FantasyMapSimulator — 2/16/25, 8:22 AM
-🗺️ Fantasy Map Simulator Update Notes
-🌏 Map System Upgrade
-• MEGA MAP Update is HERE! 
-  
-📈 4x larger map area
-🔲 2x more map cells
-⚙️ Customize in "Map Editor -> Edit Height -> Map Scale"
-• 🆕 New map templates added for more realistic world map generation with mega map support!
-
-🖼️ Wallpaper Mode Enhancement
-• ✨ NEW: Interactive map clicking feature
-• 🖥️ Multi-screen support with screen selection
-• 🎮 Two operation modes:
-  
-🔒 Non-interactive Mode
-Lower FPS option to reduce device heat
-🔓 Interactive Mode
-💫 Quick toggle via system tray
-• 🛠️ Fixed wallpaper mode failure issues
-
-⚡ Performance Improvements
-• 📊 Optimized province border update performance
-• 🌊 Enhanced coastline update mechanism
-  
-Implemented delayed boundary line updates during height map editing
-• 🎨 Fixed excessive drawcalls in height map background
-
-🎯 Visual Updates
-• 🎆 Added scaling animation for emergency army mobilization
-
-🔧 Bug Fixes
-• 🚫 Fixed map freezing when placing provinces
-• 🗺️ Fixed map rendering errors after changing map scale
-• 🇰🇷 Fixed Korean text encoding issues
-FantasyMapSimulator — 3/19/25, 12:08 PM
-🎮 Game Update Announcement 🎮
-✨ What's New
-Nation Panel UI Redesign 
-The nation information panel has been completely redesigned with a clearer categorization system! The new panel includes seven well-organized sections:
-👑 Basic
-🚩 Action
-⚔️ War
-🛡️ Trait
-🤝 Diplomacy
-📦 Resource
-📜 History
-
-🐛 Bug Fixes
-Fixed city names displaying incorrectly when editing provinces
-Fixed an issue preventing players from immediately clicking on the map to view nation panels when entering the game
-Fixed Latin-based text not correctly displaying Chinese map place names
-Image
-FantasyMapSimulator — 5/20/25, 7:44 AM
-📢 Culture View, Alliance View, and a New Editor UI! 📢
-Views
-Press 1, 2, or 3 to switch between Country, Alliance, and Culture views.
-
-
-Culture
-The Culture system includes regions where countries can emerge or rebel. The probability of a country's traits, ethnic attributes, and political system appearing is determined by weight values.
-
-Editor UI
-The UI for map editing has been remade!
-Currently, the Country Panel, Culture Panel, and Map Editing UIs are new versions. Other UIs will be remade successively in the future.
-
-
-Translation 🌐
-A built-in Microsoft translation function is now available for translating countries, cultures, and provinces.
-Global translation can also be performed in Map Editing -> Global Commands.
-
-
-Future Update Plan 🗓️
-The Alliance Panel, Religion Panel, and Religion View will be implemented soon!
-
-If development goes smoothly, the first major system update will be launched in September, featuring:
-✨ National Leaders
-✨ Family System
-
-Stay tuned! 
-Image
-Image
-FantasyMapSimulator — 6/21/25, 8:58 AM
-📢 June 21st Update Log 📢
-Export Images and History
-Go to Menu > Options -> Export to select the content you want to export.
-
-Army Pathfinding Efficiency Optimization
-Significantly improved the efficiency of army pathfinding, reducing lag when there are large numbers of troops. 
-FantasyMapSimulator — 9/17/25, 12:59 PM
-🎮 Major Update: Family & Leader System
-👑 1. Family System and National Leaders
-Each country now has different families, and based on their political system, countries have leaders with different titles.
-
-Leader Titles by Political System:
-• 🏰 Kingdom: King/Queen
-• ⚔️ Empire: Emperor/Empress
-• 🏛️ Republic: Consul
-• 🤝 Federation: Grand Consul
-• 🪶 Tribal: Chief
-• ✝️ Theocracy: Pope
-
-🧙 2. Character System
-Characters have four core attributes:
-• ✨ Charisma: Affects diplomatic ability and public support
-• ⚔️ Military: Affects army combat effectiveness and war command ability
-• 🤝 Diplomatic: Affects diplomatic negotiations and international relations
-• 📊 Administrative: Affects national management efficiency and tax collection
-🌳 3. Family Tree
-You can view a family's family tree page by clicking in Family Panel → Behaviors. It displays the family members in a tree structure.
-
-⚔️ 4. Civil War System
-Civil War Trigger Conditions:
-• Country must have at least 10 provinces for civil war to occur
-• Must be at least 36 months since last civil war
-• Civil wars more likely when country is corrupted
-• Triggered when family influence and dissatisfaction reach certain thresholds
-
-Civil War Types:
-• 👑 Succession: Other families claim succession rights to the throne
-• 🔄 Reform: Family attempts to change the political system
-• 🏴 Independence: Family attempts to split and become independent
-• 💥 Overthrow: Family attempts to overthrow the current ruler
-• 🔥 Family Rebellion: Dissatisfied family directly rebels
-
-Civil War Mechanics:
-• Rebels gain support from provinces based on family influence
-• During civil war, the original country splits into two opposing forces
-• The losing side is annexed, the winner inherits the country
-• Successful reform civil wars change the political system
-• Successful family rebellions may establish new independent nations
-📜 5. Separate Country History Timeline
-New History Event Types in Timeline System:
-
-Leader-Related Events:
-• 👑 Leader Ascension: Records new leaders taking power through inheritance, election, or coup
-• 💀 Leader Death: Records leader deaths
-• 🚪 Leader Abdication: Records voluntary abdications
-• 🗳️ Election Held: Regular elections in republican countries
-• 🔄 Reform: Records major political system changes
-
-Family-Related Events:
-• 🌟 Family Founded: Birth of new noble families
-• ☠️ Family Extinct: Family line dies out
-• 📈 Family Rise: Family becomes ruling family
-• ⚔️ Family Rebellion: Family launches rebellion
-• 🤝 Family Swear Fealty: Defeated family swears allegiance
-• 🏃 Family Exile: Family is driven into exile
-• 💀 Family Purged: Family is completely eliminated
-
-Civil War and Rebellion Events:
-• 🔥 Civil War Start: Records civil war outbreak
-• 🏁 Civil War End: Records civil war outcome
-• ✅ Rebellion Succeeded/Suppressed: Records outcomes of various rebellions
-
-Other New Events:
-• 🏛️ Province Granted: Provinces awarded to families
-• ❌ Province Revoked: Family lands reclaimed
-• 📢 Family Rally: Family initiates or responds to rallies
-⛪ 6. Religion View and Religion Editor
-Religion System Features:
-• 🗺️ Religion View Mode: Switch to religion view to see distribution and influence of religions
-• 📊 Religion Information Panel: Displays basic information about religions and religion sets
-• ✏️ Religion Editing Features:
-  • Edit religion name, description, and holy book
-  • Set religion representative color
-  • Designate holy provinces
-• 📦 Religion Set Management:
-  • Create and manage religion sets (religion collections)
-  • Import/export religion configurations
-  • Multi-language translation support
-• 🌐 Workshop Support: Upload and download religion sets to Steam Workshop
-
-🎯 7. Real-Time Strategy Mode (BETA)
-Real-Time Strategy mode allows players to directly control a country's armies!
-
-How to Enable:
-• Click "Enable RTS Mode" button in State Panel → Behavior
-• Can only control one country's armies at a time
-
-Controls:
-• 🖱️ Mouse Box Select: Drag to select multiple armies
-• ➡️ Right Click: Command selected armies to move to target location
-• 🛑 ESC Key: Exit RTS mode
-
----
-Enjoy the new update! Let us know your feedback in the Discord channels! 🎮✨ @everyone 
-FantasyMapSimulator — 10/12/25, 7:51 AM
-Update Highlights
-Army Panel
-Unified visual refresh for the entire army panel.
-
-River Editing
-Multi-select control points with box select.
-Drag selected points directly with left mouse hold.
-Alt + LMB adds a control point; Shift + LMB starts a new river.
-Delete removes selected points or the entire river when none are selected.
-New button wipes all rivers at once.
-
-Bug Fixes
-Rivers stay selectable after moving control points.
-Restored missing religions on legacy maps.
-Nations now elect new leaders after a ruler dies.
-Right-click movement in RTS mode is reliable again.
-New religion names and descriptions appear correctly.
-Historical border storage no longer leaks memory.
-Character traits display without duplicates.
-Renaming rebel nations no longer overwrites province names.
-Armies no longer stall on desert, Gobi, tundra, or similar borders.
-Fixed incorrect latitude display in the editing interface.
-Fixed map latitude failing to refresh promptly.
-Fixed deleted cities reappearing in exported maps.
- 
-FantasyMapSimulator — 10/29/25, 5:16 AM
-10/29 Update | Patch Notes
-
-Hey mapmakers, here’s what changed in today’s build:
-
-Rebuilt the history log panel so it can jump precisely to any year and page forward or backward.
-Optimized heightmap and biome painting on oversized maps to remove the heavy stutter after finishing a pass.
-Fixed provinces that embedded tiles into neighboring provinces right after map generation.
-Fixed rebellion wars that caused certain countries to spawn armies nonstop.
-Fixed the family tree panel sometimes opening without showing any characters.
-Optimized sea routes by merging route meshes to reduce draw calls.
-Fixed national borders failing to refresh after rivers were cleared.
-Fixed Map Editing -> Global Commands -> Translate Map so the translation now completes.
-
-Keep the reports coming, and thanks for playing!
-FantasyMapSimulator — 12/1/25, 2:37 AM
-12/1 Update | Alliance UI & Capital Jump
-
-Hey mapmakers, here’s what changed in today’s build:
-
-Alliance management is now feature-complete: rename alliances, recolor them, tap the 2 key to flip into alliance view, lock an alliance so it never dissolves, and boot unruly members.
-Added a capital jump shortcut—click the capital entry in the Country panel’s Basic Info to pop open the capital province panel and snap the camera to it.
-Boosted the odds of successful family purges while slightly lowering the interval and chance of family rebellions.
-Fixed mutually exclusive traits spawning together when new characters initialize.
-Fixed the Cruel trait so it now actually applies its effects.
-
-Next up: we’re prepping the first set of family-editing tools for the following update.
-
-Keep the reports coming, and thanks for playing!
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Compare Library Exports — Missing Images</title>
+  <style>
+    :root{
+      --bg:#06130e;
+      --panel: rgba(255,255,255,.06);
+      --panel2: rgba(255,255,255,.09);
+      --text:#eafff4;
+      --muted: rgba(234,255,244,.75);
+      --border: rgba(234,255,244,.14);
+      --accent:#35d07f;
+      --danger:#ff5b5b;
+      --warn:#ffcc66;
+      --radius: 14px;
+    }
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color:var(--text);
+      background: radial-gradient(1200px 600px at 20% 10%, rgba(53,208,127,.25), transparent 60%),
+                  radial-gradient(900px 500px at 80% 0%, rgba(53,208,127,.18), transparent 55%),
+                  linear-gradient(180deg, #071812, #020805 70%);
+      padding:18px;
+    }
+    h1{margin:0 0 10px 0; font-size:18px; letter-spacing:.2px;}
+    .sub{color:var(--muted); font-size:13px; margin-bottom:16px;}
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:12px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    @media (min-width: 980px){
+      .grid{grid-template-columns: 1fr 1fr;}
+    }
+    .card{
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      box-shadow: 0 14px 30px rgba(0,0,0,.28);
+    }
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+    .row > * {flex: 0 0 auto;}
+    label{font-size:12px; color:var(--muted);}
+    input[type="file"], select{
+      background: var(--panel2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      width: 100%;
+    }
+    .btn{
+      background: rgba(53,208,127,.14);
+      border: 1px solid rgba(53,208,127,.35);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor:pointer;
+      font-weight: 700;
+      letter-spacing:.2px;
+    }
+    .btn:disabled{opacity:.45; cursor:not-allowed}
+    .btn.danger{background: rgba(255,91,91,.12); border-color: rgba(255,91,91,.35);}
+    .btn.warn{background: rgba(255,204,102,.12); border-color: rgba(255,204,102,.35);}
+    .pill{
+      display:inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.07);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+      margin-left: 6px;
+    }
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;}
+    .list{
+      margin-top: 10px;
+      max-height: 42vh;
+      overflow:auto;
+      background: rgba(0,0,0,.22);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+    }
+    .item{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      padding: 8px 6px;
+      border-bottom: 1px dashed rgba(255,255,255,.10);
+      font-size: 12px;
+    }
+    .item:last-child{border-bottom:none}
+    .small{font-size:12px; color: var(--muted);}
+    .topbar{
+      max-width:1100px;
+      margin:0 auto 12px auto;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .status{
+      max-width:1100px;
+      margin: 0 auto 12px auto;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,.22);
+      color: var(--muted);
+      font-size: 12px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>Compare Exports — Find Missing Images</h1>
+    <span class="pill">Drop-in tool</span>
+    <span class="pill">2 files</span>
+    <span class="pill">Exports missing as JSON</span>
+  </div>
+  <div class="status" id="status">Load two JSON export files to begin.</div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="row" style="margin-bottom:10px;">
+        <div style="flex:1 1 340px;">
+          <label>File A</label>
+          <input id="fileA" type="file" accept=".json,application/json" />
+        </div>
+      </div>
+
+      <div class="row" style="margin-bottom:8px;">
+        <div style="flex:1 1 340px;">
+          <label>File B</label>
+          <input id="fileB" type="file" accept=".json,application/json" />
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px;">
+        <div style="flex:1 1 240px;">
+          <label>Match key</label>
+          <select id="keyMode">
+            <option value="auto" selected>Auto (id → fullUrl → src/title)</option>
+            <option value="id">id only</option>
+            <option value="fullUrl">fullUrl only</option>
+            <option value="src">src/url fields (best-effort)</option>
+            <option value="title">title only</option>
+          </select>
+          <div class="small" style="margin-top:6px;">
+            Auto is recommended unless you know your IDs are unreliable.
+          </div>
+        </div>
+
+        <button class="btn" id="btnCompare" disabled>Compare</button>
+        <button class="btn danger" id="btnReset">Reset</button>
+      </div>
+
+      <hr style="border:none;border-top:1px solid var(--border);margin:14px 0;" />
+
+      <div class="row" style="margin-bottom:10px;">
+        <div style="flex:1 1 240px;">
+          <label>Export mode</label>
+          <select id="exportMode">
+            <option value="AminusB" selected>Export items in A but not in B</option>
+            <option value="BminusA">Export items in B but not in A</option>
+            <option value="both">Export both sets (two files)</option>
+          </select>
+          <div class="small" style="margin-top:6px;">
+            This exports the actual item objects from whichever file has them.
+          </div>
+        </div>
+
+        <button class="btn warn" id="btnExport" disabled>Download missing as export</button>
+        <button class="btn" id="btnEmbed" disabled>Download missing as IMPORTABLE export (embed images)</button>
+      </div>
+
+      <div class="small">
+        Output export format:
+        <span class="mono">{"version":2,"type":"library-full","exportedAt":"...","items":[...]}</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between;">
+        <div>
+          <div style="font-weight:800;">Results</div>
+          <div class="small">Counts + missing keys (preview)</div>
+        </div>
+        <div class="pill mono" id="counts">A: 0 · B: 0</div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <div style="font-weight:800;">In A but not in B <span class="pill mono" id="countAminusB">0</span></div>
+        <div class="list" id="listAminusB"></div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <div style="font-weight:800;">In B but not in A <span class="pill mono" id="countBminusA">0</span></div>
+        <div class="list" id="listBminusA"></div>
+      </div>
+    </div>
+  </div>
+
+
+<script>
+(function(){
+  const els = {
+    status: document.getElementById('status'),
+    fileA: document.getElementById('fileA'),
+    fileB: document.getElementById('fileB'),
+    btnCompare: document.getElementById('btnCompare'),
+    btnReset: document.getElementById('btnReset'),
+    btnExport: document.getElementById('btnExport'),
+    btnEmbed: document.getElementById('btnEmbed'),
+    keyMode: document.getElementById('keyMode'),
+    exportMode: document.getElementById('exportMode'),
+    counts: document.getElementById('counts'),
+    countAminusB: document.getElementById('countAminusB'),
+    countBminusA: document.getElementById('countBminusA'),
+    listAminusB: document.getElementById('listAminusB'),
+    listBminusA: document.getElementById('listBminusA'),
+  };
+
+  let A = null, B = null;
+  let AItems = [], BItems = [];
+  let aMinusB = [], bMinusA = [];
+
+  function setStatus(msg){ els.status.textContent = msg; }
+
+  function safeText(x){
+    if (x == null) return '';
+    return String(x);
+  }
+
+  function normalizeUrl(u){
+    if(!u) return '';
+    try{
+      // normalize google storage url variations somewhat
+      // NOTE: we don't fetch; just normalize strings for comparison
+      const s = String(u).trim();
+      // remove fragment
+      const noHash = s.split('#')[0];
+      // collapse accidental double spaces
+      return noHash.replace(/\s+/g,' ');
+    }catch{
+      return '';
+    }
+  }
+
+  // Build a key for an item depending on user-selected mode
+  function makeKey(item, mode){
+    const id = safeText(item?.id).trim();
+    const title = safeText(item?.title || item?.name).trim();
+
+    const fullUrl = normalizeUrl(item?.fullUrl || item?.full || item?.urlFull);
+    const mediumUrl = normalizeUrl(item?.mediumUrl || item?.urlMedium);
+    const thumbUrl = normalizeUrl(item?.thumbUrl || item?.thumbnailUrl);
+    const thumbDataUrl = safeText(item?.thumbDataUrl).trim();
+    const thumbnail = normalizeUrl(item?.thumbnail);
+
+    // best-effort "src/url fields"
+    const srcCandidate =
+      fullUrl || mediumUrl || thumbUrl ||
+      normalizeUrl(item?.src || item?.url || item?.href || item?.imageUrl) ||
+      (thumbnail.startsWith('http') ? thumbnail : '') ||
+      (thumbDataUrl.startsWith('data:') ? thumbDataUrl.slice(0,80) : '');
+
+    if(mode === 'id') return id || '';
+    if(mode === 'fullUrl') return fullUrl || '';
+    if(mode === 'title') return title || '';
+    if(mode === 'src') return srcCandidate || '';
+
+    // auto
+    return (id || fullUrl || srcCandidate || title || '').trim();
+  }
+
+  function parseExport(json){
+    // supports {items:[...]} and raw arrays
+    if (Array.isArray(json)) return json;
+    if (json && Array.isArray(json.items)) return json.items;
+    return null;
+  }
+
+  async function readJsonFile(file){
+    const text = await file.text();
+    return JSON.parse(text);
+  }
+
+  function renderList(container, items, limit=400){
+    container.innerHTML = '';
+    if(!items.length){
+      container.innerHTML = `<div class="small">None 🎉</div>`;
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    items.slice(0, limit).forEach(({key, item}) => {
+      const div = document.createElement('div');
+      div.className = 'item';
+      const left = document.createElement('div');
+      left.className = 'mono';
+      left.textContent = key || '(empty key)';
+      const right = document.createElement('div');
+      right.className = 'small';
+      right.textContent = safeText(item?.title || item?.name || item?.id || '');
+      div.appendChild(left);
+      div.appendChild(right);
+      frag.appendChild(div);
+    });
+    container.appendChild(frag);
+    if(items.length > limit){
+      const more = document.createElement('div');
+      more.className = 'small';
+      more.style.marginTop = '8px';
+      more.textContent = `Showing first ${limit} of ${items.length}. Export to get the full set.`;
+      container.appendChild(more);
+    }
+  }
+
+  function buildIndex(items, mode){
+    const map = new Map(); // key -> first item
+    const dup = new Map(); // key -> count
+    for(const it of items){
+      const k = makeKey(it, mode);
+      if(!k) continue;
+      if(map.has(k)){
+        dup.set(k, (dup.get(k)||1)+1);
+      }else{
+        map.set(k, it);
+      }
+    }
+    return { map, dup };
+  }
+
+  function diff(Aitems, Bitems, mode){
+    const aIndex = buildIndex(Aitems, mode);
+    const bIndex = buildIndex(Bitems, mode);
+
+    const inA_NotB = [];
+    const inB_NotA = [];
+
+    for(const [k, it] of aIndex.map.entries()){
+      if(!bIndex.map.has(k)){
+        inA_NotB.push({ key:k, item:it });
+      }
+    }
+    for(const [k, it] of bIndex.map.entries()){
+      if(!aIndex.map.has(k)){
+        inB_NotA.push({ key:k, item:it });
+      }
+    }
+
+    // sort for stability
+    inA_NotB.sort((x,y)=> (x.key||'').localeCompare(y.key||''));
+    inB_NotA.sort((x,y)=> (x.key||'').localeCompare(y.key||''));
+
+    return { inA_NotB, inB_NotA, aDup:aIndex.dup, bDup:bIndex.dup };
+  }
+
+  function downloadJson(filename, obj){
+    const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=> URL.revokeObjectURL(url), 2500);
+  }
+
+  function buildExportPayload(items){
+    return {
+      version: 2,
+      type: "library-full",
+      exportedAt: new Date().toISOString(),
+      items
+    };
+  }
+
+
+  function pickBestUrl(item){
+    const u =
+      item?.fullUrl ||
+      item?.mediumUrl ||
+      item?.thumbUrl ||
+      item?.thumbnailUrl ||
+      item?.thumbnail ||
+      item?.dataUrl ||
+      item?.thumbDataUrl ||
+      '';
+    return (typeof u === 'string') ? u.trim() : '';
+  }function blobToDataUrl(blob){
+  return new Promise((resolve, reject) => {
+    try{
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result || ""));
+      r.onerror = () => reject(r.error || new Error("FileReader failed"));
+      r.readAsDataURL(blob);
+    }catch(err){
+      reject(err);
+    }
+  });
+}
+
+async function downloadMissingAsEmbeddedExport(mode){
+  let chosen = [];
+  if(mode === 'AminusB') chosen = aMinusB.map(x => x.item);
+  else if(mode === 'BminusA') chosen = bMinusA.map(x => x.item);
+  else chosen = [...aMinusB.map(x=>x.item), ...bMinusA.map(x=>x.item)];
+
+  if(!chosen.length){
+    setStatus("Nothing to export.");
+    return;
+  }
+
+  setStatus(`Building importable export for ${chosen.length} images…`);
+
+  const outItems = [];
+  const failures = [];
+  let ok = 0;
+
+  for(let i=0;i<chosen.length;i++){
+    const item = chosen[i];
+    const url = pickBestUrl(item);
+
+    // If the item already has an embedded image payload, keep it
+    const alreadyHasData =
+      (typeof item?.dataUrl === 'string' && item.dataUrl.startsWith('data:') && item.dataUrl.length > 200) ||
+      (typeof item?.thumbDataUrl === 'string' && item.thumbDataUrl.startsWith('data:') && item.thumbDataUrl.length > 200);
+
+    if(alreadyHasData){
+      outItems.push(item);
+      ok++;
+      setStatus(`Using existing embedded data ${i+1}/${chosen.length}…\nOK: ${ok}  Failed: ${failures.length}`);
+      continue;
+    }
+
+    if(!url || url.startsWith('blob:')){
+      failures.push({ id: item?.id || null, title: item?.title || null, reason: "No usable URL (or blob: URL)", url });
+      setStatus(`Missing URL ${i+1}/${chosen.length}…\nOK: ${ok}  Failed: ${failures.length}`);
+      continue;
+    }
+
+    setStatus(`Fetching ${i+1}/${chosen.length}…\nOK: ${ok}  Failed: ${failures.length}\n${item?.id || item?.title || ''}`);
+
+    try{
+      const res = await fetch(url, { mode: 'cors' });
+      if(!res.ok){
+        failures.push({ id: item?.id || null, title: item?.title || null, reason: `Fetch failed (${res.status})`, url });
+        continue;
+      }
+      const blob = await res.blob();
+      const dataUrl = await blobToDataUrl(blob);
+
+      // Create an importable item: keep metadata, and add dataUrl
+      const merged = { ...item, dataUrl };
+
+      outItems.push(merged);
+      ok++;
+    }catch(err){
+      failures.push({ id: item?.id || null, title: item?.title || null, reason: String(err?.message || err), url });
+    }
+  }
+
+  const payload = {
+    version: 2,
+    type: "library-full",
+    exportedAt: new Date().toISOString(),
+    source: "compare-metadata (embed)",
+    mode,
+    counts: { requested: chosen.length, ok, failed: failures.length },
+    failures,
+    items: outItems
+  };
+
+  downloadJson(`missing_embedded_${mode}.json`, payload);
+
+  setStatus(`Done.\nEmbedded export downloaded.\nOK: ${ok}  Failed: ${failures.length}\n(If failed > 0, check failures[] in the file.)`);
+}
+
+
+  function updateButtons(){
+    const ok = !!(els.fileA.files?.length && els.fileB.files?.length);
+    els.btnCompare.disabled = !ok;
+  }
+
+  els.fileA.addEventListener('change', updateButtons);
+  els.fileB.addEventListener('change', updateButtons);
+
+  els.btnReset.addEventListener('click', () => {
+    els.fileA.value = '';
+    els.fileB.value = '';
+    A = B = null;
+    AItems = []; BItems = [];
+    aMinusB = []; bMinusA = [];
+    els.counts.textContent = 'A: 0 · B: 0';
+    els.countAminusB.textContent = '0';
+    els.countBminusA.textContent = '0';
+    els.listAminusB.innerHTML = '';
+    els.listBminusA.innerHTML = '';
+    els.btnCompare.disabled = true;
+    els.btnExport.disabled = true;
+      els.btnEmbed.disabled = true;
+    els.btnEmbed.disabled = true;
+    setStatus('Load two JSON export files to begin.');
+  });
+
+  els.btnCompare.addEventListener('click', async () => {
+    try{
+      els.btnCompare.disabled = true;
+      els.btnExport.disabled = true;
+      els.btnEmbed.disabled = true;
+      els.btnEmbed.disabled = true;
+      setStatus('Reading files…');
+
+      const fA = els.fileA.files[0];
+      const fB = els.fileB.files[0];
+
+      A = await readJsonFile(fA);
+      B = await readJsonFile(fB);
+
+      const parsedA = parseExport(A);
+      const parsedB = parseExport(B);
+      if(!parsedA) throw new Error('File A does not look like an export (missing items array).');
+      if(!parsedB) throw new Error('File B does not look like an export (missing items array).');
+
+      AItems = parsedA;
+      BItems = parsedB;
+
+      const mode = els.keyMode.value;
+      setStatus('Comparing…');
+
+      const { inA_NotB, inB_NotA, aDup, bDup } = diff(AItems, BItems, mode);
+      aMinusB = inA_NotB;
+      bMinusA = inB_NotA;
+
+      els.counts.textContent = `A: ${AItems.length} · B: ${BItems.length}`;
+      els.countAminusB.textContent = String(aMinusB.length);
+      els.countBminusA.textContent = String(bMinusA.length);
+
+      renderList(els.listAminusB, aMinusB);
+      renderList(els.listBminusA, bMinusA);
+
+      const dupMsgA = aDup.size ? `A duplicate keys: ${aDup.size}` : 'A duplicate keys: 0';
+      const dupMsgB = bDup.size ? `B duplicate keys: ${bDup.size}` : 'B duplicate keys: 0';
+      setStatus(
+        `Done.\n` +
+        `Mode: ${mode}\n` +
+        `${dupMsgA}\n` +
+        `${dupMsgB}\n` +
+        `Missing: A→B ${aMinusB.length}, B→A ${bMinusA.length}\n`
+      );
+
+      els.btnExport.disabled = (aMinusB.length === 0 && bMinusA.length === 0);
+      els.btnEmbed.disabled = (aMinusB.length === 0 && bMinusA.length === 0);
+    }catch(err){
+      console.error(err);
+      setStatus('Error: ' + (err?.message || err));
+      els.btnExport.disabled = true;
+      els.btnEmbed.disabled = true;
+    }finally{
+      updateButtons();
+    }
+  });
+
+  els.btnExport.addEventListener('click', () => {
+    const mode = els.exportMode.value;
+
+    const nameA = els.fileA.files?.[0]?.name?.replace(/\.json$/i,'') || 'A';
+    const nameB = els.fileB.files?.[0]?.name?.replace(/\.json$/i,'') || 'B';
+
+    if(mode === 'AminusB'){
+      const items = aMinusB.map(x => x.item);
+      downloadJson(`missing_from_${nameB}__source_${nameA}.json`, buildExportPayload(items));
+      return;
+    }
+    if(mode === 'BminusA'){
+      const items = bMinusA.map(x => x.item);
+      downloadJson(`missing_from_${nameA}__source_${nameB}.json`, buildExportPayload(items));
+      return;
+    }
+    // both
+    const items1 = aMinusB.map(x => x.item);
+    const items2 = bMinusA.map(x => x.item);
+    downloadJson(`missing_from_${nameB}__source_${nameA}.json`, buildExportPayload(items1));
+    downloadJson(`missing_from_${nameA}__source_${nameB}.json`, buildExportPayload(items2));
+  });
+    }catch(err){
+      console.error(err);
+      setStatus('ZIP error: ' + (err?.message || err));
+    }finally{
+      // re-enable if there are still missing items
+      els.btnEmbed.disabled = (aMinusB.length === 0 && bMinusA.length === 0);
+    }
+  });
+els.btnEmbed.addEventListener('click', async () => {
+  try{
+    els.btnEmbed.disabled = true;
+    const mode = els.exportMode.value;
+    await downloadMissingAsEmbeddedExport(mode);
+  }catch(err){
+    console.error(err);
+    setStatus('Embed export error: ' + (err?.message || err));
+  }finally{
+    els.btnEmbed.disabled = (aMinusB.length === 0 && bMinusA.length === 0);
+  }
+});
+
+
+
+  updateButtons();
+})();
+</script>
+</body>
+</html>
