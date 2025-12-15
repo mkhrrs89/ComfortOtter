@@ -630,14 +630,6 @@ async function downloadMissingAsEmbeddedExport(mode){
     downloadJson(`missing_from_${nameB}__source_${nameA}.json`, buildExportPayload(items1));
     downloadJson(`missing_from_${nameA}__source_${nameB}.json`, buildExportPayload(items2));
   });
-    }catch(err){
-      console.error(err);
-      setStatus('ZIP error: ' + (err?.message || err));
-    }finally{
-      // re-enable if there are still missing items
-      els.btnEmbed.disabled = (aMinusB.length === 0 && bMinusA.length === 0);
-    }
-  });
 els.btnEmbed.addEventListener('click', async () => {
   try{
     els.btnEmbed.disabled = true;
