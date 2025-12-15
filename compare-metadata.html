@@ -423,52 +423,70 @@ async function downloadMissingAsEmbeddedExport(mode){
     return;
   }
 
-  setStatus(`Building importable export for ${chosen.length} images…`);
+  setStatus(`Building importable export (embedding images) for ${chosen.length} items…`);
 
   const outItems = [];
   const failures = [];
   let ok = 0;
 
-  for(let i=0;i<chosen.length;i++){
+  for(let i=0; i<chosen.length; i++){
     const item = chosen[i];
-    const url = pickBestUrl(item);
+    const id = item?.id || null;
+    const title = item?.title || item?.name || "";
 
-    // If the item already has an embedded image payload, keep it
-    const alreadyHasData =
-      (typeof item?.dataUrl === 'string' && item.dataUrl.startsWith('data:') && item.dataUrl.length > 200) ||
-      (typeof item?.thumbDataUrl === 'string' && item.thumbDataUrl.startsWith('data:') && item.thumbDataUrl.length > 200);
-
-    if(alreadyHasData){
+    // If already embedded, keep as-is (this is already importable)
+    if(typeof item?.dataUrl === 'string' && item.dataUrl.startsWith('data:image/') && item.dataUrl.length > 100){
       outItems.push(item);
       ok++;
-      setStatus(`Using existing embedded data ${i+1}/${chosen.length}…\nOK: ${ok}  Failed: ${failures.length}`);
       continue;
     }
+
+    const url = pickBestUrl(item);
 
     if(!url || url.startsWith('blob:')){
-      failures.push({ id: item?.id || null, title: item?.title || null, reason: "No usable URL (or blob: URL)", url });
-      setStatus(`Missing URL ${i+1}/${chosen.length}…\nOK: ${ok}  Failed: ${failures.length}`);
+      failures.push({ id, title, reason: "No usable URL (empty or blob:)" });
       continue;
     }
 
-    setStatus(`Fetching ${i+1}/${chosen.length}…\nOK: ${ok}  Failed: ${failures.length}\n${item?.id || item?.title || ''}`);
+    setStatus(`Embedding ${i+1}/${chosen.length}…\nOK: ${ok}  Failed: ${failures.length}\n${id || title}`);
 
     try{
-      const res = await fetch(url, { mode: 'cors' });
+      const res = await fetch(url, { mode: 'cors', cache: 'no-store' });
+
       if(!res.ok){
-        failures.push({ id: item?.id || null, title: item?.title || null, reason: `Fetch failed (${res.status})`, url });
+        failures.push({ id, title, url, reason: `Fetch failed (${res.status})` });
         continue;
       }
+
+      const ct = (res.headers.get('content-type') || '').toLowerCase();
       const blob = await res.blob();
+      const bt = (blob.type || '').toLowerCase();
+
+      // IMPORTANT: only embed actual images. If we fetched HTML/text (CORS error page, login page, etc.), skip.
+      const mime = bt || ct;
+      if(!mime.startsWith('image/')){
+        failures.push({ id, title, url, reason: `Not an image (content-type: ${ct || '(none)'}; blob.type: ${bt || '(none)'})` });
+        continue;
+      }
+
       const dataUrl = await blobToDataUrl(blob);
 
-      // Create an importable item: keep metadata, and add dataUrl
-      const merged = { ...item, dataUrl };
+      if(!dataUrl.startsWith('data:image/') || dataUrl.length < 100){
+        failures.push({ id, title, url, reason: "Failed to convert to image dataUrl" });
+        continue;
+      }
 
-      outItems.push(merged);
+      // Preserve metadata, but ensure embedded payload exists
+      outItems.push({
+        ...item,
+        dataUrl,
+        // keep any existing url fields too; they don't hurt imports
+        embeddedAt: new Date().toISOString()
+      });
+
       ok++;
     }catch(err){
-      failures.push({ id: item?.id || null, title: item?.title || null, reason: String(err?.message || err), url });
+      failures.push({ id, title, url, reason: err?.message || String(err) });
     }
   }
 
@@ -485,7 +503,10 @@ async function downloadMissingAsEmbeddedExport(mode){
 
   downloadJson(`missing_embedded_${mode}.json`, payload);
 
-  setStatus(`Done.\nEmbedded export downloaded.\nOK: ${ok}  Failed: ${failures.length}\n(If failed > 0, check failures[] in the file.)`);
+  setStatus(
+    `Done.\nEmbedded export downloaded.\nOK: ${ok}  Failed: ${failures.length}` +
+    (failures.length ? `\n(If failed > 0, open the JSON and check failures[] for reasons.)` : '')
+  );
 }
 
 
