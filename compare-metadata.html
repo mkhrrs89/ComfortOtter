@@ -468,18 +468,16 @@ async function downloadMissingAsEmbeddedExport(mode){
 
   setStatus(
     `Building importable export from LOCAL library for ${ids.length}/${chosen.length} items…` +
-    (missingIdsCount ? `
-(${missingIdsCount} items had no id — cannot pull from IndexedDB)` : '')
+    (missingIdsCount ? ` (${missingIdsCount} items had no id — cannot pull from IndexedDB)` : '')
   );
 
   let ctx = null;
   try{
     ctx = await openLocalDb();
   }catch(err){
-    setStatus("Could not open local IndexedDB on this device.
-" + (err?.message || err));
-    return;
-  }
+      setStatus(`Could not open local IndexedDB on this device. ${err?.message || err}`);
+      return;
+    }
 
   const outItems = [];
   const failures = [];
@@ -487,9 +485,7 @@ async function downloadMissingAsEmbeddedExport(mode){
 
   for(let i=0; i<ids.length; i++){
     const id = ids[i];
-    setStatus(`Fetching from local library ${i+1}/${ids.length}…
-OK: ${ok}  Failed: ${failures.length}
-${id}`);
+      setStatus(`Fetching from local library ${i+1}/${ids.length}…\nOK: ${ok}  Failed: ${failures.length}\n${id}`);
 
     try{
       const rec = await idbGetById(ctx.db, ctx.store, id);
@@ -535,11 +531,8 @@ ${id}`);
   downloadJson(`missing_local_${mode}.json`, payload);
 
   setStatus(
-    `Done.
-Importable export downloaded.
-OK: ${ok}  Failed: ${failures.length}` +
-    (failures.length ? `
-(Open the JSON and check failures[] for which IDs were missing locally.)` : '')
+    `Done.\nImportable export downloaded.\nOK: ${ok}  Failed: ${failures.length}` +
+    (failures.length ? `\n(Open the JSON and check failures[] for which IDs were missing locally.)` : '')
   );
 }
 
