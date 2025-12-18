@@ -3231,7 +3231,7 @@ if (dt && dt.files && dt.files.length) {
 <div className="arena">
   <button className="imageCard" onClick={()=>recordWin(left.id)}>
     <img
-      src={left.thumbnail || left.thumbDataUrl || left.fullUrl || left.dataUrl}
+      src={left.fullUrl || left.dataUrl || left.thumbnail || left.thumbDataUrl}
       alt="left"
     />
     {renderBadges(left.id,'badgeRow-top-right')}
@@ -3239,7 +3239,7 @@ if (dt && dt.files && dt.files.length) {
   <div className="vs">VS</div>
   <button className="imageCard" onClick={()=>recordWin(right.id)}>
     <img
-      src={right.thumbnail || right.thumbDataUrl || right.fullUrl || right.dataUrl}
+      src={right.fullUrl || right.dataUrl || right.thumbnail || right.thumbDataUrl}
       alt="right"
     />
     {renderBadges(right.id,'badgeRow-top-right')}

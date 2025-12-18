@@ -668,7 +668,7 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
           matchEl.innerHTML =
             '<div class="champCard">' +
 '<div class="champImgWrap">' +
-  '<img src="'+(champ.thumbnail || champ.thumbDataUrl || champ.fullUrl || champ.dataUrl || '')+'" alt="Champion" />' +
+  '<img src="'+(champ.fullUrl || champ.dataUrl || champ.thumbnail || champ.thumbDataUrl || '')+'" alt="Champion" />' +
 '</div>' +
 
               '<div>' +
@@ -732,13 +732,13 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
 '<div class="arena">' +
   '<button class="imageCardBtn" id="tLeftImgBtn">' +
     '<div class="imageCard">' +
-      '<img src="'+(left.thumbnail || left.thumbDataUrl || left.fullUrl || left.dataUrl || '')+'" alt="Left" />' +
+      '<img src="'+(left.fullUrl || left.dataUrl || left.thumbnail || left.thumbDataUrl || '')+'" alt="Left" />' +
     '</div>' +
   '</button>' +
   '<div class="vs">VS</div>' +
   '<button class="imageCardBtn" id="tRightImgBtn">' +
     '<div class="imageCard">' +
-      '<img src="'+(right.thumbnail || right.thumbDataUrl || right.fullUrl || right.dataUrl || '')+'" alt="Right" />' +
+      '<img src="'+(right.fullUrl || right.dataUrl || right.thumbnail || right.thumbDataUrl || '')+'" alt="Right" />' +
     '</div>' +
   '</button>' +
 '</div>' +
