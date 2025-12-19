@@ -1246,52 +1246,79 @@ async function dataUrlToThumbDataUrl(src, maxSide = 320, quality = 0.80){
       }
       useEffect(()=>{ if(crop) draw(crop); },[crop]);
 
-      async function resolveCropSource(item){
-        if (item.dataUrl) return item.dataUrl;
-        if (item.fullUrl) return item.fullUrl;
-        if (item.thumbnail) return item.thumbnail;
-        if (item.thumbDataUrl) return item.thumbDataUrl;
+      async function resolveCropSources(item){
+        // Build a prioritized list of possible image sources, including IndexedDB.
+        const candidates = [];
+        const add = (src, priority) => {
+          if(!src) return;
+          if(candidates.some(c=>c.src===src)) return;
+          candidates.push({src,priority});
+        };
+
+        const addFrom = (obj) => {
+          if(!obj) return;
+          add(obj.dataUrl, 0);
+          add(obj.fullUrl, 1);
+          add(obj.thumbnail, 2);
+          add(obj.thumbDataUrl, 3);
+        };
+
+        addFrom(item);
 
         if (item.id){
           try{
             const full = await idbGet(item.id);
-            if(full){
-              return full.dataUrl || full.fullUrl || full.thumbnail || full.thumbDataUrl || null;
-            }
+            addFrom(full);
           }catch(e){
             console.error('Failed to hydrate image for cropping', e);
           }
         }
-        return null;
+
+        return candidates
+          .sort((a,b)=>a.priority-b.priority)
+          .map(c=>c.src);
       }
 
       async function startForItem(item){
-        const src = await resolveCropSource(item);
-        if(!src){
+        const sources = await resolveCropSources(item);
+        if(!sources.length){
           alert('Unable to load this image for cropping.');
           return;
         }
         const loadToken = ++cropLoadRef.current;
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = ()=>{
+
+        const tryLoad = (idx) => {
           if(loadToken !== cropLoadRef.current) return;
-          const iw = img.naturalWidth;
-          const ih = img.naturalHeight;
-          const size = Math.min(iw,ih)*0.8;
-          setCrop({
-            img, iw, ih,
-            rect:{x:(iw-size)/2,y:(ih-size)/2,w:size,h:size},
-            targetId:item.id
-          });
-        };
-        img.onerror = (e)=>{
-          if(loadToken === cropLoadRef.current){
+          if(idx >= sources.length){
             alert('Unable to load this image for cropping.');
+            return;
           }
-          console.error('Crop image failed to load', e);
+
+          const img = new Image();
+          const src = sources[idx];
+          if(/^https?:\/\//i.test(src)){
+            img.crossOrigin = 'anonymous';
+          }
+          img.onload = ()=>{
+            if(loadToken !== cropLoadRef.current) return;
+            const iw = img.naturalWidth;
+            const ih = img.naturalHeight;
+            const size = Math.min(iw,ih)*0.8;
+            setCrop({
+              img, iw, ih,
+              rect:{x:(iw-size)/2,y:(ih-size)/2,w:size,h:size},
+              targetId:item.id
+            });
+          };
+          img.onerror = (e)=>{
+            if(loadToken !== cropLoadRef.current) return;
+            console.warn('Crop image failed to load, trying fallback', e);
+            tryLoad(idx+1);
+          };
+          img.src = src;
         };
-        img.src = src;
+
+        tryLoad(0);
       }
 
       function onPointerDown(e){
