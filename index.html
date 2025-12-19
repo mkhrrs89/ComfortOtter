@@ -595,7 +595,7 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-  import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+  import { getStorage, ref, uploadString, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
   // Comforting Otter config
   const firebaseConfig = {
@@ -666,6 +666,19 @@
   window.firebaseAuth    = auth;
   window.firebaseDb      = db;
   window.firebaseStorage = storage;
+  window.uploadDataUrlToFirebase = async function uploadDataUrlToFirebase(id, dataUrl){
+    if(!id || !dataUrl) return null;
+    try{
+      const path = `images/${id}.jpg`;
+      const storageRef = ref(storage, path);
+      await uploadString(storageRef, dataUrl, 'data_url');
+      const fullUrl = await getDownloadURL(storageRef);
+      return fullUrl;
+    }catch(err){
+      console.error('Upload failed for cropped image', err);
+      return null;
+    }
+  };
   window.saveItemToCloud = saveItemToCloud;
 </script>
 
@@ -1257,8 +1270,8 @@ async function dataUrlToThumbDataUrl(src, maxSide = 320, quality = 0.80){
 
         const addFrom = (obj) => {
           if(!obj) return;
-          add(obj.dataUrl, 0);
-          add(obj.fullUrl, 1);
+          add(obj.fullUrl, 0);
+          add(obj.dataUrl, 1);
           add(obj.thumbnail, 2);
           add(obj.thumbDataUrl, 3);
         };
@@ -2673,19 +2686,55 @@ const statsRows = useMemo(()=>{
       function startCropFor(item){
         cropper.startForItem(item);
       }
-function applyCrop(){
+async function applyCrop(){
   const result = cropper.apply();
   if (!result) return;
 
-  // Use cropped image everywhere so all views update visibly
-  patchItem(result.targetId, {
-    dataUrl:      result.dataUrl,
-    thumbnail:    result.dataUrl,
-    thumbDataUrl: result.dataUrl,
-    fullUrl:      result.dataUrl
-  });
+  // Build a fresh thumbnail from the cropped pixels (keeps small views sharp)
+  let thumb = result.dataUrl;
+  try{
+    thumb = await dataUrlToThumbDataUrl(result.dataUrl, 480, 0.7);
+  }catch(err){
+    console.warn('Falling back to cropped full image for thumbnail', err);
+  }
+
+  // Instant visual update in state while the upload runs
+  setItems(prev => prev.map(it => {
+    if (it.id !== result.targetId) return it;
+    return {
+      ...it,
+      dataUrl: result.dataUrl,
+      thumbnail: thumb,
+      thumbDataUrl: thumb,
+      fullUrl: result.dataUrl
+    };
+  }));
 
   cropper.setCrop(null);
+
+  // Push the cropped image to Firebase Storage so fullUrl matches the new pixels
+  let uploadedUrl = null;
+  if (window.uploadDataUrlToFirebase){
+    try{
+      uploadedUrl = await window.uploadDataUrlToFirebase(result.targetId, result.dataUrl);
+    }catch(err){
+      console.error('Failed to upload cropped image to Firebase', err);
+    }
+  }
+
+  const finalFullUrl = uploadedUrl || result.dataUrl;
+
+  // Persist everywhere (IndexedDB + Firestore mirror)
+  await patchItem(result.targetId, {
+    dataUrl:      result.dataUrl,
+    thumbnail:    thumb,
+    thumbDataUrl: thumb,
+    fullUrl:      finalFullUrl
+  });
+
+  if (window.uploadDataUrlToFirebase && !uploadedUrl){
+    alert('Saved the cropped image locally, but updating Firebase failed. The app will use the local copy until you retry online.');
+  }
 }
 
 
