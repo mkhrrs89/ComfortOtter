@@ -1655,7 +1655,7 @@ function preloadImage(src){
       const [librarySort, setLibrarySort] = useState({field:'points', dir:'asc'});
       const [libraryFilter, setLibraryFilter] = useState('all'); // all | unassigned
       const [librarySearch, setLibrarySearch] = useState('');
-      const [libraryCollectionFilter,setLibraryCollectionFilter] = useState({include:[],exclude:[]});
+      const [libraryCollectionFilter,setLibraryCollectionFilter] = useState({include:[],exclude:[],mode:'all'});
       const [statsSort,setStatsSort] = useState({field:'points',dir:'asc'});
       const [collStatsSort,setCollStatsSort] = useState({field:'pct',dir:'desc'});
       const [collectionSort, setCollectionSort] = useState({field:'points', dir:'asc'});
@@ -2629,6 +2629,13 @@ for (let idx = 1; idx < files.length; idx++) {
         return rows.reverse();
       },[items,collStatsSort]);
 
+      const matchupCollectionOptions = useMemo(()=>{
+        return collectionStats
+          .filter(c=>c.imagesCount>=2)
+          .slice()
+          .sort((a,b)=>a.name.localeCompare(b.name));
+      },[collectionStats]);
+
       // library filtered + sorted list (full, before pagination)
       const libraryItems = useMemo(()=>{
         let list = [...items];
@@ -2644,9 +2651,13 @@ for (let idx = 1; idx < files.length; idx++) {
         }
         const include = libraryCollectionFilter.include || [];
         const exclude = libraryCollectionFilter.exclude || [];
+        const includeMode = libraryCollectionFilter.mode || 'all';
         if(include.length){
           list = list.filter(it=>{
             const cols = it.collections || [];
+            if(includeMode==='any'){
+              return include.some(name => cols.includes(name));
+            }
             return include.every(name => cols.includes(name));
           });
         }
@@ -3100,6 +3111,7 @@ if (dt && dt.files && dt.files.length) {
                             setLibraryCollectionFilter(prev=>{
                               const inc = new Set(prev.include || []);
                               const exc = new Set(prev.exclude || []);
+                              const mode = prev.mode || 'all';
                               if(!inc.has(name) && !exc.has(name)){
                                 inc.add(name);           // neutral -> include (green)
                               }else if(inc.has(name)){
@@ -3110,7 +3122,8 @@ if (dt && dt.files && dt.files.length) {
                               }
                               return {
                                 include: [...inc],
-                                exclude: [...exc]
+                                exclude: [...exc],
+                                mode
                               };
                             });
                           }}
@@ -3119,10 +3132,27 @@ if (dt && dt.files && dt.files.length) {
                         </button>
                       );
                     })}
+                    {libraryCollectionFilter.include.length > 1 && (
+                      <div className="flexRow" style={{gap:6, alignItems:'center', flexWrap:'wrap'}}>
+                        <span className="smallMuted">Include logic:</span>
+                        <button
+                          className={'btn sm '+((libraryCollectionFilter.mode||'all')==='all' ? 'secondary' : 'ghost')}
+                          onClick={()=>setLibraryCollectionFilter(prev=>({...prev,mode:'all'}))}
+                        >
+                          Match all selected
+                        </button>
+                        <button
+                          className={'btn sm '+((libraryCollectionFilter.mode||'all')==='any' ? 'secondary' : 'ghost')}
+                          onClick={()=>setLibraryCollectionFilter(prev=>({...prev,mode:'any'}))}
+                        >
+                          Match any selected
+                        </button>
+                      </div>
+                    )}
                     {(libraryCollectionFilter.include.length>0 || libraryCollectionFilter.exclude.length>0) && (
                       <button
                         className="btn sm ghost"
-                        onClick={()=>setLibraryCollectionFilter({include:[],exclude:[]})}
+                        onClick={()=>setLibraryCollectionFilter({include:[],exclude:[],mode:'all'})}
                       >
                         Clear collection filter
                       </button>
@@ -3415,8 +3445,7 @@ if (dt && dt.files && dt.files.length) {
 
 <option value="freshLeaf">Fresh images (leaf icon)</option>
 
-{collectionStats
-  .filter(c=>c.imagesCount>=2)
+{matchupCollectionOptions
   .map(c=>(
     <option key={c.name} value={`collection:${c.name}`}>
       Collection: {c.name}
