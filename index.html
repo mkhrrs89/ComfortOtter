@@ -1085,6 +1085,25 @@ async function generateMissingThumbnails(){
     };
     const matchupsCount = it => (it.wins||0)+(it.losses||0);
 
+    const compareBySort = (a, b, sort) => {
+      const dir = sort.dir === 'asc' ? 1 : -1;
+      if (sort.field === 'addedAt') {
+        const ta = new Date(a.addedAt || 0).getTime();
+        const tb = new Date(b.addedAt || 0).getTime();
+        return (tb - ta) * dir;
+      } else if (sort.field === 'title') {
+        return (a.title || '').localeCompare(b.title || '') * dir;
+      } else if (sort.field === 'points') {
+        const pa = computePoints(a.wins, a.losses, a.tourneyBonus || 0);
+        const pb = computePoints(b.wins, b.losses, b.tourneyBonus || 0);
+        if (pb !== pa) return (pb - pa) * dir;
+        return (matchupsCount(b) - matchupsCount(a)) * dir;
+      } else if (sort.field === 'matchups') {
+        return (matchupsCount(b) - matchupsCount(a)) * dir;
+      }
+      return 0;
+    };
+
     // UPDATED: include tourneyBonus
     const computePoints = (w,l,tourneyBonus=0)=>{
       const W = w||0, L = l||0;
@@ -1103,6 +1122,31 @@ const normalizeCollections = (str)=>{
       .map(s=>s.trim())
   ));
 };
+
+    const detectViewportMode = () => {
+      if (typeof window === 'undefined') return 'desktop';
+      const isPortrait = window.matchMedia('(orientation: portrait)').matches;
+      const isLandscape = window.matchMedia('(orientation: landscape)').matches;
+      const isMobileWidth = window.innerWidth <= 900;
+      if (isMobileWidth) {
+        if (isPortrait) return 'mobile-portrait';
+        if (isLandscape) return 'mobile-landscape';
+        return 'mobile-portrait';
+      }
+      return 'desktop';
+    };
+
+    const columnOptionsForMode = (mode) => {
+      if (mode === 'mobile-portrait') return [1,2,3];
+      if (mode === 'mobile-landscape') return [2,3,4,5];
+      return [3,4,5,6];
+    };
+
+    const defaultColumnsForMode = (mode) => {
+      if (mode === 'mobile-portrait') return 2;
+      if (mode === 'mobile-landscape') return 3;
+      return 4;
+    };
 
     const collectionsToString = arr => (arr && arr.length ? arr.join(', ') : '');
     const nowStamp = ()=>{
@@ -1614,6 +1658,7 @@ function preloadImage(src){
       const [libraryCollectionFilter,setLibraryCollectionFilter] = useState({include:[],exclude:[]});
       const [statsSort,setStatsSort] = useState({field:'points',dir:'asc'});
       const [collStatsSort,setCollStatsSort] = useState({field:'pct',dir:'desc'});
+      const [collectionSort, setCollectionSort] = useState({field:'points', dir:'asc'});
       const [matchMode,setMatchMode] = useState({type:'all', collection:null}); // all | bottom | collection
       const [selectedIds,setSelectedIds] = useState([]); // for gallery batch + export
       const [batchOpen,setBatchOpen] = useState(false);
@@ -1625,6 +1670,9 @@ function preloadImage(src){
       const [collectionPage,setCollectionPage] = useState(1);
       const [collectionPageSize,setCollectionPageSize] = useState(50);
       const [statsPage,setStatsPage] = useState(1);
+      const [viewportMode, setViewportMode] = useState(detectViewportMode()); // desktop | mobile-landscape | mobile-portrait
+      const [libraryGalleryColumns, setLibraryGalleryColumns] = useState(()=>defaultColumnsForMode(detectViewportMode()));
+      const [collectionGalleryColumns, setCollectionGalleryColumns] = useState(()=>defaultColumnsForMode(detectViewportMode()));
 // If we were navigated to index.html?openId=<uuid>, auto-open that image
 const [pendingOpenId, setPendingOpenId] = useState(() => {
   try {
@@ -1738,6 +1786,26 @@ useEffect(() => {
   setPendingOpenId(null);
 }, [pendingOpenId, items]);
 
+// keep viewport mode + column defaults in sync with window size/orientation
+useEffect(() => {
+  const handler = () => {
+    setViewportMode(detectViewportMode());
+  };
+  handler();
+  window.addEventListener('resize', handler);
+  window.addEventListener('orientationchange', handler);
+  return () => {
+    window.removeEventListener('resize', handler);
+    window.removeEventListener('orientationchange', handler);
+  };
+}, []);
+
+useEffect(() => {
+  const options = columnOptionsForMode(viewportMode);
+  setLibraryGalleryColumns(prev => options.includes(prev) ? prev : defaultColumnsForMode(viewportMode));
+  setCollectionGalleryColumns(prev => options.includes(prev) ? prev : defaultColumnsForMode(viewportMode));
+}, [viewportMode]);
+
 
       // sync preview collections text whenever previewId or items change
       useEffect(()=>{
@@ -1786,7 +1854,7 @@ useEffect(()=>{
       },[libraryFilter,libraryCollectionFilter,librarySort,items.length]);
       useEffect(()=>{
         setCollectionPage(1);
-      },[activeCollection,items.length]);
+      },[activeCollection,items.length,collectionSort]);
 
       // helpers to persist + update
       async function replaceAllItems(next){
@@ -2516,6 +2584,8 @@ for (let idx = 1; idx < files.length; idx++) {
         return Array.from(set).sort((a,b)=>a.localeCompare(b));
       },[items]);
 
+      const galleryColumnOptions = useMemo(()=>columnOptionsForMode(viewportMode), [viewportMode]);
+
       // stats for collections (also used for matchups dropdown)
       const collectionStats = useMemo(()=>{
         const map = new Map();
@@ -2586,24 +2656,7 @@ for (let idx = 1; idx < files.length; idx++) {
             return !exclude.some(name => cols.includes(name));
           });
         }
-        list.sort((a,b)=>{
-          const dir = librarySort.dir==='asc' ? 1 : -1;
-          if(librarySort.field==='addedAt'){
-            const ta = new Date(a.addedAt||0).getTime();
-            const tb = new Date(b.addedAt||0).getTime();
-            return (tb-ta)*dir;
-          }else if(librarySort.field==='title'){
-            return a.title.localeCompare(b.title)*dir;
-          }else if(librarySort.field==='points'){
-            const pa = computePoints(a.wins,a.losses,a.tourneyBonus||0);
-            const pb = computePoints(b.wins,b.losses,b.tourneyBonus||0);
-            if(pb!==pa) return (pb-pa)*dir;
-            return (matchupsCount(b)-matchupsCount(a))*dir;
-          }else if(librarySort.field==='matchups'){
-            return (matchupsCount(b)-matchupsCount(a))*dir;
-          }
-          return 0;
-        });
+        list.sort((a,b)=>compareBySort(a,b,librarySort));
         return list;
       },[items,librarySort,libraryFilter,libraryCollectionFilter,librarySearch]);
 
@@ -2657,6 +2710,12 @@ const statsRows = useMemo(()=>{
         return items.filter(it=> (it.collections||[]).includes(activeCollection));
       },[items,activeCollection]);
 
+      const sortedCollectionItems = useMemo(()=>{
+        const arr = [...activeCollectionItems];
+        arr.sort((a,b)=>compareBySort(a,b,collectionSort));
+        return arr;
+      },[activeCollectionItems,collectionSort]);
+
       // pagination: library
       const libPageSizeNum = libraryPageSize === 'all'
         ? (libraryItems.length || 1)
@@ -2673,17 +2732,17 @@ const statsRows = useMemo(()=>{
 
       // pagination: active collection
       const collPageSizeNum = collectionPageSize === 'all'
-        ? (activeCollectionItems.length || 1)
+        ? (sortedCollectionItems.length || 1)
         : collectionPageSize;
       const collTotalPages = collectionPageSize === 'all'
         ? 1
-        : Math.max(1, Math.ceil(activeCollectionItems.length / collPageSizeNum));
+        : Math.max(1, Math.ceil(sortedCollectionItems.length / collPageSizeNum));
       const collPage = Math.min(Math.max(collectionPage,1), collTotalPages);
       const collStart = collectionPageSize === 'all' ? 0 : (collPage-1)*collPageSizeNum;
-      const collEnd = collectionPageSize === 'all' ? activeCollectionItems.length : collectionPage*collPageSizeNum;
+      const collEnd = collectionPageSize === 'all' ? sortedCollectionItems.length : collectionPage*collPageSizeNum;
       const collectionPageItems = collectionPageSize === 'all'
-        ? activeCollectionItems
-        : activeCollectionItems.slice(collStart, collEnd);
+        ? sortedCollectionItems
+        : sortedCollectionItems.slice(collStart, collEnd);
 
       const left = items.find(it=>it.id===matchIds[0]) || null;
       const right = items.find(it=>it.id===matchIds[1]) || null;
@@ -3197,13 +3256,30 @@ if (dt && dt.files && dt.files.length) {
                         </button>
                       )}
                     </div>
-                    <div className="smallMuted">
-                      {selectionMode
-                        ? 'Selection mode: click images to toggle selection'
-                        : 'Click an image to view & edit. Export will use any selected images.'}
+                    <div className="flexRow" style={{gap:10, alignItems:'center'}}>
+                      <label className="smallMuted">
+                        Columns{' '}
+                        <select
+                          className="select"
+                          value={String(libraryGalleryColumns)}
+                          onChange={e=>setLibraryGalleryColumns(Number(e.target.value))}
+                        >
+                          {galleryColumnOptions.map(opt=>(
+                            <option key={opt} value={opt}>{opt} columns</option>
+                          ))}
+                        </select>
+                      </label>
+                      <span className="smallMuted">
+                        {selectionMode
+                          ? 'Selection mode: click images to toggle selection'
+                          : 'Click an image to view & edit. Export will use any selected images.'}
+                      </span>
                     </div>
                   </div>
-                  <div className="galleryGrid">
+                  <div
+                    className="galleryGrid"
+                    style={{gridTemplateColumns:`repeat(${libraryGalleryColumns}, minmax(0,1fr))`}}
+                  >
                     {libraryPageItems.map(it=>{
                       const isSel = selectedIds.includes(it.id);
                       return (
@@ -3677,6 +3753,51 @@ if (dt && dt.files && dt.files.length) {
                 </div>
               </div>
 
+              <div className="toolbar" style={{justifyContent:'space-between',marginBottom:8}}>
+                <div className="flexRow">
+                  <label className="smallMuted">
+                    Sort by{' '}
+                    <select
+                      className="select"
+                      value={collectionSort.field}
+                      onChange={e=>setCollectionSort(s=>({...s, field:e.target.value}))}
+                    >
+                      <option value="addedAt">Date added</option>
+                      <option value="title">Title</option>
+                      <option value="points">Points</option>
+                      <option value="matchups"># Matchups</option>
+                    </select>
+                  </label>
+                  <label className="smallMuted">
+                    Direction{' '}
+                    <select
+                      className="select"
+                      value={collectionSort.dir}
+                      onChange={e=>setCollectionSort(s=>({...s, dir:e.target.value}))}
+                    >
+                      <option value="desc">Desc</option>
+                      <option value="asc">Asc</option>
+                    </select>
+                  </label>
+                </div>
+                {collectionViewMode==='gallery' && (
+                  <div className="flexRow">
+                    <label className="smallMuted">
+                      Columns{' '}
+                      <select
+                        className="select"
+                        value={String(collectionGalleryColumns)}
+                        onChange={e=>setCollectionGalleryColumns(Number(e.target.value))}
+                      >
+                        {galleryColumnOptions.map(opt=>(
+                          <option key={opt} value={opt}>{opt} columns</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                )}
+              </div>
+
               <div className="toolbar" style={{justifyContent:'space-between',marginBottom:6}}>
                 <div className="flexRow">
                   <button
@@ -3764,7 +3885,10 @@ if (dt && dt.files && dt.files.length) {
               )}
 
               {activeCollectionItems.length>0 && collectionViewMode==='gallery' && (
-                <div className="galleryGrid" style={{marginTop:8}}>
+                <div
+                  className="galleryGrid"
+                  style={{marginTop:8, gridTemplateColumns:`repeat(${collectionGalleryColumns}, minmax(0,1fr))`}}
+                >
                   {collectionPageItems.map(it=>{
                     const isSel = selectedIds.includes(it.id);
                     return (
