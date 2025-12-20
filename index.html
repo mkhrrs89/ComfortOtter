@@ -340,13 +340,20 @@
     /* Modals */
     .modal{
       position:fixed;
-      inset:0;
+      top:0;
+      right:0;
+      bottom:0;
+      left:0;
       background:rgba(0,0,0,0.78);
       display:flex;
       align-items:center;
       justify-content:center;
       padding:20px;
       z-index:1000;
+      width:100vw;
+      height:100vh;
+      overflow-y:auto;
+      overscroll-behavior:contain;
     }
 .modalInner{
   background:#050c0a;
@@ -360,6 +367,29 @@
   gap:10px;
   overflow-y:auto;           /* 👈 NEW: allow scrolling inside the modal */
 }
+
+    @supports (height: 100dvh){
+      .modal{
+        height:100dvh;
+      }
+      .modalInner{
+        max-height:96dvh;
+      }
+    }
+
+    @media (max-width: 900px) and (orientation: landscape){
+      .modal{
+        padding:12px;
+      }
+      .modalInner{
+        max-height:calc(100vh - 24px);
+      }
+      @supports (height: 100dvh){
+        .modalInner{
+          max-height:calc(100dvh - 24px);
+        }
+      }
+    }
 
     .previewImgWrap{
       position:relative;
