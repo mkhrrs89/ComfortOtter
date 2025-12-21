@@ -709,6 +709,16 @@
       return null;
     }
   };
+  window.fetchFullImageUrl = async function fetchFullImageUrl(id){
+    if(!id) return null;
+    try{
+      const storageRef = ref(storage, `images/${id}.jpg`);
+      return await getDownloadURL(storageRef);
+    }catch(err){
+      console.warn('Full image URL unavailable from Firebase', err);
+      return null;
+    }
+  };
   window.saveItemToCloud = saveItemToCloud;
 </script>
 
@@ -1631,6 +1641,10 @@ function getDisplaySrc(item){
   );
 }
 
+function isHttpUrl(str){
+  return typeof str === 'string' && /^https?:\/\//i.test(str);
+}
+
 // Very small preloader helper
 function preloadImage(src){
   if (!src) return;
@@ -1736,6 +1750,7 @@ const fileRef = useRef(null);
 const importRef = useRef(null);      // for JSON / metadata imports
 const imageImportRef = useRef(null); // for image uploads
 const cropper = useCropper();
+const hydratingFullUrls = useRef(new Set());
 
 // load from IDB (thumbnail-first)
 useEffect(()=>{
@@ -2759,6 +2774,30 @@ const statsRows = useMemo(()=>{
       const right = items.find(it=>it.id===matchIds[1]) || null;
       const previewItem = previewId ? items.find(it=>it.id===previewId) : null;
       const selectionMode = selectedIds.length>0;
+
+      useEffect(()=>{
+        async function hydrate(item){
+          if(!item) return;
+          if(item.fullUrl && isHttpUrl(item.fullUrl)) return;
+          if(!window.fetchFullImageUrl) return;
+          if(hydratingFullUrls.current.has(item.id)) return;
+
+          hydratingFullUrls.current.add(item.id);
+          try{
+            const url = await window.fetchFullImageUrl(item.id);
+            if(url && url !== item.fullUrl){
+              await patchItem(item.id, { fullUrl: url });
+            }
+          }catch(err){
+            console.warn('Full image hydration failed for', item.id, err);
+          }finally{
+            hydratingFullUrls.current.delete(item.id);
+          }
+        }
+
+        hydrate(left);
+        hydrate(right);
+      },[left?.id, right?.id]);
 
       const allLibPageSelected = libraryPageItems.length>0 && libraryPageItems.every(it=>selectedIds.includes(it.id));
       const allCollPageSelected = collectionPageItems.length>0 && collectionPageItems.every(it=>selectedIds.includes(it.id));

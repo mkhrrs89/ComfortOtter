@@ -286,6 +286,40 @@
       }
     }
   </style>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getStorage, ref, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBOVGz7QH_iPtxoM25baGqTIR-2yxUQwH8",
+      authDomain: "comforting-otter.firebaseapp.com",
+      projectId: "comforting-otter",
+      storageBucket: "comforting-otter.firebasestorage.app",
+      messagingSenderId: "1074346290690",
+      appId: "1:1074346290690:web:bd2721e73fbdf029e7411b",
+      measurementId: "G-2JT31JFGNJ"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const storage = getStorage(app);
+
+    signInAnonymously(auth).catch(err => {
+      console.error("Anonymous sign-in failed:", err);
+    });
+
+    window.fetchFullImageUrl = async function fetchFullImageUrl(id){
+      if(!id) return null;
+      try{
+        const storageRef = ref(storage, `images/${id}.jpg`);
+        return await getDownloadURL(storageRef);
+      }catch(err){
+        console.warn('Full image URL unavailable from Firebase', err);
+        return null;
+      }
+    };
+  </script>
 </head>
 <body>
   <div class="app">
@@ -329,6 +363,10 @@ function getDisplaySrc(item){
     item.thumbDataUrl ||
     ""
   );
+}
+
+function isHttpUrl(str){
+  return typeof str === 'string' && /^https?:\/\//i.test(str);
 }
 
 
@@ -468,6 +506,28 @@ function preloadImage(src){
       return pts;
     }
 
+async function maybeHydrateFullImage(item){
+  if(!item || hydratingFullUrls.has(item.id)) return;
+  if(item.fullUrl && isHttpUrl(item.fullUrl)) return;
+  if(!window.fetchFullImageUrl) return;
+
+  hydratingFullUrls.add(item.id);
+  try{
+    const url = await window.fetchFullImageUrl(item.id);
+    if(url && url !== item.fullUrl){
+      const updated = {...item, fullUrl: url};
+      await idbPutItem(updated);
+      itemsById.set(updated.id, updated);
+      items = items.map(it => it.id === updated.id ? updated : it);
+      renderAll();
+    }
+  }catch(err){
+    console.warn('Full image hydration failed for', item && item.id, err);
+  }finally{
+    hydratingFullUrls.delete(item.id);
+  }
+}
+
 function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, s=>{
     switch(s){
@@ -492,6 +552,7 @@ let itemsById = new Map();
 let tourneyState = null;
 let isProcessing = false;
 let currentPool = '__ALL__'; // "__ALL__" means use all images
+const hydratingFullUrls = new Set();
 
     function roundLabel(size){
       if(size === 2) return 'Championship';
@@ -644,6 +705,7 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
 
       if(s.completed){
         const champ = itemsById.get(s.championId);
+        maybeHydrateFullImage(champ);
         statusEl.textContent = 'Tournament complete.';
         hintEl.textContent = fieldInfo;
 
@@ -717,6 +779,8 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
       const idB = entrants[idxB];
       const left = itemsById.get(idA);
       const right = itemsById.get(idB);
+      maybeHydrateFullImage(left);
+      maybeHydrateFullImage(right);
 
       if(!left || !right){
         matchEl.innerHTML =
