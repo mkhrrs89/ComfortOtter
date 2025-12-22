@@ -1377,6 +1377,16 @@ async function dataUrlToThumbDataUrl(src, maxSide = 320, quality = 0.80){
           }
         }
 
+        // Always try to pull the freshest full-resolution image from Firebase
+        if (item?.id && window.fetchFullImageUrl){
+          try{
+            const remoteFull = await window.fetchFullImageUrl(item.id);
+            add(remoteFull, -1);
+          }catch(err){
+            console.warn('Full image unavailable during cropping', err);
+          }
+        }
+
         return candidates
           .sort((a,b)=>a.priority-b.priority)
           .map(c=>c.src);
