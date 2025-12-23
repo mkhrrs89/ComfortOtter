@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Compare Library Exports — Missing Images</title>
+  <link rel="stylesheet" href="app-style.css">
   <style>
     :root{
       --bg:#06130e;
@@ -108,7 +109,7 @@
       align-items:center;
       flex-wrap:wrap;
     }
-    .status{
+.status{
       max-width:1100px;
       margin: 0 auto 12px auto;
       padding: 10px 12px;
@@ -119,11 +120,30 @@
       font-size: 12px;
       white-space: pre-wrap;
     }
-  </style>
+</style>
 </head>
 <body>
+  <header class="pageHeader">
+    <div>
+      <h1>Compare Exports — Find Missing Images</h1>
+      <div class="sub">Upload two exported JSON files from your library to see which images are missing in either file.</div>
+    </div>
+    <div class="navMenuShell">
+      <details class="navDropdown">
+        <summary class="navTrigger">Menu ▾</summary>
+        <div class="navMenuList">
+          <a class="navItem" href="index.html?tab=Library">Library</a>
+          <a class="navItem" href="index.html?tab=Matchups">Matchups</a>
+          <a class="navItem" href="index.html?tab=Stats">Stats</a>
+          <a class="navItem" href="index.html?tab=Collections">Collections</a>
+          <div class="navSpacer"></div>
+          <a class="navItem" href="tourney.html">Tournament</a>
+          <a class="navItem" href="settings.html">Settings</a>
+        </div>
+      </details>
+    </div>
+  </header>
   <div class="topbar">
-    <h1>Compare Exports — Find Missing Images</h1>
     <span class="pill">Drop-in tool</span>
     <span class="pill">2 files</span>
     <span class="pill">Exports missing as JSON</span>

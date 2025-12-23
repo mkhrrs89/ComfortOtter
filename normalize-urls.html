@@ -41,13 +41,31 @@
   </style>
 </head>
 <body>
-  <h1>URL & Thumbnail Normalizer</h1>
-  <div class="sub">
+  <header class="pageHeader">
+    <div>
+      <h1>URL & Thumbnail Normalizer</h1>
+      <div class="sub">
     This passes over <code>modelMatchupDB</code> and standardizes each record:<br/>
     • <code>thumbnail</code> becomes the one true thumb field (copying from <code>thumbDataUrl</code> if needed).<br/>
     • <code>thumbDataUrl</code> is removed when redundant.<br/>
     • Optionally, <code>dataUrl</code> is dropped when a <code>fullUrl</code> exists (toggle below).
-  </div>
+      </div>
+    </div>
+    <div class="navMenuShell">
+      <details class="navDropdown">
+        <summary class="navTrigger">Menu ▾</summary>
+        <div class="navMenuList">
+          <a class="navItem" href="index.html?tab=Library">Library</a>
+          <a class="navItem" href="index.html?tab=Matchups">Matchups</a>
+          <a class="navItem" href="index.html?tab=Stats">Stats</a>
+          <a class="navItem" href="index.html?tab=Collections">Collections</a>
+          <div class="navSpacer"></div>
+          <a class="navItem" href="tourney.html">Tournament</a>
+          <a class="navItem" href="settings.html">Settings</a>
+        </div>
+      </details>
+    </div>
+  </header>
 
   <div style="margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap;">
     <a href="index.html" class="tab">← Back to Library</a>

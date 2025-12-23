@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ModelMatchup DB Reset</title>
+  <link rel="stylesheet" href="app-style.css">
   <style>
     body {
       background:#020807;
@@ -30,11 +31,29 @@
   </style>
 </head>
 <body>
-  <h1>ModelMatchup DB Reset</h1>
-  <p>
-    This page deletes the <code>modelMatchupDB</code> IndexedDB database for this site.
-    Use it if your app is crashing on startup.
-  </p>
+  <header class="pageHeader">
+    <div>
+      <h1>ModelMatchup DB Reset</h1>
+      <p>
+        This page deletes the <code>modelMatchupDB</code> IndexedDB database for this site.
+        Use it if your app is crashing on startup.
+      </p>
+    </div>
+    <div class="navMenuShell">
+      <details class="navDropdown">
+        <summary class="navTrigger">Menu ▾</summary>
+        <div class="navMenuList">
+          <a class="navItem" href="index.html?tab=Library">Library</a>
+          <a class="navItem" href="index.html?tab=Matchups">Matchups</a>
+          <a class="navItem" href="index.html?tab=Stats">Stats</a>
+          <a class="navItem" href="index.html?tab=Collections">Collections</a>
+          <div class="navSpacer"></div>
+          <a class="navItem" href="tourney.html">Tournament</a>
+          <a class="navItem" href="settings.html">Settings</a>
+        </div>
+      </details>
+    </div>
+  </header>
   <button id="wipeBtn">Delete IndexedDB</button>
   <div class="log" id="log"></div>
 

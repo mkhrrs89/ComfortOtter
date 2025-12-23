@@ -60,14 +60,32 @@
       overflow:auto;
       white-space:pre-wrap;
     }
-  </style>
+</style>
 </head>
 <body>
-  <h1>Unmigrated Images Report</h1>
-  <div class="sub">
-    Shows any records in <code>modelMatchupDB / items</code> that don’t have a <code>fullUrl</code>.
-    These are the ones that still need to be migrated to Firebase.
-  </div>
+  <header class="pageHeader">
+    <div>
+      <h1>Unmigrated Images Report</h1>
+      <div class="sub">
+        Shows any records in <code>modelMatchupDB / items</code> that don’t have a <code>fullUrl</code>.
+        These are the ones that still need to be migrated to Firebase.
+      </div>
+    </div>
+    <div class="navMenuShell">
+      <details class="navDropdown">
+        <summary class="navTrigger">Menu ▾</summary>
+        <div class="navMenuList">
+          <a class="navItem" href="index.html?tab=Library">Library</a>
+          <a class="navItem" href="index.html?tab=Matchups">Matchups</a>
+          <a class="navItem" href="index.html?tab=Stats">Stats</a>
+          <a class="navItem" href="index.html?tab=Collections">Collections</a>
+          <div class="navSpacer"></div>
+          <a class="navItem" href="tourney.html">Tournament</a>
+          <a class="navItem" href="settings.html">Settings</a>
+        </div>
+      </details>
+    </div>
+  </header>
 
   <div style="margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap;">
     <a href="index.html" class="tab">← Back to Library</a>

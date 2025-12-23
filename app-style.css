@@ -160,6 +160,109 @@ a.tab {
 }
 
 /* ------------------------------------------------------
+   PAGE HEADER LAYOUT
+------------------------------------------------------ */
+.pageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+/* ------------------------------------------------------
+   NAVIGATION DROPDOWN
+------------------------------------------------------ */
+.navMenuShell {
+  margin-left: auto;
+  position: relative;
+}
+
+.navDropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.navDropdown summary {
+  list-style: none;
+}
+
+.navDropdown summary::-webkit-details-marker {
+  display: none;
+}
+
+.navTrigger {
+  border-radius: 999px;
+  border: 1px solid var(--ring);
+  background: var(--panel);
+  color: var(--text);
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+  text-decoration: none;
+}
+
+.navDropdown[open] .navTrigger {
+  outline: 2px solid var(--accent);
+  background: linear-gradient(135deg, var(--accent), rgba(56, 189, 248, 0.16));
+  color: #0b1120;
+  font-weight: 600;
+}
+
+.navMenuList {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  background: var(--panel);
+  border: 1px solid var(--ring);
+  border-radius: 12px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 180px;
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.45);
+  z-index: 20;
+}
+
+.navItem {
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: var(--panel-soft);
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.navItem:hover,
+.navItem:focus-visible {
+  border-color: var(--ring);
+}
+
+.navItem.active {
+  border-color: var(--accent);
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.14), rgba(56, 189, 248, 0.06));
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.16);
+}
+
+.navSpacer {
+  height: 4px;
+  border-top: 1px solid var(--ring);
+  margin: 2px 0;
+}
+
+/* ------------------------------------------------------
    TABLES
 ------------------------------------------------------ */
 table {
