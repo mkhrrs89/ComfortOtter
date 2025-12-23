@@ -1785,7 +1785,9 @@ const SafeImage = ({
       const [lastMatch,setLastMatch] = useState(null); // {winnerId, loserId, leftId, rightId}
       const [previewId,setPreviewId] = useState(null);
       const [previewSrc, setPreviewSrc] = useState(null);
+      const [collectionTabView, setCollectionTabView] = useState('collections'); // collections | generators
       const [activeCollection,setActiveCollection] = useState(null); // name string
+      const [activeCollectionType,setActiveCollectionType] = useState('collection'); // collection | generator
       const [collectionViewMode,setCollectionViewMode] = useState('gallery'); // gallery | cards
       const [libraryViewMode,setLibraryViewMode] = useState('cards'); // cards | gallery
       const [librarySort, setLibrarySort] = useState({field:'points', dir:'asc'});
@@ -1797,7 +1799,7 @@ const SafeImage = ({
       const [genStatsSort,setGenStatsSort] = useState({field:'pct',dir:'desc'});
       const [collStatsSort,setCollStatsSort] = useState({field:'pct',dir:'desc'});
       const [collectionSort, setCollectionSort] = useState({field:'points', dir:'asc'});
-      const [matchMode,setMatchMode] = useState({type:'all', collection:null}); // all | bottom | collection
+      const [matchMode,setMatchMode] = useState({type:'all', collection:null, generator:null}); // all | bottom | collection | generator
       const [selectedIds,setSelectedIds] = useState([]); // for gallery batch + export
       const [batchOpen,setBatchOpen] = useState(false);
       const [batchCollectionsText,setBatchCollectionsText] = useState('');
@@ -1994,7 +1996,7 @@ useEffect(()=>{
       },[libraryFilter,libraryCollectionFilter,librarySort,items.length]);
       useEffect(()=>{
         setCollectionPage(1);
-      },[activeCollection,items.length,collectionSort]);
+      },[activeCollection,activeCollectionType,collectionTabView,items.length,collectionSort]);
 
       // helpers to persist + update
       async function replaceAllItems(next){
@@ -2095,6 +2097,15 @@ function getMatchPool(all,mode){
   }else if(mode.type==='collection' && mode.collection){
     pool = all.filter(it=> (it.collections||[]).includes(mode.collection));
 
+  }else if(mode.type==='generator' && mode.generator){
+    pool = all.filter(it=>{
+      const gen = (it.generator || '').trim();
+      if(mode.generator==='Unspecified'){
+        return !gen;
+      }
+      return gen === mode.generator;
+    });
+
 } else if(mode.type==='freshLeaf'){
   // Only images that would show the 🌱 icon ("fresh")
   // New = fewer than 4 matchups (M < 4)
@@ -2120,7 +2131,7 @@ function rerollMatch(poolOverride){
 
 // file handling
 
-async function handleFiles(fileList, forcedCollections = null){
+async function handleFiles(fileList, forcedCollections = null, forcedGenerator = null){
   const arr = Array.from(fileList || []);
   if (!arr.length) return;
 
@@ -2138,7 +2149,7 @@ async function handleFiles(fileList, forcedCollections = null){
     processed.push({
       id,
       title: file.name.replace(/\.[^.]+$/,''),
-      generator: '',
+      generator: forcedGenerator || '',
       collections: forcedCollections || [],
       wins: 0,
       losses: 0,
@@ -2816,6 +2827,13 @@ for (let idx = 1; idx < files.length; idx++) {
           .sort((a,b)=>a.name.localeCompare(b.name));
       },[collectionStats]);
 
+      const matchupGeneratorOptions = useMemo(()=>{
+        return generatorStats
+          .filter(g=>g.imagesCount>=2)
+          .slice()
+          .sort((a,b)=>a.name.localeCompare(b.name));
+      },[generatorStats]);
+
       // library filtered + sorted list (full, before pagination)
       const libraryItems = useMemo(()=>{
         let list = [...items];
@@ -2898,8 +2916,17 @@ const statsRows = useMemo(()=>{
 
       const activeCollectionItems = useMemo(()=>{
         if(!activeCollection) return [];
+        if(activeCollectionType==='generator'){
+          return items.filter(it=>{
+            const gen = (it.generator || '').trim();
+            if(activeCollection==='Unspecified'){
+              return !gen;
+            }
+            return gen === activeCollection;
+          });
+        }
         return items.filter(it=> (it.collections||[]).includes(activeCollection));
-      },[items,activeCollection]);
+      },[items,activeCollection,activeCollectionType]);
 
       const sortedCollectionItems = useMemo(()=>{
         const arr = [...activeCollectionItems];
@@ -3074,8 +3101,8 @@ async function applyCrop(){
         return <span className="sort-ind">{dir==='asc' ? '▲' : '▼'}</span>;
       }
 
-      function startCollectionMatchups(name){
-        const next = {type:'collection',collection:name};
+      function startCollectionMatchups(name,type='collection'){
+        const next = {type:type,collection:type==='collection'?name:null,generator:type==='generator'?name:null};
         setMatchMode(next);
         setTab('Matchups');
         const pool = getMatchPool(items,next);
@@ -3094,6 +3121,9 @@ function labelForMatchMode(){
   if(matchMode.type==='collection' && matchMode.collection){
     return `Collection: ${matchMode.collection}`;
   }
+  if(matchMode.type==='generator' && matchMode.generator){
+    return `Generator: ${matchMode.generator}`;
+  }
   return 'All images';
 }
 
@@ -3101,7 +3131,9 @@ function labelForMatchMode(){
       const matchSelectValue =
         matchMode.type === 'collection' && matchMode.collection
           ? `collection:${matchMode.collection}`
-          : matchMode.type;
+          : matchMode.type === 'generator' && matchMode.generator
+            ? `generator:${matchMode.generator}`
+            : matchMode.type;
 
       function closeNavMenu(){
         if(navMenuRef.current){
@@ -3141,17 +3173,21 @@ function labelForMatchMode(){
       <span className="pill">{tab}</span>
     </summary>
     <div className="navMenuList">
-      {allowedTabs.map(t=>(
-        <button
-          key={t}
-          type="button"
-          className={'navItem'+(tab===t?' active':'')}
-          onClick={()=>{
-            setTab(t);
-            if(t!=='Collections') setActiveCollection(null);
-            closeNavMenu();
-          }}
-        >
+          {allowedTabs.map(t=>(
+            <button
+              key={t}
+              type="button"
+              className={'navItem'+(tab===t?' active':'')}
+              onClick={()=>{
+                setTab(t);
+                if(t!=='Collections'){
+                  setActiveCollection(null);
+                  setActiveCollectionType('collection');
+                  setCollectionTabView('collections');
+                }
+                closeNavMenu();
+              }}
+            >
           {t}
           {tab===t && <span className="pill">Active</span>}
         </button>
@@ -3660,7 +3696,7 @@ if (dt && dt.files && dt.files.length) {
     ];
 
     if(simpleModes.includes(v)){
-      const next = {type:v, collection:null};
+      const next = {type:v, collection:null, generator:null};
       setMatchMode(next);
       const pool = getMatchPool(items,next);
       const [a,b] = (v === 'allFlat')
@@ -3669,7 +3705,14 @@ if (dt && dt.files && dt.files.length) {
       setMatchIds([a,b]);
     }else if(v.startsWith('collection:')){
       const name = v.slice('collection:'.length);
-      const next = {type:'collection',collection:name};
+      const next = {type:'collection',collection:name,generator:null};
+      setMatchMode(next);
+      const pool = getMatchPool(items,next);
+      const [a,b] = pickTwoFromPool(pool);
+      setMatchIds([a,b]);
+    }else if(v.startsWith('generator:')){
+      const name = v.slice('generator:'.length);
+      const next = {type:'generator',generator:name,collection:null};
       setMatchMode(next);
       const pool = getMatchPool(items,next);
       const [a,b] = pickTwoFromPool(pool);
@@ -3698,11 +3741,21 @@ if (dt && dt.files && dt.files.length) {
     </option>
   ))}
 
+{matchupGeneratorOptions
+  .map(g=>(
+    <option key={`gen-${g.name}`} value={`generator:${g.name}`}>
+      Generator: {g.name}
+    </option>
+  ))}
+
 
 </select>
                   </label>
                   {matchMode.type==='collection' && matchMode.collection && (
                     <span className="pill">Current: {matchMode.collection}</span>
+                  )}
+                  {matchMode.type==='generator' && matchMode.generator && (
+                    <span className="pill">Current: {matchMode.generator}</span>
                   )}
                 </div>
                 <div className="flexRow">
@@ -3973,80 +4026,188 @@ if (dt && dt.files && dt.files.length) {
 {/* COLLECTIONS LIST / DETAIL */}
           {tab==='Collections' && !activeCollection && (
             <section className="statsTab">
-              {collectionStats.length===0 ? (
-                <p className="hint">No collections yet. Add collection names to images in the Library.</p>
+              <div className="tabs" style={{marginBottom:10}}>
+                <button
+                  className={`tab ${collectionTabView==='collections'?'active':''}`}
+                  onClick={()=>{
+                    setCollectionTabView('collections');
+                    setActiveCollection(null);
+                    setActiveCollectionType('collection');
+                  }}
+                >
+                  Collections
+                </button>
+                <button
+                  className={`tab ${collectionTabView==='generators'?'active':''}`}
+                  onClick={()=>{
+                    setCollectionTabView('generators');
+                    setActiveCollection(null);
+                    setActiveCollectionType('generator');
+                  }}
+                >
+                  Generators
+                </button>
+              </div>
+              {collectionTabView==='collections' ? (
+                <>
+                  {collectionStats.length===0 ? (
+                    <p className="hint">No collections yet. Add collection names to images in the Library.</p>
+                  ) : (
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Preview</th>
+                          <th className="sortable" onClick={()=>changeCollStatsSort('name')}>
+                            Collection{sortIndicator(collStatsSort.field==='name',collStatsSort.dir)}
+                          </th>
+                          <th className="sortable" onClick={()=>changeCollStatsSort('imagesCount')}>
+                            # Images{sortIndicator(collStatsSort.field==='imagesCount',collStatsSort.dir)}
+                          </th>
+                          <th className="sortable" onClick={()=>changeCollStatsSort('wins')}>
+                            W{sortIndicator(collStatsSort.field==='wins',collStatsSort.dir)}
+                          </th>
+                          <th className="sortable" onClick={()=>changeCollStatsSort('losses')}>
+                            L{sortIndicator(collStatsSort.field==='losses',collStatsSort.dir)}
+                          </th>
+                          <th className="sortable" onClick={()=>changeCollStatsSort('matchups')}>
+                            M{sortIndicator(collStatsSort.field==='matchups',collStatsSort.dir)}
+                          </th>
+                          <th className="sortable" onClick={()=>changeCollStatsSort('pct')}>
+                            Win%{sortIndicator(collStatsSort.field==='pct',collStatsSort.dir)}
+                          </th>
+                          <th className="sortable" onClick={()=>changeCollStatsSort('points')}>
+                            Points{sortIndicator(collStatsSort.field==='points',collStatsSort.dir)}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {collectionStats.map((c,i)=>(
+                          <tr key={c.name}>
+                            <td>{i+1}</td>
+                            <td>
+                              {c.bestItem ? (
+                                <div className="thumbWrap">
+                                  <SafeImage
+                                    item={c.bestItem}
+                                    className="thumb"
+                                    src={getDisplaySrc(c.bestItem)}
+                                    fallbackSrcs={getDisplaySources(c.bestItem)}
+                                    alt={c.bestItem.title || 'Image'}
+                                    onClick={() => openPreviewFor(c.bestItem)}
+                                    onResolved={(url)=>patchItem(c.bestItem.id,{fullUrl:url})}
+                                  />
+                                </div>
+                              ) : (
+                                <span className="smallMuted">—</span>
+                              )}
+                            </td>
+                            <td>
+                              <button
+                                className="btn sm ghost"
+                                onClick={()=>{
+                                  setActiveCollection(c.name);
+                                  setActiveCollectionType('collection');
+                                  setCollectionTabView('collections');
+                                  setCollectionViewMode('gallery');
+                                  setCollectionPage(1);
+                                }}
+                              >
+                                {c.name}
+                              </button>
+                            </td>
+                            <td>{c.imagesCount}</td>
+                            <td>{c.wins}</td>
+                            <td>{c.losses}</td>
+                            <td>{c.matchups}</td>
+                            <td>{c.pct.toFixed(3)}</td>
+                            <td>{c.points}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </>
               ) : (
-                <table>
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Preview</th>
-                      <th className="sortable" onClick={()=>changeCollStatsSort('name')}>
-                        Collection{sortIndicator(collStatsSort.field==='name',collStatsSort.dir)}
-                      </th>
-                      <th className="sortable" onClick={()=>changeCollStatsSort('imagesCount')}>
-                        # Images{sortIndicator(collStatsSort.field==='imagesCount',collStatsSort.dir)}
-                      </th>
-                      <th className="sortable" onClick={()=>changeCollStatsSort('wins')}>
-                        W{sortIndicator(collStatsSort.field==='wins',collStatsSort.dir)}
-                      </th>
-                      <th className="sortable" onClick={()=>changeCollStatsSort('losses')}>
-                        L{sortIndicator(collStatsSort.field==='losses',collStatsSort.dir)}
-                      </th>
-                      <th className="sortable" onClick={()=>changeCollStatsSort('matchups')}>
-                        M{sortIndicator(collStatsSort.field==='matchups',collStatsSort.dir)}
-                      </th>
-                      <th className="sortable" onClick={()=>changeCollStatsSort('pct')}>
-                        Win%{sortIndicator(collStatsSort.field==='pct',collStatsSort.dir)}
-                      </th>
-                      <th className="sortable" onClick={()=>changeCollStatsSort('points')}>
-                        Points{sortIndicator(collStatsSort.field==='points',collStatsSort.dir)}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {collectionStats.map((c,i)=>(
-                      <tr key={c.name}>
-                        <td>{i+1}</td>
-                        <td>
-                          {c.bestItem ? (
-                            <div className="thumbWrap">
-                              <SafeImage
-                                item={c.bestItem}
-                                className="thumb"
-                                src={getDisplaySrc(c.bestItem)}
-                                fallbackSrcs={getDisplaySources(c.bestItem)}
-                                alt={c.bestItem.title || 'Image'}
-                                onClick={() => openPreviewFor(c.bestItem)}
-                                onResolved={(url)=>patchItem(c.bestItem.id,{fullUrl:url})}
-                              />
-                            </div>
-                          ) : (
-                            <span className="smallMuted">—</span>
-                          )}
-                        </td>
-                        <td>
-                          <button
-                            className="btn sm ghost"
-                            onClick={()=>{
-                              setActiveCollection(c.name);
-                              setCollectionViewMode('gallery');
-                              setCollectionPage(1);
-                            }}
-                          >
-                            {c.name}
-                          </button>
-                        </td>
-                        <td>{c.imagesCount}</td>
-                        <td>{c.wins}</td>
-                        <td>{c.losses}</td>
-                        <td>{c.matchups}</td>
-                        <td>{c.pct.toFixed(3)}</td>
-                        <td>{c.points}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <>
+                  {generatorStats.length===0 ? (
+                    <p className="hint">No generators yet. Add generator names to your images to see their performance.</p>
+                  ) : (
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Preview</th>
+                          <th className="sortable" onClick={()=>changeGenStatsSort('name')}>
+                            Generator{sortIndicator(genStatsSort.field==='name',genStatsSort.dir)}
+                          </th>
+                          <th className="sortable" onClick={()=>changeGenStatsSort('imagesCount')}>
+                            # Images{sortIndicator(genStatsSort.field==='imagesCount',genStatsSort.dir)}
+                          </th>
+                          <th className="sortable" onClick={()=>changeGenStatsSort('wins')}>
+                            W{sortIndicator(genStatsSort.field==='wins',genStatsSort.dir)}
+                          </th>
+                          <th className="sortable" onClick={()=>changeGenStatsSort('losses')}>
+                            L{sortIndicator(genStatsSort.field==='losses',genStatsSort.dir)}
+                          </th>
+                          <th className="sortable" onClick={()=>changeGenStatsSort('matchups')}>
+                            M{sortIndicator(genStatsSort.field==='matchups',genStatsSort.dir)}
+                          </th>
+                          <th className="sortable" onClick={()=>changeGenStatsSort('pct')}>
+                            Win%{sortIndicator(genStatsSort.field==='pct',genStatsSort.dir)}
+                          </th>
+                          <th className="sortable" onClick={()=>changeGenStatsSort('points')}>
+                            Points{sortIndicator(genStatsSort.field==='points',genStatsSort.dir)}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {generatorStats.map((g,i)=>(
+                          <tr key={g.name}>
+                            <td>{i+1}</td>
+                            <td>
+                              {g.bestItem ? (
+                                <div className="thumbWrap">
+                                  <SafeImage
+                                    item={g.bestItem}
+                                    className="thumb"
+                                    src={getDisplaySrc(g.bestItem)}
+                                    fallbackSrcs={getDisplaySources(g.bestItem)}
+                                    alt={g.bestItem.title || 'Image'}
+                                    onClick={() => openPreviewFor(g.bestItem)}
+                                    onResolved={(url)=>patchItem(g.bestItem.id,{fullUrl:url})}
+                                  />
+                                </div>
+                              ) : (
+                                <span className="smallMuted">—</span>
+                              )}
+                            </td>
+                            <td>
+                              <button
+                                className="btn sm ghost"
+                                onClick={()=>{
+                                  setActiveCollection(g.name);
+                                  setActiveCollectionType('generator');
+                                  setCollectionTabView('generators');
+                                  setCollectionViewMode('gallery');
+                                  setCollectionPage(1);
+                                }}
+                              >
+                                {g.name}
+                              </button>
+                            </td>
+                            <td>{g.imagesCount}</td>
+                            <td>{g.wins}</td>
+                            <td>{g.losses}</td>
+                            <td>{g.matchups}</td>
+                            <td>{g.pct.toFixed(3)}</td>
+                            <td>{g.points}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </>
               )}
             </section>
           )}
@@ -4055,10 +4216,11 @@ if (dt && dt.files && dt.files.length) {
             <section className="pane">
               <div className="toolbar" style={{justifyContent:'space-between',marginBottom:8}}>
                 <div className="flexRow">
-                  <button className="btn sm ghost" onClick={()=>{setActiveCollection(null); setSelectedIds([]);}}>
-                    ← Back to all collections
+                  <button className="btn sm ghost" onClick={()=>{setActiveCollection(null); setSelectedIds([]); setActiveCollectionType(collectionTabView==='generators'?'generator':'collection');}}>
+                    ← Back to all {collectionTabView==='generators'?'generators':'collections'}
                   </button>
                   <span className="pill">{activeCollection}</span>
+                  <span className="pill">{activeCollectionType==='generator' ? 'Generator' : 'Collection'}</span>
                   <span className="smallMuted">
                     {activeCollectionItems.length} images • {activeCollectionItems.reduce((a,it)=>a+it.wins,0)} W / {activeCollectionItems.reduce((a,it)=>a+it.losses,0)} L
                   </span>
@@ -4066,10 +4228,10 @@ if (dt && dt.files && dt.files.length) {
                 <div className="flexRow">
                   <button
                     className="btn sm"
-                    onClick={()=>startCollectionMatchups(activeCollection)}
+                    onClick={()=>startCollectionMatchups(activeCollection, activeCollectionType)}
                     disabled={activeCollectionItems.length<2}
                   >
-                    Matchups in this collection
+                    Matchups in this {activeCollectionType}
                   </button>
                   <button
                     className="btn sm ghost"
@@ -4156,8 +4318,9 @@ if (dt && dt.files && dt.files.length) {
                     style={{display:'none'}}
                     id="collectionUploadInput"
                     onChange={e=>{
-                      const forced = [activeCollection];
-                      handleFiles(e.target.files,forced);
+                      const forcedCollections = activeCollectionType==='collection' ? [activeCollection] : null;
+                      const forcedGenerator = activeCollectionType==='generator' ? activeCollection : null;
+                      handleFiles(e.target.files,forcedCollections,forcedGenerator);
                     }}
                   />
                   <button
@@ -4167,7 +4330,7 @@ if (dt && dt.files && dt.files.length) {
                       el && el.click();
                     }}
                   >
-                    Add images to this collection
+                    {activeCollectionType==='generator' ? 'Add images to this generator' : 'Add images to this collection'}
                   </button>
                 </div>
               </div>
