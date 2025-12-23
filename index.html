@@ -1868,6 +1868,7 @@ const SafeImage = ({
         }
         return [];
       });
+      const [libraryHydrated, setLibraryHydrated] = useState(false);
       const [statsSort,setStatsSort] = useState({field:'points',dir:'asc'});
       const [statsView,setStatsView] = useState('images');
       const [genStatsSort,setGenStatsSort] = useState({field:'pct',dir:'desc'});
@@ -1984,7 +1985,9 @@ useEffect(()=>{
       const [a,b] = pickTwoFromPool(norm);
       setMatchIds([a,b]);
     }
-  })();
+  })()
+  .catch(e => console.error('Failed to hydrate library on startup', e))
+  .finally(()=>{ setLibraryHydrated(true); });
 },[]);
 
 // Auto-open an image when arriving from duplicates.html with ?openId=<id>
@@ -2843,6 +2846,7 @@ for (let idx = 1; idx < files.length; idx++) {
       },[collectionGroups]);
 
       useEffect(()=>{
+        if(!libraryHydrated) return;
         const allowed = new Set(allCollectionNames);
         setCollectionGroups(prev=>{
           let changed = false;
@@ -2855,7 +2859,7 @@ for (let idx = 1; idx < files.length; idx++) {
           });
           return changed ? next : prev;
         });
-      },[allCollectionNames]);
+      },[allCollectionNames, libraryHydrated]);
 
       function createCollectionGroup(){
         const name = prompt('Name for the new group?');
