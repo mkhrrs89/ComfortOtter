@@ -4150,7 +4150,7 @@ if (dt && dt.files && dt.files.length) {
                               </button>
                             </div>
                             {group.open && (
-                              <div className="collectionGroupItems generatorGroupItems">
+                              <div className="collectionGroupItems">
                                 {visibleMembers.length>0 ? (
                                   visibleMembers.map(renderGeneratorRow)
                                 ) : (
@@ -4167,7 +4167,7 @@ if (dt && dt.files && dt.files.length) {
                             <span className="smallMuted">Ungrouped</span>
                             <span className="smallMuted">{ungroupedGenerators.length} generators</span>
                           </div>
-                          <div className="collectionGroupItems generatorGroupItems">
+                          <div className="collectionGroupItems">
                             {ungroupedGenerators.map(renderGeneratorRow)}
                           </div>
                         </div>
