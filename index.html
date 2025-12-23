@@ -168,6 +168,11 @@
       flex:1;
       justify-content:space-between;
     }
+    .collectionGroupCaret{
+      min-width:34px;
+      justify-content:center;
+      padding:5px 8px;
+    }
     .collectionGroupItems{
       display:flex;
       flex-direction:column;
@@ -1900,7 +1905,7 @@ const SafeImage = ({
       const [librarySort, setLibrarySort] = useState({field:'points', dir:'asc'});
       const [libraryFilter, setLibraryFilter] = useState('all'); // all | unassigned
       const [librarySearch, setLibrarySearch] = useState('');
-      const [libraryCollectionFilter,setLibraryCollectionFilter] = useState({include:[],exclude:[],mode:'all'});
+      const [libraryCollectionFilter,setLibraryCollectionFilter] = useState({include:[],exclude:[],includeGroups:[],excludeGroups:[],mode:'all'});
       const [collectionGroups, setCollectionGroups] = useState(()=>{
         if(typeof localStorage==='undefined') return [];
         try{
@@ -2890,6 +2895,14 @@ for (let idx = 1; idx < files.length; idx++) {
         return map;
       },[collectionGroups]);
 
+      const collectionGroupMembersMap = useMemo(()=>{
+        const map = {};
+        for(const group of collectionGroups){
+          map[group.id] = (group.members || []).filter(Boolean);
+        }
+        return map;
+      },[collectionGroups]);
+
       const ungroupedCollections = useMemo(()=>{
         return allCollectionNames.filter(name=>!groupedCollectionNames.has(name));
       },[allCollectionNames, groupedCollectionNames]);
@@ -2918,6 +2931,18 @@ for (let idx = 1; idx < files.length; idx++) {
           return changed ? next : prev;
         });
       },[allCollectionNames, libraryHydrated]);
+
+      useEffect(()=>{
+        const validIds = new Set(collectionGroups.map(g=>g.id));
+        setLibraryCollectionFilter(prev=>{
+          const includeGroups = (prev.includeGroups || []).filter(id=>validIds.has(id));
+          const excludeGroups = (prev.excludeGroups || []).filter(id=>validIds.has(id));
+          if(includeGroups.length===(prev.includeGroups||[]).length && excludeGroups.length===(prev.excludeGroups||[]).length){
+            return prev;
+          }
+          return {...prev, includeGroups, excludeGroups};
+        });
+      },[collectionGroups]);
 
       function createCollectionGroup(){
         const name = prompt('Name for the new group?');
@@ -2963,6 +2988,8 @@ for (let idx = 1; idx < files.length; idx++) {
         setLibraryCollectionFilter(prev=>{
           const inc = new Set(prev.include || []);
           const exc = new Set(prev.exclude || []);
+          const includeGroups = prev.includeGroups || [];
+          const excludeGroups = prev.excludeGroups || [];
           const mode = prev.mode || 'all';
           if(!inc.has(name) && !exc.has(name)){
             inc.add(name);
@@ -2975,6 +3002,33 @@ for (let idx = 1; idx < files.length; idx++) {
           return {
             include: [...inc],
             exclude: [...exc],
+            includeGroups: [...includeGroups],
+            excludeGroups: [...excludeGroups],
+            mode
+          };
+        });
+      }
+
+      function cycleCollectionGroupFilter(groupId){
+        setLibraryCollectionFilter(prev=>{
+          const inc = new Set(prev.includeGroups || []);
+          const exc = new Set(prev.excludeGroups || []);
+          const include = prev.include || [];
+          const exclude = prev.exclude || [];
+          const mode = prev.mode || 'all';
+          if(!inc.has(groupId) && !exc.has(groupId)){
+            inc.add(groupId);
+          }else if(inc.has(groupId)){
+            inc.delete(groupId);
+            exc.add(groupId);
+          }else if(exc.has(groupId)){
+            exc.delete(groupId);
+          }
+          return {
+            include,
+            exclude,
+            includeGroups: [...inc],
+            excludeGroups: [...exc],
             mode
           };
         });
@@ -3126,25 +3180,44 @@ for (let idx = 1; idx < files.length; idx++) {
         }
         const include = libraryCollectionFilter.include || [];
         const exclude = libraryCollectionFilter.exclude || [];
+        const includeGroups = libraryCollectionFilter.includeGroups || [];
+        const excludeGroups = libraryCollectionFilter.excludeGroups || [];
         const includeMode = libraryCollectionFilter.mode || 'all';
-        if(include.length){
+        const includePredicates = [
+          ...include.map(name => (cols)=>cols.includes(name)),
+          ...includeGroups.map(id => {
+            const members = collectionGroupMembersMap[id] || [];
+            return (cols)=>members.some(name=>cols.includes(name));
+          })
+        ];
+        if(includePredicates.length){
           list = list.filter(it=>{
             const cols = it.collections || [];
             if(includeMode==='any'){
-              return include.some(name => cols.includes(name));
+              return includePredicates.some(fn=>fn(cols));
             }
-            return include.every(name => cols.includes(name));
+            return includePredicates.every(fn=>fn(cols));
           });
         }
-        if(exclude.length){
+        const excludePredicates = [
+          ...exclude.map(name => (cols)=>cols.includes(name)),
+          ...excludeGroups.map(id => {
+            const members = collectionGroupMembersMap[id] || [];
+            return (cols)=>members.some(name=>cols.includes(name));
+          })
+        ];
+        if(excludePredicates.length){
           list = list.filter(it=>{
             const cols = it.collections || [];
-            return !exclude.some(name => cols.includes(name));
+            return !excludePredicates.some(fn=>fn(cols));
           });
         }
         list.sort((a,b)=>compareBySort(a,b,librarySort));
         return list;
-      },[items,librarySort,libraryFilter,libraryCollectionFilter,librarySearch]);
+      },[items,librarySort,libraryFilter,libraryCollectionFilter,librarySearch,collectionGroupMembersMap]);
+
+      const activeIncludeFilters = (libraryCollectionFilter.include?.length || 0) + (libraryCollectionFilter.includeGroups?.length || 0);
+      const hasCollectionFilters = activeIncludeFilters + (libraryCollectionFilter.exclude?.length || 0) + (libraryCollectionFilter.excludeGroups?.length || 0) > 0;
 
 // stats rows (with win% tie-breaker by wins then matchups)
 const statsRows = useMemo(()=>{
@@ -3653,23 +3726,23 @@ if (dt && dt.files && dt.files.length) {
                   <div className="toolbar collectionFilterToolbar" style={{marginTop:8}}>
                     <div className="collectionFilterHeader">
                       <span className="smallMuted">
-                        Collection filter (click to include → exclude → clear):
+                        Collection/group filter (click names to include → exclude → clear; use the arrow to open a group):
                       </span>
                       <div className="flexRow" style={{gap:6, flexWrap:'wrap'}}>
                         <button className="btn sm ghost" onClick={createCollectionGroup}>
                           Create group
                         </button>
-                        {(libraryCollectionFilter.include.length>0 || libraryCollectionFilter.exclude.length>0) && (
+                        {hasCollectionFilters && (
                           <button
                             className="btn sm ghost"
-                            onClick={()=>setLibraryCollectionFilter({include:[],exclude:[],mode:'all'})}
+                            onClick={()=>setLibraryCollectionFilter({include:[],exclude:[],includeGroups:[],excludeGroups:[],mode:'all'})}
                           >
-                            Clear collection filter
+                            Clear filters
                           </button>
                         )}
                       </div>
                     </div>
-                    {libraryCollectionFilter.include.length > 1 && (
+                    {activeIncludeFilters > 1 && (
                       <div className="flexRow" style={{gap:6, alignItems:'center', flexWrap:'wrap'}}>
                         <span className="smallMuted">Include logic:</span>
                         <button
@@ -3688,16 +3761,28 @@ if (dt && dt.files && dt.files.length) {
                     )}
                     <div className="collectionGroupsGrid">
                       {collectionGroups.map(group=>{
-                        const visibleMembers = group.members.filter(name=>allCollectionNames.includes(name));
+                        const visibleMembers = (group.members || []).filter(name=>allCollectionNames.includes(name));
+                        const isIncludeGroup = (libraryCollectionFilter.includeGroups || []).includes(group.id);
+                        const isExcludeGroup = (libraryCollectionFilter.excludeGroups || []).includes(group.id);
+                        let groupClass = 'ghost';
+                        if(isIncludeGroup) groupClass = 'secondary';
+                        if(isExcludeGroup) groupClass = 'danger';
                         return (
                           <div className="collectionGroupCard" key={group.id}>
                             <div className="collectionGroupHeader">
                               <button
-                                className="btn sm ghost collectionGroupToggle"
-                                onClick={()=>toggleGroupOpen(group.id)}
+                                className={'btn sm '+groupClass+' collectionGroupToggle'}
+                                onClick={()=>cycleCollectionGroupFilter(group.id)}
                               >
                                 <span>{group.name}</span>
                                 <span className="smallMuted">({visibleMembers.length})</span>
+                              </button>
+                              <button
+                                className="btn sm ghost collectionGroupCaret"
+                                aria-label={group.open ? 'Collapse group' : 'Expand group'}
+                                title={group.open ? 'Collapse group' : 'Expand group'}
+                                onClick={()=>toggleGroupOpen(group.id)}
+                              >
                                 <span aria-hidden="true">{group.open ? '▾' : '▸'}</span>
                               </button>
                             </div>
