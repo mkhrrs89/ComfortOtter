@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <title>ModelMatchup Thumbnail Maintenance</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="app-style.css" />
   <style>
     body{
       background:#050c0a;
@@ -61,9 +62,27 @@
 </head>
 <body>
   <div class="panel">
-    <h1>Thumbnail Maintenance</h1>
-    <p>This page talks directly to your <b>modelMatchupDB</b> and generates thumbnails
-    <b>one image at a time</b> with minimal memory use.</p>
+    <div class="pageHeader" style="margin-bottom:8px;">
+      <div>
+        <h1>Thumbnail Maintenance</h1>
+        <p>This page talks directly to your <b>modelMatchupDB</b> and generates thumbnails
+        <b>one image at a time</b> with minimal memory use.</p>
+      </div>
+      <div class="navMenuShell">
+        <details class="navDropdown">
+          <summary class="navTrigger">Menu ▾</summary>
+          <div class="navMenuList">
+            <a class="navItem" href="index.html?tab=Library">Library</a>
+            <a class="navItem" href="index.html?tab=Matchups">Matchups</a>
+            <a class="navItem" href="index.html?tab=Stats">Stats</a>
+            <a class="navItem" href="index.html?tab=Collections">Collections</a>
+            <div class="navSpacer"></div>
+            <a class="navItem" href="tourney.html">Tournament</a>
+            <a class="navItem" href="settings.html">Settings</a>
+          </div>
+        </details>
+      </div>
+    </div>
 
     <button id="genBtn">Generate next thumbnail</button>
     <button id="scanBtn" style="margin-left:8px;">Scan counts</button>

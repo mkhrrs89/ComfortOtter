@@ -7,17 +7,26 @@
   <link rel="stylesheet" href="app-style.css">
 </head>
 <body>
-  <header style="margin-bottom:12px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
-      <div>
-        <h1>Settings</h1>
-        <div class="subhead">
-          Quick access to maintenance and migration utilities.
+  <header class="pageHeader">
+    <div>
+      <h1>Settings</h1>
+      <div class="subhead">
+        Quick access to maintenance and migration utilities.
+      </div>
+    </div>
+    <div class="navMenuShell">
+      <details class="navDropdown">
+        <summary class="navTrigger">Menu ▾</summary>
+        <div class="navMenuList">
+          <a class="navItem" href="index.html?tab=Library">Library</a>
+          <a class="navItem" href="index.html?tab=Matchups">Matchups</a>
+          <a class="navItem" href="index.html?tab=Stats">Stats</a>
+          <a class="navItem" href="index.html?tab=Collections">Collections</a>
+          <div class="navSpacer"></div>
+          <a class="navItem" href="tourney.html">Tournament</a>
+          <a class="navItem active" href="settings.html">Settings</a>
         </div>
-      </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
-        <a href="index.html" class="btnGhost">← Back to main app</a>
-      </div>
+      </details>
     </div>
   </header>
 

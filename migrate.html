@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>ModelMatchup → Firebase Migration</title>
+  <link rel="stylesheet" href="app-style.css">
   <style>
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -76,8 +77,26 @@
   </style>
 </head>
 <body>
-  <h1>ModelMatchup → Firebase Migration</h1>
-  <p>This tool uploads any items that still have <code>dataUrl</code> and no <code>fullUrl</code> into Firebase Storage + Firestore.</p>
+  <header class="pageHeader">
+    <div>
+      <h1>ModelMatchup → Firebase Migration</h1>
+      <p>This tool uploads any items that still have <code>dataUrl</code> and no <code>fullUrl</code> into Firebase Storage + Firestore.</p>
+    </div>
+    <div class="navMenuShell">
+      <details class="navDropdown">
+        <summary class="navTrigger">Menu ▾</summary>
+        <div class="navMenuList">
+          <a class="navItem" href="index.html?tab=Library">Library</a>
+          <a class="navItem" href="index.html?tab=Matchups">Matchups</a>
+          <a class="navItem" href="index.html?tab=Stats">Stats</a>
+          <a class="navItem" href="index.html?tab=Collections">Collections</a>
+          <div class="navSpacer"></div>
+          <a class="navItem" href="tourney.html">Tournament</a>
+          <a class="navItem" href="settings.html">Settings</a>
+        </div>
+      </details>
+    </div>
+  </header>
 
   <div class="toolbar">
     <a href="index.html" class="tab">← Back to Library</a>

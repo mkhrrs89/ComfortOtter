@@ -1767,7 +1767,19 @@ const SafeImage = ({
 
     // ---------- Main App ----------
     function App(){
-      const [tab,setTab] = useState('Library'); // Library | Matchups | Stats | Collections
+      const allowedTabs = ['Library','Matchups','Stats','Collections'];
+      const initialTab = (()=>{
+        try{
+          const params = new URLSearchParams(window.location.search);
+          const requested = params.get('tab');
+          if(requested && allowedTabs.includes(requested)){
+            return requested;
+          }
+        }catch(e){}
+        return 'Library';
+      })();
+
+      const [tab,setTab] = useState(initialTab); // Library | Matchups | Stats | Collections
       const [items,setItems] = useState([]);
       const [matchIds,setMatchIds] = useState([null,null]);
       const [lastMatch,setLastMatch] = useState(null); // {winnerId, loserId, leftId, rightId}
@@ -1863,6 +1875,7 @@ const importRef = useRef(null);      // for JSON / metadata imports
 const imageImportRef = useRef(null); // for image uploads
 const cropper = useCropper();
 const hydratingFullUrls = useRef(new Set());
+const navMenuRef = useRef(null);
 
 // load from IDB (thumbnail-first)
 useEffect(()=>{
@@ -3090,6 +3103,20 @@ function labelForMatchMode(){
           ? `collection:${matchMode.collection}`
           : matchMode.type;
 
+      function closeNavMenu(){
+        if(navMenuRef.current){
+          navMenuRef.current.removeAttribute('open');
+        }
+      }
+
+      useEffect(()=>{
+        try{
+          const url = new URL(window.location.href);
+          url.searchParams.set('tab', tab);
+          window.history.replaceState(null, '', url.toString());
+        }catch(e){}
+      },[tab]);
+
       // ----- Render -----
       return (
         <div className="app">
@@ -3107,22 +3134,38 @@ function labelForMatchMode(){
   </div>
 
 
-  <nav className="tabs">
-              {['Library','Matchups','Stats','Collections'].map(t=>(
-                <button
-                  key={t}
-                  className={'tab'+(tab===t?' active':'')}
-                  onClick={()=>{ setTab(t); if(t!=='Collections') setActiveCollection(null); }}
-                >
-                  {t}
-                </button>
-              ))}
-  {/* 🔹 Extra utility pages */}
-  <div style={{display:'flex',flexDirection:'column',gap:6}}>
-    <a href="tourney.html" className="tab">Tournament</a>
-    <a href="settings.html" className="tab">Settings</a>
-  </div>
-</nav>
+<div className="navMenuShell">
+  <details ref={navMenuRef} className="navDropdown">
+    <summary className="navTrigger">
+      <span>Menu</span>
+      <span className="pill">{tab}</span>
+    </summary>
+    <div className="navMenuList">
+      {allowedTabs.map(t=>(
+        <button
+          key={t}
+          type="button"
+          className={'navItem'+(tab===t?' active':'')}
+          onClick={()=>{
+            setTab(t);
+            if(t!=='Collections') setActiveCollection(null);
+            closeNavMenu();
+          }}
+        >
+          {t}
+          {tab===t && <span className="pill">Active</span>}
+        </button>
+      ))}
+      <div className="navSpacer"></div>
+      <a className="navItem" href="tourney.html" onClick={closeNavMenu}>
+        Tournament
+      </a>
+      <a className="navItem" href="settings.html" onClick={closeNavMenu}>
+        Settings
+      </a>
+    </div>
+  </details>
+</div>
 
 
           </header>
