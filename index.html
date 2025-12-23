@@ -1793,6 +1793,16 @@ function getDisplaySources(item){
     item.dataUrl
   ]);
 }
+// Matchups should prefer the full-size image whenever possible.
+function getMatchupSources(item){
+  if(!item) return [];
+  return dedupeSources([
+    item.fullUrl,
+    item.dataUrl,
+    item.thumbnail,
+    item.thumbDataUrl
+  ]);
+}
 // Pick the best image source for matchups / small thumbs
 function getDisplaySrc(item){
   const sources = getDisplaySources(item);
@@ -2203,8 +2213,8 @@ useEffect(() => {
   const left  = items.find(it => it.id === matchIds[0]);
   const right = items.find(it => it.id === matchIds[1]);
 
-  const leftSrc  = getDisplaySrc(left);
-  const rightSrc = getDisplaySrc(right);
+  const leftSrc  = getMatchupSources(left)[0] || '';
+  const rightSrc = getMatchupSources(right)[0] || '';
 
   preloadImage(leftSrc);
   preloadImage(rightSrc);
@@ -3587,8 +3597,8 @@ const statsRows = useMemo(()=>{
 
       const left = items.find(it=>it.id===matchIds[0]) || null;
       const right = items.find(it=>it.id===matchIds[1]) || null;
-      const leftSources = useMemo(()=>getDisplaySources(left), [left]);
-      const rightSources = useMemo(()=>getDisplaySources(right), [right]);
+      const leftSources = useMemo(()=>getMatchupSources(left), [left]);
+      const rightSources = useMemo(()=>getMatchupSources(right), [right]);
       const previewItem = previewId ? items.find(it=>it.id===previewId) : null;
       const selectionMode = selectedIds.length>0;
 
