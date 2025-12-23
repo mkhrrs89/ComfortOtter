@@ -1193,6 +1193,59 @@ const normalizeCollections = (str)=>{
   ));
 };
 
+const normalizeCollectionMembers = (value)=>{
+  if(Array.isArray(value)){
+    return Array.from(new Set(
+      value
+        .map(v=>String(v||'').trim())
+        .filter(Boolean)
+        .sort((a,b)=>a.localeCompare(b))
+    ));
+  }
+  if(typeof value === 'string'){
+    return normalizeCollections(value);
+  }
+  return [];
+};
+
+const normalizeCollectionGroupsInput = (groups)=>{
+  if(!Array.isArray(groups)) return [];
+  return groups.map((g,idx)=>{
+    const members = normalizeCollectionMembers(g && g.members);
+    const id = (g && g.id) || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + idx));
+    const nameRaw = g && g.name ? String(g.name).trim() : '';
+    const name = nameRaw || 'Group';
+    const open = g && g.open === false ? false : true;
+    return {id, name, members, open};
+  });
+};
+
+const mergeCollectionGroups = (groups)=>{
+  const normalized = normalizeCollectionGroupsInput(groups);
+  const map = new Map();
+  const dedupeKey = (g)=>g.id || g.name.toLowerCase();
+  for(const g of normalized){
+    const key = dedupeKey(g);
+    if(map.has(key)){
+      const existing = map.get(key);
+      const mergedMembers = normalizeCollectionMembers([...(existing.members||[]), ...(g.members||[])]);
+      map.set(key, {...existing, ...g, members: mergedMembers});
+    }else{
+      map.set(key, g);
+    }
+  }
+  return Array.from(map.values());
+};
+
+const normalizeCollectionGroupsForExport = (groups, allowedCollectionNames)=>{
+  const allowed = new Set(allowedCollectionNames || []);
+  return normalizeCollectionGroupsInput(groups)
+    .map(g=>({
+      ...g,
+      members: (g.members || []).filter(name=>allowed.size===0 || allowed.has(name))
+    }));
+};
+
     const detectViewportMode = () => {
       if (typeof window === 'undefined') return 'desktop';
       const isPortrait = window.matchMedia('(orientation: portrait)').matches;
@@ -1855,12 +1908,7 @@ const SafeImage = ({
           if(raw){
             const parsed = JSON.parse(raw);
             if(parsed && Array.isArray(parsed.groups)){
-              return parsed.groups.map(g=>({
-                id: g.id || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
-                name: g.name || 'Group',
-                members: Array.isArray(g.members) ? Array.from(new Set(g.members)) : [],
-                open: g.open !== false
-              }));
+              return normalizeCollectionGroupsInput(parsed.groups);
             }
           }
         }catch(err){
@@ -2395,10 +2443,11 @@ return {
   });
 
   const payload = {
-    version: 4,
+    version: 5,
     type: 'metadata-only',
     exportedAt: new Date().toISOString(),
-    items: metaItems
+    items: metaItems,
+    collectionGroups: normalizeCollectionGroupsForExport(collectionGroups, allCollectionNames)
   };
   const blob = new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const a = document.createElement('a');
@@ -2509,6 +2558,7 @@ const hasAnyImagePayload = sample.some(it =>
 
 const isMetadataOnly = fileType === 'metadata-only' || (!fileType && !hasAnyImagePayload);
 const isFullExport   = fileType === 'library-full' || (!isMetadataOnly && hasAnyImagePayload);
+const importedGroupDefs = Array.isArray(firstJson.collectionGroups) ? [...firstJson.collectionGroups] : [];
 
 
     // ======================================================
@@ -2593,10 +2643,14 @@ for (let idx = 1; idx < files.length; idx++) {
     throw new Error(`Bad file format in ${f.name}`);
   }
   allImportedMeta.push(...json.items);
+  if(Array.isArray(json.collectionGroups)){
+    importedGroupDefs.push(...json.collectionGroups);
+  }
 }
 
 
     const updatesToApply = [];
+    const mergedImportedGroups = mergeCollectionGroups(importedGroupDefs);
 
     for(const it of allImportedMeta){
       let targetId = null;
@@ -2737,6 +2791,10 @@ for (let idx = 1; idx < files.length; idx++) {
         };
       });
     });
+
+    if(mergedImportedGroups.length){
+      setCollectionGroups(mergeCollectionGroups(mergedImportedGroups));
+    }
 
     alert(`Metadata sync complete. Updated ${totalUpdated} images.`);
   }catch(e){
