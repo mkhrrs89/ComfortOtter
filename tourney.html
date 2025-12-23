@@ -497,14 +497,74 @@ function preloadImage(src){
     function matchupsCount(it){
       return (it.wins||0)+(it.losses||0);
     }
-    function computePoints(w,l,tourneyBonus){
-      const W = w||0;
-      const L = l||0;
-      const B = tourneyBonus||0;
-      let pts = W*2 - L + B;
-      if(W>0 && L===0) pts += 5;
-      return pts;
+function computePoints(w,l,tourneyBonus){
+  const W = w||0;
+  const L = l||0;
+  const B = tourneyBonus||0;
+  let pts = W*2 - L + B;
+  if(W>0 && L===0) pts += 5;
+  return pts;
+}
+
+function metricValue(item, metric){
+  if(metric === 'wins') return Number(item && item.wins || 0);
+  return computePoints(item && item.wins, item && item.losses, item && item.tourneyBonus||0);
+}
+
+function buildTopPoolOptions(allItems){
+  if(!Array.isArray(allItems) || allItems.length === 0) return [];
+
+  const percents = [10,25,50];
+  const metrics = [
+    {key:'points', label:'points'},
+    {key:'wins', label:'wins'}
+  ];
+
+  const pools = [];
+
+  for(const metric of metrics){
+    const sorted = allItems.slice().sort((a,b)=> metricValue(b, metric.key) - metricValue(a, metric.key));
+    for(const pct of percents){
+      const count = Math.max(1, Math.floor(sorted.length * (pct/100)));
+      pools.push({
+        value: `__TOP_${metric.key.toUpperCase()}_${pct}__`,
+        label: `Top ${pct}% by ${metric.label}`,
+        count
+      });
     }
+  }
+
+  return pools;
+}
+
+function describePool(value){
+  if(!value || value === '__ALL__') return 'All images';
+  const topMatch = /^__TOP_(POINTS|WINS)_(\d+)__$/i.exec(value);
+  if(topMatch){
+    const metric = topMatch[1].toLowerCase() === 'wins' ? 'wins' : 'points';
+    return `Top ${topMatch[2]}% by ${metric}`;
+  }
+  return value;
+}
+
+function applyPoolFilter(allItems, poolValue){
+  if(!poolValue || poolValue === '__ALL__') return allItems.slice();
+
+  // Top X% pools
+  const topMatch = /^__TOP_(POINTS|WINS)_(\d+)__$/i.exec(poolValue);
+  if(topMatch){
+    const metric = topMatch[1].toLowerCase() === 'wins' ? 'wins' : 'points';
+    const pct = Number(topMatch[2]);
+    const sorted = allItems.slice().sort((a,b)=> metricValue(b, metric) - metricValue(a, metric));
+    const count = Math.max(1, Math.floor(sorted.length * (pct/100)));
+    return sorted.slice(0, count);
+  }
+
+  // Collection-specific pools
+  return allItems.filter(it =>
+    Array.isArray(it.collections) && it.collections.includes(poolValue)
+  );
+}
 
 async function maybeHydrateFullImage(item){
   if(!item || hydratingFullUrls.has(item.id)) return;
@@ -650,6 +710,8 @@ if(!tourneyState){
     .filter(([name,count]) => count >= 256)
     .sort((a,b) => a[0].localeCompare(b[0]));
 
+  const topPools = buildTopPoolOptions(items);
+
   // Build the dropdown + button (layout B: Pool [select]   Start button)
   let poolSelectHtml = '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">';
   poolSelectHtml += '<span class="smallMuted">Pool:</span>';
@@ -657,6 +719,15 @@ if(!tourneyState){
 
   // "All images" option
   poolSelectHtml += '<option value="__ALL__"'+(currentPool==='__ALL__'?' selected':'')+'>All images</option>';
+
+  if(topPools.length){
+    poolSelectHtml += '<optgroup label="Top performers">';
+    for(const opt of topPools){
+      const sel = (currentPool === opt.value) ? ' selected' : '';
+      poolSelectHtml += '<option value="'+opt.value+'"'+sel+'>'+escapeHtml(opt.label)+' ('+opt.count+')</option>';
+    }
+    poolSelectHtml += '</optgroup>';
+  }
 
   // One option per eligible collection
   for(const [name,count] of eligibleCollections){
@@ -694,8 +765,8 @@ const matchIndex = s.currentMatchIndex;
 const totalMatchesThisRound = size/2;
 
 let poolLabel = '';
-if(s.pool && s.pool !== '__ALL__'){
-  poolLabel = ' • Pool: '+s.pool;
+if(s.pool){
+  poolLabel = ' • Pool: '+describePool(s.pool);
 }
 
 const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
@@ -917,14 +988,7 @@ async function startNewTournament(){
   }
 
   // Decide which images to use based on the selected pool
-  let poolItems;
-  if(!currentPool || currentPool === '__ALL__'){
-    poolItems = items.slice();
-  }else{
-    poolItems = items.filter(it =>
-      Array.isArray(it.collections) && it.collections.includes(currentPool)
-    );
-  }
+  const poolItems = applyPoolFilter(items, currentPool || '__ALL__');
 
   if(poolItems.length < 2){
     alert('Not enough images in the selected pool to run a tournament.');
