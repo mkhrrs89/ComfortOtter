@@ -178,6 +178,11 @@
       flex-direction:column;
       gap:6px;
     }
+    .generatorGroupItems{
+      flex-direction:row;
+      flex-wrap:wrap;
+      gap:8px;
+    }
     .collectionGroupRow{
       display:flex;
       align-items:center;
@@ -1251,6 +1256,12 @@ const normalizeCollectionGroupsForExport = (groups, allowedCollectionNames)=>{
     }));
 };
 
+// Generator group helpers (mirrors the collection helpers above)
+const normalizeGeneratorMembers = normalizeCollectionMembers;
+const normalizeGeneratorGroupsInput = normalizeCollectionGroupsInput;
+const mergeGeneratorGroups = mergeCollectionGroups;
+const normalizeGeneratorGroupsForExport = normalizeCollectionGroupsForExport;
+
     const detectViewportMode = () => {
       if (typeof window === 'undefined') return 'desktop';
       const isPortrait = window.matchMedia('(orientation: portrait)').matches;
@@ -1906,6 +1917,7 @@ const SafeImage = ({
       const [libraryFilter, setLibraryFilter] = useState('all'); // all | unassigned
       const [librarySearch, setLibrarySearch] = useState('');
       const [libraryCollectionFilter,setLibraryCollectionFilter] = useState({include:[],exclude:[],includeGroups:[],excludeGroups:[],mode:'all'});
+      const [libraryGeneratorFilter,setLibraryGeneratorFilter] = useState({include:[],exclude:[],includeGroups:[],excludeGroups:[],mode:'all'});
       const [collectionGroups, setCollectionGroups] = useState(()=>{
         if(typeof localStorage==='undefined') return [];
         try{
@@ -1918,6 +1930,21 @@ const SafeImage = ({
           }
         }catch(err){
           console.warn('Failed to load collection groups', err);
+        }
+        return [];
+      });
+      const [generatorGroups, setGeneratorGroups] = useState(()=>{
+        if(typeof localStorage==='undefined') return [];
+        try{
+          const raw = localStorage.getItem('generatorGroups');
+          if(raw){
+            const parsed = JSON.parse(raw);
+            if(parsed && Array.isArray(parsed.groups)){
+              return normalizeGeneratorGroupsInput(parsed.groups);
+            }
+          }
+        }catch(err){
+          console.warn('Failed to load generator groups', err);
         }
         return [];
       });
@@ -2123,7 +2150,7 @@ useEffect(()=>{
       // reset pages when filters/sorts change
       useEffect(()=>{
         setLibraryPage(1);
-      },[libraryFilter,libraryCollectionFilter,librarySort,items.length]);
+      },[libraryFilter,libraryCollectionFilter,libraryGeneratorFilter,librarySort,items.length]);
       useEffect(()=>{
         setCollectionPage(1);
       },[activeCollection,activeCollectionType,collectionTabView,items.length,collectionSort]);
@@ -2448,11 +2475,12 @@ return {
   });
 
   const payload = {
-    version: 5,
+    version: 6,
     type: 'metadata-only',
     exportedAt: new Date().toISOString(),
     items: metaItems,
-    collectionGroups: normalizeCollectionGroupsForExport(collectionGroups, allCollectionNames)
+    collectionGroups: normalizeCollectionGroupsForExport(collectionGroups, allCollectionNames),
+    generatorGroups: normalizeGeneratorGroupsForExport(generatorGroups, allGeneratorNames)
   };
   const blob = new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const a = document.createElement('a');
@@ -2564,6 +2592,7 @@ const hasAnyImagePayload = sample.some(it =>
 const isMetadataOnly = fileType === 'metadata-only' || (!fileType && !hasAnyImagePayload);
 const isFullExport   = fileType === 'library-full' || (!isMetadataOnly && hasAnyImagePayload);
 const importedGroupDefs = Array.isArray(firstJson.collectionGroups) ? [...firstJson.collectionGroups] : [];
+const importedGeneratorGroupDefs = Array.isArray(firstJson.generatorGroups) ? [...firstJson.generatorGroups] : [];
 
 
     // ======================================================
@@ -2624,6 +2653,12 @@ const importedGroupDefs = Array.isArray(firstJson.collectionGroups) ? [...firstJ
       // Reload a lightweight, thumbnail-only view into React state
       const lib = await loadOptimizedLibrary();
       setItems(lib);
+      if(importedGroupDefs.length){
+        setCollectionGroups(mergeCollectionGroups(importedGroupDefs));
+      }
+      if(importedGeneratorGroupDefs.length){
+        setGeneratorGroups(mergeGeneratorGroups(importedGeneratorGroupDefs));
+      }
 
       alert(`Import complete. Added ${totalImported} images.`);
       return;
@@ -2651,11 +2686,15 @@ for (let idx = 1; idx < files.length; idx++) {
   if(Array.isArray(json.collectionGroups)){
     importedGroupDefs.push(...json.collectionGroups);
   }
+  if(Array.isArray(json.generatorGroups)){
+    importedGeneratorGroupDefs.push(...json.generatorGroups);
+  }
 }
 
 
     const updatesToApply = [];
     const mergedImportedGroups = mergeCollectionGroups(importedGroupDefs);
+    const mergedImportedGeneratorGroups = mergeGeneratorGroups(importedGeneratorGroupDefs);
 
     for(const it of allImportedMeta){
       let targetId = null;
@@ -2800,6 +2839,9 @@ for (let idx = 1; idx < files.length; idx++) {
     if(mergedImportedGroups.length){
       setCollectionGroups(mergeCollectionGroups(mergedImportedGroups));
     }
+    if(mergedImportedGeneratorGroups.length){
+      setGeneratorGroups(mergeGeneratorGroups(mergedImportedGeneratorGroups));
+    }
 
     alert(`Metadata sync complete. Updated ${totalUpdated} images.`);
   }catch(e){
@@ -2874,6 +2916,14 @@ for (let idx = 1; idx < files.length; idx++) {
         }
         return Array.from(set).sort((a,b)=>a.localeCompare(b));
       },[items]);
+      const allGeneratorNames = useMemo(()=>{
+        const set = new Set();
+        for(const it of items){
+          const name = (it.generator || '').trim() || 'Unspecified';
+          set.add(name);
+        }
+        return Array.from(set).sort((a,b)=>a.localeCompare(b));
+      },[items]);
 
       const groupedCollectionNames = useMemo(()=>{
         const set = new Set();
@@ -2894,6 +2944,17 @@ for (let idx = 1; idx < files.length; idx++) {
         }
         return map;
       },[collectionGroups]);
+      const generatorGroupLookup = useMemo(()=>{
+        const map = {};
+        for(const group of generatorGroups){
+          (group.members||[]).forEach(name=>{
+            if(name){
+              map[name] = group.id;
+            }
+          });
+        }
+        return map;
+      },[generatorGroups]);
 
       const collectionGroupMembersMap = useMemo(()=>{
         const map = {};
@@ -2902,10 +2963,27 @@ for (let idx = 1; idx < files.length; idx++) {
         }
         return map;
       },[collectionGroups]);
+      const generatorGroupMembersMap = useMemo(()=>{
+        const map = {};
+        for(const group of generatorGroups){
+          map[group.id] = (group.members || []).filter(Boolean);
+        }
+        return map;
+      },[generatorGroups]);
 
       const ungroupedCollections = useMemo(()=>{
         return allCollectionNames.filter(name=>!groupedCollectionNames.has(name));
       },[allCollectionNames, groupedCollectionNames]);
+      const groupedGeneratorNames = useMemo(()=>{
+        const set = new Set();
+        for(const group of generatorGroups){
+          (group.members||[]).forEach(name=>name && set.add(name));
+        }
+        return set;
+      },[generatorGroups]);
+      const ungroupedGenerators = useMemo(()=>{
+        return allGeneratorNames.filter(name=>!groupedGeneratorNames.has(name));
+      },[allGeneratorNames, groupedGeneratorNames]);
 
       useEffect(()=>{
         if(typeof localStorage==='undefined') return;
@@ -2915,6 +2993,14 @@ for (let idx = 1; idx < files.length; idx++) {
           console.warn('Failed to persist collection groups', err);
         }
       },[collectionGroups]);
+      useEffect(()=>{
+        if(typeof localStorage==='undefined') return;
+        try{
+          localStorage.setItem('generatorGroups', JSON.stringify({groups: generatorGroups}));
+        }catch(err){
+          console.warn('Failed to persist generator groups', err);
+        }
+      },[generatorGroups]);
 
       useEffect(()=>{
         if(!libraryHydrated) return;
@@ -2931,6 +3017,21 @@ for (let idx = 1; idx < files.length; idx++) {
           return changed ? next : prev;
         });
       },[allCollectionNames, libraryHydrated]);
+      useEffect(()=>{
+        if(!libraryHydrated) return;
+        const allowed = new Set(allGeneratorNames);
+        setGeneratorGroups(prev=>{
+          let changed = false;
+          const next = prev.map(group=>{
+            const filtered = (group.members || []).filter(name=>allowed.has(name));
+            const deduped = Array.from(new Set(filtered));
+            const same = deduped.length === (group.members||[]).length && deduped.every((m,idx)=>m === (group.members||[])[idx]);
+            if(!same) changed = true;
+            return {...group, members: deduped};
+          });
+          return changed ? next : prev;
+        });
+      },[allGeneratorNames, libraryHydrated]);
 
       useEffect(()=>{
         const validIds = new Set(collectionGroups.map(g=>g.id));
@@ -2943,6 +3044,17 @@ for (let idx = 1; idx < files.length; idx++) {
           return {...prev, includeGroups, excludeGroups};
         });
       },[collectionGroups]);
+      useEffect(()=>{
+        const validIds = new Set(generatorGroups.map(g=>g.id));
+        setLibraryGeneratorFilter(prev=>{
+          const includeGroups = (prev.includeGroups || []).filter(id=>validIds.has(id));
+          const excludeGroups = (prev.excludeGroups || []).filter(id=>validIds.has(id));
+          if(includeGroups.length===(prev.includeGroups||[]).length && excludeGroups.length===(prev.excludeGroups||[]).length){
+            return prev;
+          }
+          return {...prev, includeGroups, excludeGroups};
+        });
+      },[generatorGroups]);
 
       function createCollectionGroup(){
         const name = prompt('Name for the new group?');
@@ -3034,6 +3146,96 @@ for (let idx = 1; idx < files.length; idx++) {
         });
       }
 
+      function createGeneratorGroup(){
+        const name = prompt('Name for the new generator group?');
+        if(!name) return;
+        const clean = name.trim();
+        if(!clean) return;
+        setGeneratorGroups(prev=>{
+          if(prev.some(g=>g.name.toLowerCase()===clean.toLowerCase())){
+            alert('That group name already exists.');
+            return prev;
+          }
+          return [...prev,{
+            id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+            name: clean,
+            members: [],
+            open: true
+          }];
+        });
+      }
+
+      function toggleGeneratorGroupOpen(id){
+        setGeneratorGroups(prev=>prev.map(g=>g.id===id ? {...g, open: !g.open} : g));
+      }
+
+      function moveGeneratorToGroup(name,targetGroupId){
+        setGeneratorGroups(prev=>{
+          let changed = false;
+          const next = prev.map(g=>{
+            const original = g.members || [];
+            let members = original.filter(m=>m!==name);
+            if(targetGroupId && g.id===targetGroupId && !members.includes(name)){
+              members = [...members, name].sort((a,b)=>a.localeCompare(b));
+            }
+            const same = members.length===original.length && members.every((m,idx)=>m===original[idx]);
+            if(!same) changed = true;
+            return {...g, members};
+          });
+          return changed ? next : prev;
+        });
+      }
+
+      function cycleGeneratorFilter(name){
+        setLibraryGeneratorFilter(prev=>{
+          const inc = new Set(prev.include || []);
+          const exc = new Set(prev.exclude || []);
+          const includeGroups = prev.includeGroups || [];
+          const excludeGroups = prev.excludeGroups || [];
+          const mode = prev.mode || 'all';
+          if(!inc.has(name) && !exc.has(name)){
+            inc.add(name);
+          }else if(inc.has(name)){
+            inc.delete(name);
+            exc.add(name);
+          }else if(exc.has(name)){
+            exc.delete(name);
+          }
+          return {
+            include: [...inc],
+            exclude: [...exc],
+            includeGroups: [...includeGroups],
+            excludeGroups: [...excludeGroups],
+            mode
+          };
+        });
+      }
+
+      function cycleGeneratorGroupFilter(groupId){
+        setLibraryGeneratorFilter(prev=>{
+          const inc = new Set(prev.includeGroups || []);
+          const exc = new Set(prev.excludeGroups || []);
+          const include = prev.include || [];
+          const exclude = prev.exclude || [];
+          const mode = prev.mode || 'all';
+          if(!inc.has(groupId) && !exc.has(groupId)){
+            inc.add(groupId);
+          }else if(inc.has(groupId)){
+            inc.delete(groupId);
+            exc.add(groupId);
+          }else if(exc.has(groupId)){
+            exc.delete(groupId);
+          }
+          return {
+            include,
+            exclude,
+            includeGroups: [...inc],
+            excludeGroups: [...exc],
+            mode
+          };
+        });
+      }
+
       const renderCollectionRow = (name) => {
         const isInclude = libraryCollectionFilter.include.includes(name);
         const isExclude = libraryCollectionFilter.exclude.includes(name);
@@ -3058,6 +3260,38 @@ for (let idx = 1; idx < files.length; idx++) {
                 {collectionGroups.map(g=>(
                   <option key={g.id} value={g.id}>
                     {collectionGroupLookup[name]===g.id ? `In ${g.name}` : `Move to ${g.name}`}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        );
+      };
+
+      const renderGeneratorRow = (name) => {
+        const isInclude = libraryGeneratorFilter.include.includes(name);
+        const isExclude = libraryGeneratorFilter.exclude.includes(name);
+        let cls = 'ghost';
+        if(isInclude) cls = 'secondary';
+        if(isExclude) cls = 'danger';
+        return (
+          <div key={name} className="collectionGroupRow">
+            <button
+              className={'btn sm '+cls}
+              onClick={()=>{ cycleGeneratorFilter(name); }}
+            >
+              {name}
+            </button>
+            {generatorGroups.length>0 && (
+              <select
+                className="select sm collectionGroupSelect"
+                value={generatorGroupLookup[name] || ''}
+                onChange={e=>moveGeneratorToGroup(name, e.target.value || null)}
+              >
+                <option value="">Ungrouped</option>
+                {generatorGroups.map(g=>(
+                  <option key={g.id} value={g.id}>
+                    {generatorGroupLookup[name]===g.id ? `In ${g.name}` : `Move to ${g.name}`}
                   </option>
                 ))}
               </select>
@@ -3183,6 +3417,14 @@ for (let idx = 1; idx < files.length; idx++) {
         const includeGroups = libraryCollectionFilter.includeGroups || [];
         const excludeGroups = libraryCollectionFilter.excludeGroups || [];
         const includeMode = libraryCollectionFilter.mode || 'all';
+        const genInclude = libraryGeneratorFilter.include || [];
+        const genExclude = libraryGeneratorFilter.exclude || [];
+        const genIncludeGroups = libraryGeneratorFilter.includeGroups || [];
+        const genExcludeGroups = libraryGeneratorFilter.excludeGroups || [];
+        const genIncludeMode = libraryGeneratorFilter.mode || 'all';
+        const generatorNameForItem = (it)=>{
+          return (it.generator || '').trim() || 'Unspecified';
+        };
         const includePredicates = [
           ...include.map(name => (cols)=>cols.includes(name)),
           ...includeGroups.map(id => {
@@ -3212,12 +3454,43 @@ for (let idx = 1; idx < files.length; idx++) {
             return !excludePredicates.some(fn=>fn(cols));
           });
         }
+        const genIncludePredicates = [
+          ...genInclude.map(name => (gen)=>gen === name),
+          ...genIncludeGroups.map(id => {
+            const members = generatorGroupMembersMap[id] || [];
+            return (gen)=>members.includes(gen);
+          })
+        ];
+        if(genIncludePredicates.length){
+          list = list.filter(it=>{
+            const gen = generatorNameForItem(it);
+            if(genIncludeMode==='any'){
+              return genIncludePredicates.some(fn=>fn(gen));
+            }
+            return genIncludePredicates.every(fn=>fn(gen));
+          });
+        }
+        const genExcludePredicates = [
+          ...genExclude.map(name => (gen)=>gen === name),
+          ...genExcludeGroups.map(id => {
+            const members = generatorGroupMembersMap[id] || [];
+            return (gen)=>members.includes(gen);
+          })
+        ];
+        if(genExcludePredicates.length){
+          list = list.filter(it=>{
+            const gen = generatorNameForItem(it);
+            return !genExcludePredicates.some(fn=>fn(gen));
+          });
+        }
         list.sort((a,b)=>compareBySort(a,b,librarySort));
         return list;
-      },[items,librarySort,libraryFilter,libraryCollectionFilter,librarySearch,collectionGroupMembersMap]);
+      },[items,librarySort,libraryFilter,libraryCollectionFilter,libraryGeneratorFilter,librarySearch,collectionGroupMembersMap,generatorGroupMembersMap]);
 
       const activeIncludeFilters = (libraryCollectionFilter.include?.length || 0) + (libraryCollectionFilter.includeGroups?.length || 0);
       const hasCollectionFilters = activeIncludeFilters + (libraryCollectionFilter.exclude?.length || 0) + (libraryCollectionFilter.excludeGroups?.length || 0) > 0;
+      const activeGeneratorIncludeFilters = (libraryGeneratorFilter.include?.length || 0) + (libraryGeneratorFilter.includeGroups?.length || 0);
+      const hasGeneratorFilters = activeGeneratorIncludeFilters + (libraryGeneratorFilter.exclude?.length || 0) + (libraryGeneratorFilter.excludeGroups?.length || 0) > 0;
 
 // stats rows (with win% tie-breaker by wins then matchups)
 const statsRows = useMemo(()=>{
@@ -3806,6 +4079,96 @@ if (dt && dt.files && dt.files.length) {
                           </div>
                           <div className="collectionGroupItems">
                             {ungroupedCollections.map(renderCollectionRow)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {allGeneratorNames.length > 0 && (
+                  <div className="toolbar collectionFilterToolbar" style={{marginTop:8}}>
+                    <div className="collectionFilterHeader">
+                      <span className="smallMuted">
+                        Generator/group filter (click names to include → exclude → clear; use the arrow to open a group):
+                      </span>
+                      <div className="flexRow" style={{gap:6, flexWrap:'wrap'}}>
+                        <button className="btn sm ghost" onClick={createGeneratorGroup}>
+                          Create group
+                        </button>
+                        {hasGeneratorFilters && (
+                          <button
+                            className="btn sm ghost"
+                            onClick={()=>setLibraryGeneratorFilter({include:[],exclude:[],includeGroups:[],excludeGroups:[],mode:'all'})}
+                          >
+                            Clear filters
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {activeGeneratorIncludeFilters > 1 && (
+                      <div className="flexRow" style={{gap:6, alignItems:'center', flexWrap:'wrap'}}>
+                        <span className="smallMuted">Include logic:</span>
+                        <button
+                          className={'btn sm '+((libraryGeneratorFilter.mode||'all')==='all' ? 'secondary' : 'ghost')}
+                          onClick={()=>setLibraryGeneratorFilter(prev=>({...prev,mode:'all'}))}
+                        >
+                          Match all selected
+                        </button>
+                        <button
+                          className={'btn sm '+((libraryGeneratorFilter.mode||'all')==='any' ? 'secondary' : 'ghost')}
+                          onClick={()=>setLibraryGeneratorFilter(prev=>({...prev,mode:'any'}))}
+                        >
+                          Match any selected
+                        </button>
+                      </div>
+                    )}
+                    <div className="collectionGroupsGrid">
+                      {generatorGroups.map(group=>{
+                        const visibleMembers = (group.members || []).filter(name=>allGeneratorNames.includes(name));
+                        const isIncludeGroup = (libraryGeneratorFilter.includeGroups || []).includes(group.id);
+                        const isExcludeGroup = (libraryGeneratorFilter.excludeGroups || []).includes(group.id);
+                        let groupClass = 'ghost';
+                        if(isIncludeGroup) groupClass = 'secondary';
+                        if(isExcludeGroup) groupClass = 'danger';
+                        return (
+                          <div className="collectionGroupCard" key={group.id}>
+                            <div className="collectionGroupHeader">
+                              <button
+                                className={'btn sm '+groupClass+' collectionGroupToggle'}
+                                onClick={()=>cycleGeneratorGroupFilter(group.id)}
+                              >
+                                <span>{group.name}</span>
+                                <span className="smallMuted">({visibleMembers.length})</span>
+                              </button>
+                              <button
+                                className="btn sm ghost collectionGroupCaret"
+                                aria-label={group.open ? 'Collapse group' : 'Expand group'}
+                                title={group.open ? 'Collapse group' : 'Expand group'}
+                                onClick={()=>toggleGeneratorGroupOpen(group.id)}
+                              >
+                                <span aria-hidden="true">{group.open ? '▾' : '▸'}</span>
+                              </button>
+                            </div>
+                            {group.open && (
+                              <div className="collectionGroupItems generatorGroupItems">
+                                {visibleMembers.length>0 ? (
+                                  visibleMembers.map(renderGeneratorRow)
+                                ) : (
+                                  <span className="smallMuted">No generators in this group yet.</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {ungroupedGenerators.length>0 && (
+                        <div className="collectionGroupCard">
+                          <div className="collectionGroupHeader">
+                            <span className="smallMuted">Ungrouped</span>
+                            <span className="smallMuted">{ungroupedGenerators.length} generators</span>
+                          </div>
+                          <div className="collectionGroupItems generatorGroupItems">
+                            {ungroupedGenerators.map(renderGeneratorRow)}
                           </div>
                         </div>
                       )}
