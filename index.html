@@ -755,7 +755,7 @@
 
 <script data-cfasync="false" type="text/babel">
 
-    const { useState, useEffect, useMemo, useRef } = React;
+    const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
     // ---------- IndexedDB ----------
     const DB_NAME = 'modelMatchupDB';
@@ -1353,7 +1353,7 @@ async function dataUrlToThumbDataUrl(src, maxSide = 320, quality = 0.80){
         // Build a prioritized list of possible image sources, including IndexedDB.
         const candidates = [];
         const add = (src, priority) => {
-          if(!src) return;
+          if(!isNonEmptySrc(src)) return;
           if(candidates.some(c=>c.src===src)) return;
           candidates.push({src,priority});
         };
@@ -1387,9 +1387,10 @@ async function dataUrlToThumbDataUrl(src, maxSide = 320, quality = 0.80){
           }
         }
 
-        return candidates
+        const sorted = candidates
           .sort((a,b)=>a.priority-b.priority)
           .map(c=>c.src);
+        return dedupeSources(sorted);
       }
 
       async function startForItem(item){
@@ -1547,7 +1548,7 @@ const MatchCard = ({ item, onClick, result }) => {
       onClick={() => onClick(item.id)}
     >
       <div className="img-container">
-        <SafeImage src={highResSrc} alt={item.title} className="match-img" />
+        <SafeImage item={item} src={highResSrc} fallbackSrcs={getDisplaySources(item)} alt={item.title} className="match-img" />
         {result && (
           <div className={`overlay ${result}`}>
             {result === 'win' ? 'WINNER' : 'ELIMINATED'}
@@ -1609,7 +1610,7 @@ useEffect(() => {
           <div className="modalInner" onClick={e => e.stopPropagation()}>
             <div className="modal-img-container">
               {/* NOTE: If SafeImage is undefined, change this to <img src={displaySrc} className="modal-img" /> */}
-              <SafeImage src={displaySrc} className="modal-img" />
+              <SafeImage item={item} src={displaySrc} fallbackSrcs={getDisplaySources(item)} className="modal-img" />
             </div>
             <div style={{display:'flex', gap:10, flexDirection:'column'}}>
                <input 
@@ -1645,16 +1646,34 @@ useEffect(() => {
       );
     };
 
+// Image source helpers
+function isNonEmptySrc(src){
+  return typeof src === 'string' && src.trim().length > 0;
+}
+function dedupeSources(list){
+  const seen = new Set();
+  const clean = [];
+  for(const src of list){
+    if(!isNonEmptySrc(src)) continue;
+    if(seen.has(src)) continue;
+    seen.add(src);
+    clean.push(src);
+  }
+  return clean;
+}
+function getDisplaySources(item){
+  if(!item) return [];
+  return dedupeSources([
+    item.thumbnail,
+    item.thumbDataUrl,
+    item.fullUrl,
+    item.dataUrl
+  ]);
+}
 // Pick the best image source for matchups / small thumbs
 function getDisplaySrc(item){
-  if (!item) return "";
-  return (
-    item.thumbnail ||
-    item.thumbDataUrl ||
-    item.fullUrl ||
-    item.dataUrl ||
-    ""
-  );
+  const sources = getDisplaySources(item);
+  return sources[0] || "";
 }
 
 function isHttpUrl(str){
@@ -1667,6 +1686,81 @@ function preloadImage(src){
   const img = new Image();
   img.src = src; // browser will cache it
 }
+
+// Image component with automatic fallbacks + hydration
+const SafeImage = ({
+  src,
+  fallbackSrcs = [],
+  alt = '',
+  className = '',
+  style = {},
+  item = null,
+  onClick,
+  onResolved
+}) => {
+  const queueRef = useRef([]);
+  const hydratedRef = useRef(false);
+  const [currentSrc, setCurrentSrc] = useState('');
+
+  const rebuildQueue = useCallback((primary, fallbacks, targetItem) => {
+    const ordered = dedupeSources([primary, ...(fallbacks || []), ...getDisplaySources(targetItem)]);
+    queueRef.current = ordered;
+    setCurrentSrc(ordered[0] || '');
+    hydratedRef.current = false;
+  }, []);
+
+  useEffect(()=>{
+    rebuildQueue(src, fallbackSrcs, item);
+  },[src, fallbackSrcs, item?.id, item?.thumbnail, item?.thumbDataUrl, item?.fullUrl, item?.dataUrl, rebuildQueue]);
+
+  const tryHydrate = useCallback(async ()=>{
+    if(!item || !item.id || hydratedRef.current) return null;
+    hydratedRef.current = true;
+    try{
+      const full = await idbGet(item.id);
+      const remote = window.fetchFullImageUrl ? await window.fetchFullImageUrl(item.id) : null;
+      const merged = dedupeSources([
+        ...queueRef.current,
+        ...getDisplaySources(full),
+        remote
+      ]);
+      queueRef.current = merged;
+      if(remote && onResolved){
+        onResolved(remote);
+      }
+      const next = merged.find(url => url && url !== currentSrc);
+      if(next){
+        setCurrentSrc(next);
+        return next;
+      }
+    }catch(err){
+      console.warn('SafeImage hydration failed', err);
+    }
+    return null;
+  },[item, currentSrc, onResolved]);
+
+  const handleError = useCallback(async ()=>{
+    const next = queueRef.current.find(url => url && url !== currentSrc);
+    if(next){
+      setCurrentSrc(next);
+      return;
+    }
+    const hydrated = await tryHydrate();
+    if(hydrated) return;
+    setCurrentSrc('');
+  },[currentSrc, tryHydrate]);
+
+  return (
+    <img
+      src={currentSrc || undefined}
+      alt={alt}
+      className={className}
+      style={{...style, visibility: currentSrc ? 'visible' : 'hidden'}}
+      onError={handleError}
+      onClick={onClick}
+    />
+  );
+};
 
 
     // ... function App starts below here ...
@@ -1687,6 +1781,8 @@ function preloadImage(src){
       const [librarySearch, setLibrarySearch] = useState('');
       const [libraryCollectionFilter,setLibraryCollectionFilter] = useState({include:[],exclude:[],mode:'all'});
       const [statsSort,setStatsSort] = useState({field:'points',dir:'asc'});
+      const [statsView,setStatsView] = useState('images');
+      const [genStatsSort,setGenStatsSort] = useState({field:'pct',dir:'desc'});
       const [collStatsSort,setCollStatsSort] = useState({field:'pct',dir:'desc'});
       const [collectionSort, setCollectionSort] = useState({field:'points', dir:'asc'});
       const [matchMode,setMatchMode] = useState({type:'all', collection:null}); // all | bottom | collection
@@ -2660,6 +2756,46 @@ for (let idx = 1; idx < files.length; idx++) {
         return rows.reverse();
       },[items,collStatsSort]);
 
+      const generatorStats = useMemo(()=>{
+        const map = new Map();
+        for(const it of items){
+          const raw = (it.generator || '').trim();
+          const name = raw || 'Unspecified';
+          const cur = map.get(name) || {name,wins:0,losses:0,bonus:0,images:new Set(),bestItem:null,bestItemPoints:-Infinity};
+          const itemPoints = computePoints(it.wins,it.losses,it.tourneyBonus||0);
+          cur.wins += it.wins||0;
+          cur.losses += it.losses||0;
+          cur.bonus += Number(it.tourneyBonus||0);
+          cur.images.add(it.id);
+          if(!cur.bestItem || itemPoints>cur.bestItemPoints){
+            cur.bestItem = it;
+            cur.bestItemPoints = itemPoints;
+          }
+          map.set(name,cur);
+        }
+        const rows = Array.from(map.values()).map(r=>({
+          name: r.name,
+          wins: r.wins,
+          losses: r.losses,
+          imagesCount: r.images.size,
+          matchups: r.wins + r.losses,
+          pct: pct(r.wins,r.losses),
+          points: computePoints(r.wins,r.losses,r.bonus),
+          bestItem: r.bestItem
+        }));
+        rows.sort((a,b)=>{
+          const dir = genStatsSort.dir==='asc' ? 1 : -1;
+          const f = genStatsSort.field;
+          if(f==='name'){return a.name.localeCompare(b.name)*dir;}
+          if(f==='imagesCount' || f==='wins' || f==='losses' || f==='matchups' || f==='points'){
+            return (a[f]-b[f])*dir;
+          }
+          if(f==='pct'){return (a.pct-b.pct)*dir;}
+          return 0;
+        });
+        return rows.reverse();
+      },[items,genStatsSort]);
+
       const matchupCollectionOptions = useMemo(()=>{
         return collectionStats
           .filter(c=>c.imagesCount>=2)
@@ -2788,6 +2924,8 @@ const statsRows = useMemo(()=>{
 
       const left = items.find(it=>it.id===matchIds[0]) || null;
       const right = items.find(it=>it.id===matchIds[1]) || null;
+      const leftSources = useMemo(()=>getDisplaySources(left), [left]);
+      const rightSources = useMemo(()=>getDisplaySources(right), [right]);
       const previewItem = previewId ? items.find(it=>it.id===previewId) : null;
       const selectionMode = selectedIds.length>0;
 
@@ -2899,6 +3037,14 @@ async function applyCrop(){
             return {field,dir:prev.dir==='asc'?'desc':'asc'};
           }
           return {field,dir: field==='points' || field==='pct' || field==='matchups' ? 'desc':'asc'};
+        });
+      }
+      function changeGenStatsSort(field){
+        setGenStatsSort(prev=>{
+          if(prev.field===field){
+            return {field,dir:prev.dir==='asc'?'desc':'asc'};
+          }
+          return {field,dir: field==='points' || field==='pct' || field==='matchups' || field==='imagesCount' ? 'desc':'asc'};
         });
       }
       function changeCollStatsSort(field){
@@ -3379,12 +3525,14 @@ if (dt && dt.files && dt.files.length) {
                             }
                           }}
                         >
-<img
+<SafeImage
+  item={it}
   className="galleryImg"
-  src={it.thumbnail || it.fullUrl || it.dataUrl}
+  src={getDisplaySrc(it)}
+  fallbackSrcs={getDisplaySources(it)}
   alt={it.title || 'Image'}
+  onResolved={(url)=>patchItem(it.id,{fullUrl:url})}
 />
-
 
                           <div className="galleryOverlay" />
                           {renderBadges(it.id,'badgeRow-top-right')}
@@ -3530,17 +3678,23 @@ if (dt && dt.files && dt.files.length) {
                 <>
 <div className="arena">
   <button className="imageCard" onClick={()=>recordWin(left.id)}>
-    <img
-      src={left.fullUrl || left.dataUrl || left.thumbnail || left.thumbDataUrl}
+    <SafeImage
+      item={left}
+      src={leftSources[0]}
+      fallbackSrcs={leftSources}
       alt="left"
+      onResolved={(url)=>patchItem(left.id,{fullUrl:url})}
     />
     {renderBadges(left.id,'badgeRow-top-right')}
   </button>
   <div className="vs">VS</div>
   <button className="imageCard" onClick={()=>recordWin(right.id)}>
-    <img
-      src={right.fullUrl || right.dataUrl || right.thumbnail || right.thumbDataUrl}
+    <SafeImage
+      item={right}
+      src={rightSources[0]}
+      fallbackSrcs={rightSources}
       alt="right"
+      onResolved={(url)=>patchItem(right.id,{fullUrl:url})}
     />
     {renderBadges(right.id,'badgeRow-top-right')}
   </button>
@@ -3596,6 +3750,22 @@ if (dt && dt.files && dt.files.length) {
                 <p className="hint">No images yet.</p>
               ) : (
                 <>
+                <div className="tabs" style={{marginBottom:10}}>
+                  <button
+                    className={`tab ${statsView==='images'?'active':''}`}
+                    onClick={()=>setStatsView('images')}
+                  >
+                    Image stats
+                  </button>
+                  <button
+                    className={`tab ${statsView==='generators'?'active':''}`}
+                    onClick={()=>setStatsView('generators')}
+                  >
+                    Generator stats
+                  </button>
+                </div>
+                {statsView==='images' ? (
+                  <>
                 <table>
 <thead>
   <tr>
@@ -3636,31 +3806,14 @@ if (dt && dt.files && dt.files.length) {
 <td>
   <div style={{display:'flex',alignItems:'center',gap:4}}>
     <div className="thumbWrap">
-      <img
+      <SafeImage
+        item={x}
         className="thumb"
-        // same priority as Library view, plus thumbDataUrl as an extra backup
-        src={x.thumbnail || x.fullUrl || x.dataUrl || x.thumbDataUrl || ''}
+        src={getDisplaySrc(x)}
+        fallbackSrcs={getDisplaySources(x)}
         alt={x.title || 'Image'}
         onClick={() => openPreviewFor(x)}
-        onError={e => {
-          // If our first choice failed, try any other known field
-          const fallbacks = [
-            x.fullUrl,
-            x.dataUrl,
-            x.thumbnail,
-            x.thumbDataUrl
-          ].filter(Boolean);
-
-          const current = e.target.src;
-          const next = fallbacks.find(url => url && url !== current);
-
-          if (next) {
-            e.target.src = next;
-          } else {
-            // truly no usable image → hide the box so it’s obvious it’s “image-less”
-            e.target.style.visibility = 'hidden';
-          }
-        }}
+        onResolved={(url)=>patchItem(x.id,{fullUrl:url})}
       />
     </div>
     {renderBadges(x.id, 'badgeRow-inline')}
@@ -3701,13 +3854,80 @@ if (dt && dt.files && dt.files.length) {
                     </div>
                   </div>
                 )}
+                  </>
+                ) : (
+                  <>
+                  {generatorStats.length===0 ? (
+                    <p className="hint">No generators yet. Add generator names to your images to see their performance.</p>
+                  ) : (
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Preview</th>
+                          <th className="sortable" onClick={()=>changeGenStatsSort('name')}>
+                            Generator{sortIndicator(genStatsSort.field==='name',genStatsSort.dir)}
+                          </th>
+                          <th className="sortable" onClick={()=>changeGenStatsSort('imagesCount')}>
+                            # Images{sortIndicator(genStatsSort.field==='imagesCount',genStatsSort.dir)}
+                          </th>
+                          <th className="sortable" onClick={()=>changeGenStatsSort('wins')}>
+                            W{sortIndicator(genStatsSort.field==='wins',genStatsSort.dir)}
+                          </th>
+                          <th className="sortable" onClick={()=>changeGenStatsSort('losses')}>
+                            L{sortIndicator(genStatsSort.field==='losses',genStatsSort.dir)}
+                          </th>
+                          <th className="sortable" onClick={()=>changeGenStatsSort('matchups')}>
+                            M{sortIndicator(genStatsSort.field==='matchups',genStatsSort.dir)}
+                          </th>
+                          <th className="sortable" onClick={()=>changeGenStatsSort('pct')}>
+                            Win%{sortIndicator(genStatsSort.field==='pct',genStatsSort.dir)}
+                          </th>
+                          <th className="sortable" onClick={()=>changeGenStatsSort('points')}>
+                            Points{sortIndicator(genStatsSort.field==='points',genStatsSort.dir)}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {generatorStats.map((g,i)=>(
+                          <tr key={g.name}>
+                            <td>{i+1}</td>
+                            <td>
+                              {g.bestItem ? (
+                                <div className="thumbWrap">
+                                  <SafeImage
+                                    item={g.bestItem}
+                                    className="thumb"
+                                    src={getDisplaySrc(g.bestItem)}
+                                    fallbackSrcs={getDisplaySources(g.bestItem)}
+                                    alt={g.bestItem.title || 'Image'}
+                                    onClick={() => openPreviewFor(g.bestItem)}
+                                    onResolved={(url)=>patchItem(g.bestItem.id,{fullUrl:url})}
+                                  />
+                                </div>
+                              ) : (
+                                <span className="smallMuted">—</span>
+                              )}
+                            </td>
+                            <td>{g.name}</td>
+                            <td>{g.imagesCount}</td>
+                            <td>{g.wins}</td>
+                            <td>{g.losses}</td>
+                            <td>{g.matchups}</td>
+                            <td>{g.pct.toFixed(3)}</td>
+                            <td>{g.points}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                  </>
+                )}
                 </>
               )}
             </section>
           )}
-
-
-          {/* COLLECTIONS LIST / DETAIL */}
+{/* COLLECTIONS LIST / DETAIL */}
           {tab==='Collections' && !activeCollection && (
             <section className="statsTab">
               {collectionStats.length===0 ? (
@@ -3748,28 +3968,14 @@ if (dt && dt.files && dt.files.length) {
                         <td>
                           {c.bestItem ? (
                             <div className="thumbWrap">
-                              <img
+                              <SafeImage
+                                item={c.bestItem}
                                 className="thumb"
-                                src={c.bestItem.thumbnail || c.bestItem.fullUrl || c.bestItem.dataUrl || c.bestItem.thumbDataUrl || ''}
+                                src={getDisplaySrc(c.bestItem)}
+                                fallbackSrcs={getDisplaySources(c.bestItem)}
                                 alt={c.bestItem.title || 'Image'}
                                 onClick={() => openPreviewFor(c.bestItem)}
-                                onError={e => {
-                                  const fallbacks = [
-                                    c.bestItem.fullUrl,
-                                    c.bestItem.dataUrl,
-                                    c.bestItem.thumbnail,
-                                    c.bestItem.thumbDataUrl
-                                  ].filter(Boolean);
-
-                                  const current = e.target.src;
-                                  const next = fallbacks.find(url => url && url !== current);
-
-                                  if (next) {
-                                    e.target.src = next;
-                                  } else {
-                                    e.target.style.visibility = 'hidden';
-                                  }
-                                }}
+                                onResolved={(url)=>patchItem(c.bestItem.id,{fullUrl:url})}
                               />
                             </div>
                           ) : (
