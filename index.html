@@ -129,6 +129,59 @@
       opacity:0.5;
       cursor:default;
     }
+    .collectionFilterToolbar{
+      flex-direction:column;
+      align-items:flex-start;
+      gap:10px;
+    }
+    .collectionFilterHeader{
+      width:100%;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .collectionGroupsGrid{
+      width:100%;
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+      gap:10px;
+    }
+    .collectionGroupCard{
+      background:var(--panel-soft);
+      border:1px solid var(--ring);
+      border-radius:12px;
+      padding:10px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .collectionGroupHeader{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .collectionGroupToggle{
+      flex:1;
+      justify-content:space-between;
+    }
+    .collectionGroupItems{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .collectionGroupRow{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      flex-wrap:wrap;
+    }
+    .collectionGroupSelect{
+      min-width:150px;
+    }
     .select,
     .input{
       background:#050c0a;
@@ -139,6 +192,7 @@
       font-size:13px;
     }
     .select{min-width:130px}
+    .select.sm{padding:5px 7px;font-size:12px}
     .dropzone{
       border:1.5px dashed var(--ring);
       border-radius:12px;
@@ -1794,6 +1848,26 @@ const SafeImage = ({
       const [libraryFilter, setLibraryFilter] = useState('all'); // all | unassigned
       const [librarySearch, setLibrarySearch] = useState('');
       const [libraryCollectionFilter,setLibraryCollectionFilter] = useState({include:[],exclude:[],mode:'all'});
+      const [collectionGroups, setCollectionGroups] = useState(()=>{
+        if(typeof localStorage==='undefined') return [];
+        try{
+          const raw = localStorage.getItem('collectionGroups');
+          if(raw){
+            const parsed = JSON.parse(raw);
+            if(parsed && Array.isArray(parsed.groups)){
+              return parsed.groups.map(g=>({
+                id: g.id || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
+                name: g.name || 'Group',
+                members: Array.isArray(g.members) ? Array.from(new Set(g.members)) : [],
+                open: g.open !== false
+              }));
+            }
+          }
+        }catch(err){
+          console.warn('Failed to load collection groups', err);
+        }
+        return [];
+      });
       const [statsSort,setStatsSort] = useState({field:'points',dir:'asc'});
       const [statsView,setStatsView] = useState('images');
       const [genStatsSort,setGenStatsSort] = useState({field:'pct',dir:'desc'});
@@ -2735,6 +2809,147 @@ for (let idx = 1; idx < files.length; idx++) {
         return Array.from(set).sort((a,b)=>a.localeCompare(b));
       },[items]);
 
+      const groupedCollectionNames = useMemo(()=>{
+        const set = new Set();
+        for(const group of collectionGroups){
+          (group.members||[]).forEach(name=>name && set.add(name));
+        }
+        return set;
+      },[collectionGroups]);
+
+      const collectionGroupLookup = useMemo(()=>{
+        const map = {};
+        for(const group of collectionGroups){
+          (group.members||[]).forEach(name=>{
+            if(name){
+              map[name] = group.id;
+            }
+          });
+        }
+        return map;
+      },[collectionGroups]);
+
+      const ungroupedCollections = useMemo(()=>{
+        return allCollectionNames.filter(name=>!groupedCollectionNames.has(name));
+      },[allCollectionNames, groupedCollectionNames]);
+
+      useEffect(()=>{
+        if(typeof localStorage==='undefined') return;
+        try{
+          localStorage.setItem('collectionGroups', JSON.stringify({groups: collectionGroups}));
+        }catch(err){
+          console.warn('Failed to persist collection groups', err);
+        }
+      },[collectionGroups]);
+
+      useEffect(()=>{
+        const allowed = new Set(allCollectionNames);
+        setCollectionGroups(prev=>{
+          let changed = false;
+          const next = prev.map(group=>{
+            const filtered = (group.members || []).filter(name=>allowed.has(name));
+            const deduped = Array.from(new Set(filtered));
+            const same = deduped.length === (group.members||[]).length && deduped.every((m,idx)=>m === (group.members||[])[idx]);
+            if(!same) changed = true;
+            return {...group, members: deduped};
+          });
+          return changed ? next : prev;
+        });
+      },[allCollectionNames]);
+
+      function createCollectionGroup(){
+        const name = prompt('Name for the new group?');
+        if(!name) return;
+        const clean = name.trim();
+        if(!clean) return;
+        setCollectionGroups(prev=>{
+          if(prev.some(g=>g.name.toLowerCase()===clean.toLowerCase())){
+            alert('That group name already exists.');
+            return prev;
+          }
+          return [...prev,{
+            id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+            name: clean,
+            members: [],
+            open: true
+          }];
+        });
+      }
+
+      function toggleGroupOpen(id){
+        setCollectionGroups(prev=>prev.map(g=>g.id===id ? {...g, open: !g.open} : g));
+      }
+
+      function moveCollectionToGroup(name,targetGroupId){
+        setCollectionGroups(prev=>{
+          let changed = false;
+          const next = prev.map(g=>{
+            const original = g.members || [];
+            let members = original.filter(m=>m!==name);
+            if(targetGroupId && g.id===targetGroupId && !members.includes(name)){
+              members = [...members, name].sort((a,b)=>a.localeCompare(b));
+            }
+            const same = members.length===original.length && members.every((m,idx)=>m===original[idx]);
+            if(!same) changed = true;
+            return {...g, members};
+          });
+          return changed ? next : prev;
+        });
+      }
+
+      function cycleCollectionFilter(name){
+        setLibraryCollectionFilter(prev=>{
+          const inc = new Set(prev.include || []);
+          const exc = new Set(prev.exclude || []);
+          const mode = prev.mode || 'all';
+          if(!inc.has(name) && !exc.has(name)){
+            inc.add(name);
+          }else if(inc.has(name)){
+            inc.delete(name);
+            exc.add(name);
+          }else if(exc.has(name)){
+            exc.delete(name);
+          }
+          return {
+            include: [...inc],
+            exclude: [...exc],
+            mode
+          };
+        });
+      }
+
+      const renderCollectionRow = (name) => {
+        const isInclude = libraryCollectionFilter.include.includes(name);
+        const isExclude = libraryCollectionFilter.exclude.includes(name);
+        let cls = 'ghost';
+        if(isInclude) cls = 'secondary';
+        if(isExclude) cls = 'danger';
+        return (
+          <div key={name} className="collectionGroupRow">
+            <button
+              className={'btn sm '+cls}
+              onClick={()=>{ cycleCollectionFilter(name); }}
+            >
+              {name}
+            </button>
+            {collectionGroups.length>0 && (
+              <select
+                className="select sm collectionGroupSelect"
+                value={collectionGroupLookup[name] || ''}
+                onChange={e=>moveCollectionToGroup(name, e.target.value || null)}
+              >
+                <option value="">Ungrouped</option>
+                {collectionGroups.map(g=>(
+                  <option key={g.id} value={g.id}>
+                    {collectionGroupLookup[name]===g.id ? `In ${g.name}` : `Move to ${g.name}`}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        );
+      };
+
       const galleryColumnOptions = useMemo(()=>columnOptionsForMode(viewportMode), [viewportMode]);
 
       // stats for collections (also used for matchups dropdown)
@@ -3373,45 +3588,25 @@ if (dt && dt.files && dt.files.length) {
                 </div>
 
                 {allCollectionNames.length > 0 && (
-                  <div className="toolbar" style={{marginTop:8}}>
-                    <span className="smallMuted">
-                      Collection filter (click to include → exclude → clear):
-                    </span>
-                    {allCollectionNames.map(name=>{
-                      const isInclude = libraryCollectionFilter.include.includes(name);
-                      const isExclude = libraryCollectionFilter.exclude.includes(name);
-                      let cls = 'ghost';
-                      if(isInclude) cls = 'secondary';
-                      if(isExclude) cls = 'danger';
-                      return (
-                        <button
-                          key={name}
-                          className={'btn sm '+cls}
-                          onClick={()=>{
-                            setLibraryCollectionFilter(prev=>{
-                              const inc = new Set(prev.include || []);
-                              const exc = new Set(prev.exclude || []);
-                              const mode = prev.mode || 'all';
-                              if(!inc.has(name) && !exc.has(name)){
-                                inc.add(name);           // neutral -> include (green)
-                              }else if(inc.has(name)){
-                                inc.delete(name);        // include -> exclude (red)
-                                exc.add(name);
-                              }else if(exc.has(name)){
-                                exc.delete(name);        // exclude -> neutral
-                              }
-                              return {
-                                include: [...inc],
-                                exclude: [...exc],
-                                mode
-                              };
-                            });
-                          }}
-                        >
-                          {name}
+                  <div className="toolbar collectionFilterToolbar" style={{marginTop:8}}>
+                    <div className="collectionFilterHeader">
+                      <span className="smallMuted">
+                        Collection filter (click to include → exclude → clear):
+                      </span>
+                      <div className="flexRow" style={{gap:6, flexWrap:'wrap'}}>
+                        <button className="btn sm ghost" onClick={createCollectionGroup}>
+                          Create group
                         </button>
-                      );
-                    })}
+                        {(libraryCollectionFilter.include.length>0 || libraryCollectionFilter.exclude.length>0) && (
+                          <button
+                            className="btn sm ghost"
+                            onClick={()=>setLibraryCollectionFilter({include:[],exclude:[],mode:'all'})}
+                          >
+                            Clear collection filter
+                          </button>
+                        )}
+                      </div>
+                    </div>
                     {libraryCollectionFilter.include.length > 1 && (
                       <div className="flexRow" style={{gap:6, alignItems:'center', flexWrap:'wrap'}}>
                         <span className="smallMuted">Include logic:</span>
@@ -3429,14 +3624,45 @@ if (dt && dt.files && dt.files.length) {
                         </button>
                       </div>
                     )}
-                    {(libraryCollectionFilter.include.length>0 || libraryCollectionFilter.exclude.length>0) && (
-                      <button
-                        className="btn sm ghost"
-                        onClick={()=>setLibraryCollectionFilter({include:[],exclude:[],mode:'all'})}
-                      >
-                        Clear collection filter
-                      </button>
-                    )}
+                    <div className="collectionGroupsGrid">
+                      {collectionGroups.map(group=>{
+                        const visibleMembers = group.members.filter(name=>allCollectionNames.includes(name));
+                        return (
+                          <div className="collectionGroupCard" key={group.id}>
+                            <div className="collectionGroupHeader">
+                              <button
+                                className="btn sm ghost collectionGroupToggle"
+                                onClick={()=>toggleGroupOpen(group.id)}
+                              >
+                                <span>{group.name}</span>
+                                <span className="smallMuted">({visibleMembers.length})</span>
+                                <span aria-hidden="true">{group.open ? '▾' : '▸'}</span>
+                              </button>
+                            </div>
+                            {group.open && (
+                              <div className="collectionGroupItems">
+                                {visibleMembers.length>0 ? (
+                                  visibleMembers.map(renderCollectionRow)
+                                ) : (
+                                  <span className="smallMuted">No collections in this group yet.</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {ungroupedCollections.length>0 && (
+                        <div className="collectionGroupCard">
+                          <div className="collectionGroupHeader">
+                            <span className="smallMuted">Ungrouped</span>
+                            <span className="smallMuted">{ungroupedCollections.length} collections</span>
+                          </div>
+                          <div className="collectionGroupItems">
+                            {ungroupedCollections.map(renderCollectionRow)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
