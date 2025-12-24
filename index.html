@@ -1928,6 +1928,7 @@ const SafeImage = ({
       const [librarySearch, setLibrarySearch] = useState('');
       const [libraryCollectionFilter,setLibraryCollectionFilter] = useState({include:[],exclude:[],includeGroups:[],excludeGroups:[],mode:'all'});
       const [libraryGeneratorFilter,setLibraryGeneratorFilter] = useState({include:[],exclude:[],includeGroups:[],excludeGroups:[],mode:'all'});
+      const [libraryCollectionEdits, setLibraryCollectionEdits] = useState({});
       const [collectionGroups, setCollectionGroups] = useState(()=>{
         if(typeof localStorage==='undefined') return [];
         try{
@@ -2043,6 +2044,18 @@ const imageImportRef = useRef(null); // for image uploads
 const cropper = useCropper();
 const hydratingFullUrls = useRef(new Set());
 const navMenuRef = useRef(null);
+
+function commitLibraryCollections(id){
+  const rawValue = libraryCollectionEdits[id];
+  if(rawValue === undefined) return;
+  const arr = normalizeCollections(rawValue);
+  patchItem(id,{collections:arr});
+  setLibraryCollectionEdits(prev=>{
+    const next = {...prev};
+    delete next[id];
+    return next;
+  });
+}
 
 // load from IDB (thumbnail-first)
 useEffect(()=>{
@@ -4256,10 +4269,17 @@ if (dt && dt.files && dt.files.length) {
                         <div className="fieldRow">
                           <label>Collections (comma-separated)</label>
                           <input
-                            value={collectionsToString(it.collections)}
+                            value={libraryCollectionEdits[it.id] ?? collectionsToString(it.collections)}
                             onChange={e=>{
-                              const arr = normalizeCollections(e.target.value);
-                              patchItem(it.id,{collections:arr});
+                              const nextValue = e.target.value;
+                              setLibraryCollectionEdits(prev=>({...prev,[it.id]:nextValue}));
+                            }}
+                            onBlur={()=>commitLibraryCollections(it.id)}
+                            onKeyDown={e=>{
+                              if(e.key==='Enter'){
+                                commitLibraryCollections(it.id);
+                                e.currentTarget.blur();
+                              }
                             }}
                           />
                         </div>
@@ -5467,4 +5487,3 @@ onChange={e => {
 </script>
 </body>
 </html>
-
