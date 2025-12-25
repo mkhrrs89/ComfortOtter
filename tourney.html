@@ -551,6 +551,7 @@ function buildTopPoolOptions(allItems){
 
 function describePool(value){
   if(!value || value === '__ALL__') return 'All images';
+  if(value === '__RECENT_256__') return 'Most recent 256';
   const topMatch = /^__TOP_(POINTS|WINS)_(\d+)__$/i.exec(value);
   if(topMatch){
     const metric = topMatch[1].toLowerCase() === 'wins' ? 'wins' : 'points';
@@ -561,6 +562,15 @@ function describePool(value){
 
 function applyPoolFilter(allItems, poolValue){
   if(!poolValue || poolValue === '__ALL__') return allItems.slice();
+
+  if(poolValue === '__RECENT_256__'){
+    const sorted = allItems.slice().sort((a,b)=>{
+      const ta = new Date(a.addedAt || 0).getTime();
+      const tb = new Date(b.addedAt || 0).getTime();
+      return tb - ta;
+    });
+    return sorted.slice(0, 256);
+  }
 
   // Top X% pools
   const topMatch = /^__TOP_(POINTS|WINS)_(\d+)__$/i.exec(poolValue);
@@ -731,6 +741,9 @@ if(!tourneyState){
 
   // "All images" option
   poolSelectHtml += '<option value="__ALL__"'+(currentPool==='__ALL__'?' selected':'')+'>All images</option>';
+
+  const recentCount = Math.min(256, items.length);
+  poolSelectHtml += '<option value="__RECENT_256__"'+(currentPool==='__RECENT_256__'?' selected':'')+'>Most recent 256 ('+recentCount+')</option>';
 
   if(topPools.length){
     poolSelectHtml += '<optgroup label="Top performers">';
