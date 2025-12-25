@@ -1700,7 +1700,7 @@ const MatchCard = ({ item, onClick, result }) => {
   );
 };
 
-const ImageModal = ({ item, onClose, onSave, onDelete }) => {
+const ImageModal = ({ item, onClose, onSave, onDelete, generatorOptions = [] }) => {
       const [editedTitle, setEditedTitle] = useState(item.title);
       const [editedCollections, setEditedCollections] = useState(item.collections.join(', '));
       const [editedGenerator, setEditedGenerator] = useState(item.generator || '');
@@ -1762,13 +1762,15 @@ useEffect(() => {
                  className="input" 
                  placeholder="Collections (comma sep)"
                />
-               <input 
-                 type="text" 
-                 value={editedGenerator} 
-                 onChange={e=>setEditedGenerator(e.target.value)} 
-                 className="input" 
-                 placeholder="AI Generator used..."
-               />
+               <select
+                 className="select"
+                 value={editedGenerator}
+                 onChange={e=>setEditedGenerator(e.target.value)}
+               >
+                 {generatorOptions.map(opt=>(
+                   <option key={opt.label} value={opt.value}>{opt.label}</option>
+                 ))}
+               </select>
             </div>
             <div className="modalFooter">
               <button className="btn danger" onClick={()=> onDelete(item.id)}>Delete</button>
@@ -1981,7 +1983,10 @@ const SafeImage = ({
       const [selectedIds,setSelectedIds] = useState([]); // for gallery batch + export
       const [batchOpen,setBatchOpen] = useState(false);
       const [batchCollectionsText,setBatchCollectionsText] = useState('');
-      const [batchGenerator,setBatchGenerator] = useState('');
+      const [batchRemoveCollectionsText,setBatchRemoveCollectionsText] = useState('');
+      const [batchReplaceFrom,setBatchReplaceFrom] = useState('');
+      const [batchReplaceTo,setBatchReplaceTo] = useState('');
+      const [batchGenerator,setBatchGenerator] = useState('__keep__');
       const [previewCollectionsText,setPreviewCollectionsText] = useState('');
       const [libraryPage,setLibraryPage] = useState(1);
       const [libraryPageSize,setLibraryPageSize] = useState(50);
@@ -2980,6 +2985,13 @@ for (let idx = 1; idx < files.length; idx++) {
         }
         return Array.from(set).sort((a,b)=>a.localeCompare(b));
       },[items]);
+      const generatorSelectOptions = useMemo(()=>{
+        const names = allGeneratorNames.filter(name=>name && name !== 'Unspecified');
+        return [
+          {label:'Unspecified', value:''},
+          ...names.map(name=>({label:name, value:name}))
+        ];
+      },[allGeneratorNames]);
 
       const groupedCollectionNames = useMemo(()=>{
         const set = new Set();
@@ -3676,6 +3688,7 @@ const statsRows = useMemo(()=>{
 
       const allLibPageSelected = libraryPageItems.length>0 && libraryPageItems.every(it=>selectedIds.includes(it.id));
       const allCollPageSelected = collectionPageItems.length>0 && collectionPageItems.every(it=>selectedIds.includes(it.id));
+      const allCollSelected = activeCollectionItems.length>0 && activeCollectionItems.every(it=>selectedIds.includes(it.id));
 
       function toggleSelected(id){
         setSelectedIds(prev=>{
@@ -4322,10 +4335,15 @@ if (dt && dt.files && dt.files.length) {
                         </div>
                         <div className="fieldRow">
                           <label>AI Generator</label>
-                          <input
-                            value={it.generator}
+                          <select
+                            className="select"
+                            value={it.generator || ''}
                             onChange={e=>patchItem(it.id,{generator:e.target.value})}
-                          />
+                          >
+                            {generatorSelectOptions.map(opt=>(
+                              <option key={opt.label} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
                         </div>
 <div className="statLine">
   <span>W {it.wins||0}</span>
@@ -4364,7 +4382,15 @@ if (dt && dt.files && dt.files.length) {
                         {allLibPageSelected ? 'Clear all on page' : 'Select all on page'}
                       </button>
                       {selectedIds.length>0 && (
-                        <button className="btn sm ghost" onClick={()=>setBatchOpen(true)}>
+                        <button
+                          className="btn sm ghost"
+                          onClick={()=>{
+                            setBatchReplaceFrom('');
+                            setBatchReplaceTo('');
+                            setBatchGenerator('__keep__');
+                            setBatchOpen(true);
+                          }}
+                        >
                           Batch edit ({selectedIds.length})
                         </button>
                       )}
@@ -5111,8 +5137,27 @@ if (dt && dt.files && dt.files.length) {
                   >
                     {allCollPageSelected ? 'Clear all on page' : 'Select all on page'}
                   </button>
+                  <button
+                    className="btn sm secondary"
+                    onClick={()=>{
+                      if(allCollSelected) clearSelection();
+                      else setSelectedIds(activeCollectionItems.map(it=>it.id));
+                    }}
+                  >
+                    {allCollSelected
+                      ? `Clear all in ${activeCollectionType}`
+                      : `Select all in ${activeCollectionType}`}
+                  </button>
                   {selectedIds.length>0 && (
-                    <button className="btn sm ghost" onClick={()=>setBatchOpen(true)}>
+                    <button
+                      className="btn sm ghost"
+                      onClick={()=>{
+                        setBatchReplaceFrom(activeCollectionType==='collection' ? activeCollection : '');
+                        setBatchReplaceTo('');
+                        setBatchGenerator('__keep__');
+                        setBatchOpen(true);
+                      }}
+                    >
                       Batch edit ({selectedIds.length})
                     </button>
                   )}
@@ -5257,10 +5302,15 @@ if (dt && dt.files && dt.files.length) {
                         </div>
                         <div className="fieldRow">
                           <label>AI Generator</label>
-                          <input
-                            value={it.generator}
+                          <select
+                            className="select"
+                            value={it.generator || ''}
                             onChange={e=>patchItem(it.id,{generator:e.target.value})}
-                          />
+                          >
+                            {generatorSelectOptions.map(opt=>(
+                              <option key={opt.label} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
                         </div>
                         <div className="statLine">
                           <span>W: {it.wins}</span>
@@ -5320,10 +5370,15 @@ if (dt && dt.files && dt.files.length) {
                   </div>
                   <div>
                     <div>AI Generator</div>
-                    <input
-                      value={previewItem.generator}
+                    <select
+                      className="select"
+                      value={previewItem.generator || ''}
                       onChange={e=>patchItem(previewItem.id,{generator:e.target.value})}
-                    />
+                    >
+                      {generatorSelectOptions.map(opt=>(
+                        <option key={opt.label} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <div>Stats</div>
@@ -5380,7 +5435,7 @@ if (dt && dt.files && dt.files.length) {
               <div className="modalInner" onClick={e=>e.stopPropagation()}>
                 <h3 style={{margin:'4px 0 6px',fontSize:16}}>Batch edit ({selectedIds.length} images)</h3>
                 <p className="smallMuted">
-                  Collections are added (not cleared). Generator is overwritten only if you enter a value.
+                  Collections can be added, removed, or renamed. Generator changes are applied only if you choose a value.
                 </p>
                 <div className="modalFields">
                   <div>
@@ -5392,12 +5447,40 @@ if (dt && dt.files && dt.files.length) {
                     />
                   </div>
                   <div>
-                    <div>Set AI Generator (optional)</div>
+                    <div>Collections to remove (comma-separated)</div>
                     <input
+                      value={batchRemoveCollectionsText}
+                      onChange={e=>setBatchRemoveCollectionsText(e.target.value)}
+                      placeholder="e.g. draft, needs-review"
+                    />
+                  </div>
+                  <div>
+                    <div>Rename collection (from → to)</div>
+                    <div className="flexRow">
+                      <input
+                        value={batchReplaceFrom}
+                        onChange={e=>setBatchReplaceFrom(e.target.value)}
+                        placeholder="Current collection name"
+                      />
+                      <input
+                        value={batchReplaceTo}
+                        onChange={e=>setBatchReplaceTo(e.target.value)}
+                        placeholder="New collection name"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <div>Set AI Generator (optional)</div>
+                    <select
+                      className="select"
                       value={batchGenerator}
                       onChange={e=>setBatchGenerator(e.target.value)}
-                      placeholder="e.g. Sora, Gemini, etc."
-                    />
+                    >
+                      <option value="__keep__">Leave unchanged</option>
+                      {generatorSelectOptions.map(opt=>(
+                        <option key={opt.label} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
                 <div className="modalFooter">
@@ -5406,17 +5489,40 @@ if (dt && dt.files && dt.files.length) {
                     className="btn"
                     onClick={()=>{
                       const addCols = normalizeCollections(batchCollectionsText);
-                      const gen = batchGenerator.trim();
+                      const removeCols = normalizeCollections(batchRemoveCollectionsText);
+                      const replaceFrom = batchReplaceFrom.trim();
+                      const replaceTo = batchReplaceTo.trim();
+                      const genChoice = batchGenerator;
+                      const removeSet = new Set(removeCols);
                       setItems(prev=>{
                         const next = prev.map(it=>{
                           if(!selectedIds.includes(it.id)) return it;
                           const updated = {...it};
-                          if(addCols.length){
-                            const set = new Set([...(updated.collections||[]),...addCols]);
-                            updated.collections = Array.from(set);
+                          let collections = Array.isArray(updated.collections) ? [...updated.collections] : [];
+                          if(replaceFrom){
+                            if(replaceTo){
+                              collections = collections.map(c=>c===replaceFrom ? replaceTo : c);
+                            }else{
+                              collections = collections.filter(c=>c!==replaceFrom);
+                            }
                           }
-                          if(gen){
-                            updated.generator = gen;
+                          if(removeSet.size){
+                            collections = collections.filter(c=>!removeSet.has(c));
+                          }
+                          if(addCols.length){
+                            collections = [...collections, ...addCols];
+                          }
+                          if(replaceFrom || removeSet.size || addCols.length){
+                            const seen = new Set();
+                            updated.collections = collections.filter(c=>{
+                              if(!c) return false;
+                              if(seen.has(c)) return false;
+                              seen.add(c);
+                              return true;
+                            });
+                          }
+                          if(genChoice !== '__keep__'){
+                            updated.generator = genChoice;
                           }
                           idbPut(updated);
                           return updated;
@@ -5425,7 +5531,10 @@ if (dt && dt.files && dt.files.length) {
                       });
                       setSelectedIds([]);
                       setBatchCollectionsText('');
-                      setBatchGenerator('');
+                      setBatchRemoveCollectionsText('');
+                      setBatchReplaceFrom('');
+                      setBatchReplaceTo('');
+                      setBatchGenerator('__keep__');
                       setBatchOpen(false);
                     }}
                   >
