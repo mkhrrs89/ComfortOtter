@@ -3029,6 +3029,7 @@ for (let idx = 1; idx < files.length; idx++) {
         if(!libraryHydrated) return;
         const allowed = new Set(allCollectionNames);
         setCollectionGroups(prev=>{
+          if(allowed.size === 0) return prev;
           let changed = false;
           const next = prev.map(group=>{
             const filtered = (group.members || []).filter(name=>allowed.has(name));
@@ -3044,6 +3045,7 @@ for (let idx = 1; idx < files.length; idx++) {
         if(!libraryHydrated) return;
         const allowed = new Set(allGeneratorNames);
         setGeneratorGroups(prev=>{
+          if(allowed.size === 0) return prev;
           let changed = false;
           const next = prev.map(group=>{
             const filtered = (group.members || []).filter(name=>allowed.has(name));
