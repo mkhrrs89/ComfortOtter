@@ -293,6 +293,18 @@
       justify-content:center;
       padding:4px;
     }
+    .imageCard.medal-gold{
+      border-color:#d4af37;
+      box-shadow:0 0 0 1px #d4af37;
+    }
+    .imageCard.medal-silver{
+      border-color:#c0c0c0;
+      box-shadow:0 0 0 1px #c0c0c0;
+    }
+    .imageCard.medal-bronze{
+      border-color:#cd7f32;
+      box-shadow:0 0 0 1px #cd7f32;
+    }
     .imageCard img{
       width:100%;
       height:64vh;
@@ -2416,6 +2428,15 @@ const totalWinless = Array.from(badgeMap.values())
             {b.fresh && <span className="badge fresh">🌱</span>}
           </div>
         );
+      }
+
+      function matchupMedalClass(id){
+        const b = badgeMap.get(id);
+        if(!b) return '';
+        if(b.gold) return 'medal-gold';
+        if(b.silver) return 'medal-silver';
+        if(b.bronze) return 'medal-bronze';
+        return '';
       }
 
 // export/import
@@ -4559,7 +4580,7 @@ if (dt && dt.files && dt.files.length) {
               ) : (
                 <>
 <div className="arena">
-  <button className="imageCard" onClick={()=>recordWin(left.id)}>
+  <button className={`imageCard ${matchupMedalClass(left.id)}`} onClick={()=>recordWin(left.id)}>
     <SafeImage
       item={left}
       src={leftSources[0]}
@@ -4570,7 +4591,7 @@ if (dt && dt.files && dt.files.length) {
     {renderBadges(left.id,'badgeRow-top-right')}
   </button>
   <div className="vs">VS</div>
-  <button className="imageCard" onClick={()=>recordWin(right.id)}>
+  <button className={`imageCard ${matchupMedalClass(right.id)}`} onClick={()=>recordWin(right.id)}>
     <SafeImage
       item={right}
       src={rightSources[0]}
