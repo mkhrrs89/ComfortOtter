@@ -2254,24 +2254,36 @@ function getMatchPool(all,mode){
     const cutoff = Math.max(2, Math.ceil(sorted.length * fraction));
     pool = sorted.slice(0, cutoff);
 
-  }else if(mode.type==='topWinPct10' || mode.type==='bottomWinPct10'){
-    // Top/Bottom 10% by win%
+  }else if(
+    mode.type==='topWinPct10' ||
+    mode.type==='topWinPct25' ||
+    mode.type==='topWinPct50' ||
+    mode.type==='bottomWinPct10'
+  ){
+    // Top/Bottom win% pools
     const sorted = [...all].sort((a,b)=>{
       const pa = pct(a.wins||0, a.losses||0);
       const pb = pct(b.wins||0, b.losses||0);
 
       if(pa !== pb){
         // For top: highest first. For bottom: lowest first.
-        return mode.type === 'topWinPct10' ? (pb - pa) : (pa - pb);
+        return mode.type === 'bottomWinPct10' ? (pa - pb) : (pb - pa);
       }
 
       // Tie-breaker: use matchups
       const ma = matchupsCount(a);
       const mb = matchupsCount(b);
-      return mode.type === 'topWinPct10' ? (mb - ma) : (ma - mb);
+      return mode.type === 'bottomWinPct10' ? (ma - mb) : (mb - ma);
     });
 
-    const cutoff = Math.max(2, Math.ceil(sorted.length * 0.10));
+    const winPctFractions = {
+      topWinPct10: 0.10,
+      topWinPct25: 0.25,
+      topWinPct50: 0.50,
+      bottomWinPct10: 0.10
+    };
+    const fraction = winPctFractions[mode.type] ?? 0.10;
+    const cutoff = Math.max(2, Math.ceil(sorted.length * fraction));
     pool = sorted.slice(0, cutoff);
 
   }else if(mode.type==='collection' && mode.collection){
@@ -3764,6 +3776,8 @@ function labelForMatchMode(){
   if(matchMode.type==='bottom25') return 'Bottom 25% by matchups';
   if(matchMode.type==='bottom10') return 'Bottom 10% by matchups';
   if(matchMode.type==='topWinPct10') return 'Top 10% by win%';
+  if(matchMode.type==='topWinPct25') return 'Top 25% by win%';
+  if(matchMode.type==='topWinPct50') return 'Top 50% by win%';
   if(matchMode.type==='bottomWinPct10') return 'Bottom 10% by win%';
   if(matchMode.type==='freshLeaf') return 'Fresh images (leaf icon)';
   if(matchMode.type==='collection' && matchMode.collection){
@@ -4459,6 +4473,8 @@ if (dt && dt.files && dt.files.length) {
       'bottom25',
       'bottom10',
       'topWinPct10',
+      'topWinPct25',
+      'topWinPct50',
       'bottomWinPct10',
       'freshLeaf'
     ];
@@ -4498,6 +4514,8 @@ if (dt && dt.files && dt.files.length) {
 <option value="bottom10">Bottom 10% by matchups</option>
 
 <option value="topWinPct10">Top 10% by win%</option>
+<option value="topWinPct25">Top 25% by win%</option>
+<option value="topWinPct50">Top 50% by win%</option>
 <option value="bottomWinPct10">Bottom 10% by win%</option>
 
 <option value="freshLeaf">Fresh images (leaf icon)</option>
