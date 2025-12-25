@@ -1942,6 +1942,7 @@ const SafeImage = ({
       const [librarySearch, setLibrarySearch] = useState('');
       const [libraryCollectionFilter,setLibraryCollectionFilter] = useState({include:[],exclude:[],includeGroups:[],excludeGroups:[],mode:'all'});
       const [libraryGeneratorFilter,setLibraryGeneratorFilter] = useState({include:[],exclude:[],includeGroups:[],excludeGroups:[],mode:'all'});
+      const [collectionStatsFilter,setCollectionStatsFilter] = useState({include:[],exclude:[],includeGroups:[],excludeGroups:[]});
       const [libraryCollectionEdits, setLibraryCollectionEdits] = useState({});
       const [collectionGroups, setCollectionGroups] = useState(()=>{
         if(typeof localStorage==='undefined') return [];
@@ -3115,6 +3116,17 @@ for (let idx = 1; idx < files.length; idx++) {
         });
       },[collectionGroups]);
       useEffect(()=>{
+        const validIds = new Set(collectionGroups.map(g=>g.id));
+        setCollectionStatsFilter(prev=>{
+          const includeGroups = (prev.includeGroups || []).filter(id=>validIds.has(id));
+          const excludeGroups = (prev.excludeGroups || []).filter(id=>validIds.has(id));
+          if(includeGroups.length===(prev.includeGroups||[]).length && excludeGroups.length===(prev.excludeGroups||[]).length){
+            return prev;
+          }
+          return {...prev, includeGroups, excludeGroups};
+        });
+      },[collectionGroups]);
+      useEffect(()=>{
         const validIds = new Set(generatorGroups.map(g=>g.id));
         setLibraryGeneratorFilter(prev=>{
           const includeGroups = (prev.includeGroups || []).filter(id=>validIds.has(id));
@@ -3212,6 +3224,52 @@ for (let idx = 1; idx < files.length; idx++) {
             includeGroups: [...inc],
             excludeGroups: [...exc],
             mode
+          };
+        });
+      }
+
+      function cycleCollectionStatsFilter(name){
+        setCollectionStatsFilter(prev=>{
+          const inc = new Set(prev.include || []);
+          const exc = new Set(prev.exclude || []);
+          const includeGroups = prev.includeGroups || [];
+          const excludeGroups = prev.excludeGroups || [];
+          if(!inc.has(name) && !exc.has(name)){
+            inc.add(name);
+          }else if(inc.has(name)){
+            inc.delete(name);
+            exc.add(name);
+          }else if(exc.has(name)){
+            exc.delete(name);
+          }
+          return {
+            include: [...inc],
+            exclude: [...exc],
+            includeGroups: [...includeGroups],
+            excludeGroups: [...excludeGroups]
+          };
+        });
+      }
+
+      function cycleCollectionStatsGroupFilter(groupId){
+        setCollectionStatsFilter(prev=>{
+          const inc = new Set(prev.includeGroups || []);
+          const exc = new Set(prev.excludeGroups || []);
+          const include = prev.include || [];
+          const exclude = prev.exclude || [];
+          if(!inc.has(groupId) && !exc.has(groupId)){
+            inc.add(groupId);
+          }else if(inc.has(groupId)){
+            inc.delete(groupId);
+            exc.add(groupId);
+          }else if(exc.has(groupId)){
+            exc.delete(groupId);
+          }
+          return {
+            include,
+            exclude,
+            includeGroups: [...inc],
+            excludeGroups: [...exc]
           };
         });
       }
@@ -3338,6 +3396,38 @@ for (let idx = 1; idx < files.length; idx++) {
         );
       };
 
+      const renderCollectionStatsRow = (name) => {
+        const isInclude = collectionStatsFilter.include.includes(name);
+        const isExclude = collectionStatsFilter.exclude.includes(name);
+        let cls = 'ghost';
+        if(isInclude) cls = 'secondary';
+        if(isExclude) cls = 'danger';
+        return (
+          <div key={name} className="collectionGroupRow">
+            <button
+              className={'btn sm '+cls}
+              onClick={()=>{ cycleCollectionStatsFilter(name); }}
+            >
+              {name}
+            </button>
+            {collectionGroups.length>0 && (
+              <select
+                className="select sm collectionGroupSelect"
+                value={collectionGroupLookup[name] || ''}
+                onChange={e=>moveCollectionToGroup(name, e.target.value || null)}
+              >
+                <option value="">Ungrouped</option>
+                {collectionGroups.map(g=>(
+                  <option key={g.id} value={g.id}>
+                    {collectionGroupLookup[name]===g.id ? `In ${g.name}` : `Move to ${g.name}`}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        );
+      };
+
       const renderGeneratorRow = (name) => {
         const isInclude = libraryGeneratorFilter.include.includes(name);
         const isExclude = libraryGeneratorFilter.exclude.includes(name);
@@ -3414,6 +3504,31 @@ for (let idx = 1; idx < files.length; idx++) {
         });
         return rows.reverse();
       },[items,collStatsSort]);
+
+      const filteredCollectionStats = useMemo(()=>{
+        let list = collectionStats;
+        const include = collectionStatsFilter.include || [];
+        const exclude = collectionStatsFilter.exclude || [];
+        const includeGroups = collectionStatsFilter.includeGroups || [];
+        const excludeGroups = collectionStatsFilter.excludeGroups || [];
+        const includeNames = new Set(include);
+        const excludeNames = new Set(exclude);
+        const includeGroupMembers = new Set();
+        includeGroups.forEach(id => {
+          (collectionGroupMembersMap[id] || []).forEach(name=>includeGroupMembers.add(name));
+        });
+        const excludeGroupMembers = new Set();
+        excludeGroups.forEach(id => {
+          (collectionGroupMembersMap[id] || []).forEach(name=>excludeGroupMembers.add(name));
+        });
+        if(includeNames.size || includeGroupMembers.size){
+          list = list.filter(row => includeNames.has(row.name) || includeGroupMembers.has(row.name));
+        }
+        if(excludeNames.size || excludeGroupMembers.size){
+          list = list.filter(row => !(excludeNames.has(row.name) || excludeGroupMembers.has(row.name)));
+        }
+        return list;
+      },[collectionStats, collectionStatsFilter, collectionGroupMembersMap]);
 
       const generatorStats = useMemo(()=>{
         const map = new Map();
@@ -3561,6 +3676,8 @@ for (let idx = 1; idx < files.length; idx++) {
       const hasCollectionFilters = activeIncludeFilters + (libraryCollectionFilter.exclude?.length || 0) + (libraryCollectionFilter.excludeGroups?.length || 0) > 0;
       const activeGeneratorIncludeFilters = (libraryGeneratorFilter.include?.length || 0) + (libraryGeneratorFilter.includeGroups?.length || 0);
       const hasGeneratorFilters = activeGeneratorIncludeFilters + (libraryGeneratorFilter.exclude?.length || 0) + (libraryGeneratorFilter.excludeGroups?.length || 0) > 0;
+      const activeCollectionStatsFilters = (collectionStatsFilter.include?.length || 0) + (collectionStatsFilter.includeGroups?.length || 0);
+      const hasCollectionStatsFilters = activeCollectionStatsFilters + (collectionStatsFilter.exclude?.length || 0) + (collectionStatsFilter.excludeGroups?.length || 0) > 0;
 
 // stats rows (with win% tie-breaker by wins then matchups)
 const statsRows = useMemo(()=>{
@@ -4886,79 +5003,155 @@ if (dt && dt.files && dt.files.length) {
                   {collectionStats.length===0 ? (
                     <p className="hint">No collections yet. Add collection names to images in the Library.</p>
                   ) : (
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>#</th>
-                          <th>Preview</th>
-                          <th className="sortable" onClick={()=>changeCollStatsSort('name')}>
-                            Collection{sortIndicator(collStatsSort.field==='name',collStatsSort.dir)}
-                          </th>
-                          <th className="sortable" onClick={()=>changeCollStatsSort('imagesCount')}>
-                            # Images{sortIndicator(collStatsSort.field==='imagesCount',collStatsSort.dir)}
-                          </th>
-                          <th className="sortable" onClick={()=>changeCollStatsSort('wins')}>
-                            W{sortIndicator(collStatsSort.field==='wins',collStatsSort.dir)}
-                          </th>
-                          <th className="sortable" onClick={()=>changeCollStatsSort('losses')}>
-                            L{sortIndicator(collStatsSort.field==='losses',collStatsSort.dir)}
-                          </th>
-                          <th className="sortable" onClick={()=>changeCollStatsSort('matchups')}>
-                            M{sortIndicator(collStatsSort.field==='matchups',collStatsSort.dir)}
-                          </th>
-                          <th className="sortable" onClick={()=>changeCollStatsSort('pct')}>
-                            Win%{sortIndicator(collStatsSort.field==='pct',collStatsSort.dir)}
-                          </th>
-                          <th className="sortable" onClick={()=>changeCollStatsSort('points')}>
-                            Points{sortIndicator(collStatsSort.field==='points',collStatsSort.dir)}
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {collectionStats.map((c,i)=>(
-                          <tr key={c.name}>
-                            <td>{i+1}</td>
-                            <td>
-                              {c.bestItem ? (
-                                <div className="thumbWrap">
-                                  <SafeImage
-                                    item={c.bestItem}
-                                    className="thumb"
-                                    src={getDisplaySrc(c.bestItem)}
-                                    fallbackSrcs={getDisplaySources(c.bestItem)}
-                                    alt={c.bestItem.title || 'Image'}
-                                    onClick={() => openPreviewFor(c.bestItem)}
-                                    onResolved={(url)=>patchItem(c.bestItem.id,{fullUrl:url})}
-                                  />
-                                </div>
-                              ) : (
-                                <span className="smallMuted">—</span>
+                    <>
+                      {allCollectionNames.length > 0 && (
+                        <div className="toolbar collectionFilterToolbar" style={{marginTop:8}}>
+                          <div className="collectionFilterHeader">
+                            <span className="smallMuted">
+                              Collection/group filter (click names to include → exclude → clear; use the arrow to open a group):
+                            </span>
+                            <div className="flexRow" style={{gap:6, flexWrap:'wrap'}}>
+                              {hasCollectionStatsFilters && (
+                                <button
+                                  className="btn sm ghost"
+                                  onClick={()=>setCollectionStatsFilter({include:[],exclude:[],includeGroups:[],excludeGroups:[]})}
+                                >
+                                  Clear filters
+                                </button>
                               )}
-                            </td>
-                            <td>
-                              <button
-                                className="btn sm ghost"
-                                onClick={()=>{
-                                  setActiveCollection(c.name);
-                                  setActiveCollectionType('collection');
-                                  setCollectionTabView('collections');
-                                  setCollectionViewMode('gallery');
-                                  setCollectionPage(1);
-                                }}
-                              >
-                                {c.name}
-                              </button>
-                            </td>
-                            <td>{c.imagesCount}</td>
-                            <td>{c.wins}</td>
-                            <td>{c.losses}</td>
-                            <td>{c.matchups}</td>
-                            <td>{c.pct.toFixed(3)}</td>
-                            <td>{c.points}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                            </div>
+                          </div>
+                          <div className="collectionGroupsGrid">
+                            {collectionGroups.map(group=>{
+                              const visibleMembers = (group.members || []).filter(name=>allCollectionNames.includes(name));
+                              const isIncludeGroup = (collectionStatsFilter.includeGroups || []).includes(group.id);
+                              const isExcludeGroup = (collectionStatsFilter.excludeGroups || []).includes(group.id);
+                              let groupClass = 'ghost';
+                              if(isIncludeGroup) groupClass = 'secondary';
+                              if(isExcludeGroup) groupClass = 'danger';
+                              return (
+                                <div className="collectionGroupCard" key={group.id}>
+                                  <div className="collectionGroupHeader">
+                                    <button
+                                      className={'btn sm '+groupClass+' collectionGroupToggle'}
+                                      onClick={()=>cycleCollectionStatsGroupFilter(group.id)}
+                                    >
+                                      <span>{group.name}</span>
+                                      <span className="smallMuted">({visibleMembers.length})</span>
+                                    </button>
+                                    <button
+                                      className="btn sm ghost collectionGroupCaret"
+                                      aria-label={group.open ? 'Collapse group' : 'Expand group'}
+                                      title={group.open ? 'Collapse group' : 'Expand group'}
+                                      onClick={()=>toggleGroupOpen(group.id)}
+                                    >
+                                      <span aria-hidden="true">{group.open ? '▾' : '▸'}</span>
+                                    </button>
+                                  </div>
+                                  {group.open && (
+                                    <div className="collectionGroupItems">
+                                      {visibleMembers.length>0 ? (
+                                        visibleMembers.map(renderCollectionStatsRow)
+                                      ) : (
+                                        <span className="smallMuted">No collections in this group yet.</span>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                            {ungroupedCollections.length>0 && (
+                              <div className="collectionGroupCard">
+                                <div className="collectionGroupHeader">
+                                  <span className="smallMuted">Ungrouped</span>
+                                  <span className="smallMuted">{ungroupedCollections.length} collections</span>
+                                </div>
+                                <div className="collectionGroupItems">
+                                  {ungroupedCollections.map(renderCollectionStatsRow)}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {filteredCollectionStats.length===0 ? (
+                        <p className="hint">No collections match the current filter.</p>
+                      ) : (
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>#</th>
+                              <th>Preview</th>
+                              <th className="sortable" onClick={()=>changeCollStatsSort('name')}>
+                                Collection{sortIndicator(collStatsSort.field==='name',collStatsSort.dir)}
+                              </th>
+                              <th className="sortable" onClick={()=>changeCollStatsSort('imagesCount')}>
+                                # Images{sortIndicator(collStatsSort.field==='imagesCount',collStatsSort.dir)}
+                              </th>
+                              <th className="sortable" onClick={()=>changeCollStatsSort('wins')}>
+                                W{sortIndicator(collStatsSort.field==='wins',collStatsSort.dir)}
+                              </th>
+                              <th className="sortable" onClick={()=>changeCollStatsSort('losses')}>
+                                L{sortIndicator(collStatsSort.field==='losses',collStatsSort.dir)}
+                              </th>
+                              <th className="sortable" onClick={()=>changeCollStatsSort('matchups')}>
+                                M{sortIndicator(collStatsSort.field==='matchups',collStatsSort.dir)}
+                              </th>
+                              <th className="sortable" onClick={()=>changeCollStatsSort('pct')}>
+                                Win%{sortIndicator(collStatsSort.field==='pct',collStatsSort.dir)}
+                              </th>
+                              <th className="sortable" onClick={()=>changeCollStatsSort('points')}>
+                                Points{sortIndicator(collStatsSort.field==='points',collStatsSort.dir)}
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredCollectionStats.map((c,i)=>(
+                              <tr key={c.name}>
+                                <td>{i+1}</td>
+                                <td>
+                                  {c.bestItem ? (
+                                    <div className="thumbWrap">
+                                      <SafeImage
+                                        item={c.bestItem}
+                                        className="thumb"
+                                        src={getDisplaySrc(c.bestItem)}
+                                        fallbackSrcs={getDisplaySources(c.bestItem)}
+                                        alt={c.bestItem.title || 'Image'}
+                                        onClick={() => openPreviewFor(c.bestItem)}
+                                        onResolved={(url)=>patchItem(c.bestItem.id,{fullUrl:url})}
+                                      />
+                                    </div>
+                                  ) : (
+                                    <span className="smallMuted">—</span>
+                                  )}
+                                </td>
+                                <td>
+                                  <button
+                                    className="btn sm ghost"
+                                    onClick={()=>{
+                                      setActiveCollection(c.name);
+                                      setActiveCollectionType('collection');
+                                      setCollectionTabView('collections');
+                                      setCollectionViewMode('gallery');
+                                      setCollectionPage(1);
+                                    }}
+                                  >
+                                    {c.name}
+                                  </button>
+                                </td>
+                                <td>{c.imagesCount}</td>
+                                <td>{c.wins}</td>
+                                <td>{c.losses}</td>
+                                <td>{c.matchups}</td>
+                                <td>{c.pct.toFixed(3)}</td>
+                                <td>{c.points}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </>
                   )}
                 </>
               ) : (
