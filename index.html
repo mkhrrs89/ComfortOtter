@@ -1274,6 +1274,40 @@ const normalizeGeneratorGroupsInput = normalizeCollectionGroupsInput;
 const mergeGeneratorGroups = mergeCollectionGroups;
 const normalizeGeneratorGroupsForExport = normalizeCollectionGroupsForExport;
 
+const normalizeGeneratorCatalog = (value)=>{
+  return normalizeCollectionMembers(value)
+    .filter(name => name && name.toLowerCase() !== 'unspecified');
+};
+
+const loadGeneratorCatalog = ()=>{
+  if(typeof localStorage==='undefined') return [];
+  try{
+    const raw = localStorage.getItem('generatorCatalog');
+    if(raw){
+      const parsed = JSON.parse(raw);
+      if(parsed && Array.isArray(parsed.names)){
+        return normalizeGeneratorCatalog(parsed.names);
+      }
+    }
+  }catch(err){
+    console.warn('Failed to load generator catalog', err);
+  }
+  return [];
+};
+
+const persistGeneratorCatalog = (names)=>{
+  if(typeof localStorage==='undefined') return;
+  try{
+    localStorage.setItem('generatorCatalog', JSON.stringify({names: normalizeGeneratorCatalog(names)}));
+  }catch(err){
+    console.warn('Failed to persist generator catalog', err);
+  }
+};
+
+const mergeGeneratorCatalog = (current, incoming)=>{
+  return normalizeGeneratorCatalog([...(current || []), ...(incoming || [])]);
+};
+
     const detectViewportMode = () => {
       if (typeof window === 'undefined') return 'desktop';
       const isPortrait = window.matchMedia('(orientation: portrait)').matches;
@@ -1974,6 +2008,7 @@ const SafeImage = ({
         }
         return [];
       });
+      const [customGenerators, setCustomGenerators] = useState(()=>loadGeneratorCatalog());
       const [libraryHydrated, setLibraryHydrated] = useState(false);
       const [statsSort,setStatsSort] = useState({field:'points',dir:'asc'});
       const [statsView,setStatsView] = useState('images');
@@ -2463,7 +2498,8 @@ async function exportLibrary(){
     version: 2,
     type: 'library-full',
     exportedAt: new Date().toISOString(),
-    items: exportItems
+    items: exportItems,
+    generatorCatalog: customGenerators
   };
   const blob = new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const a = document.createElement('a');
@@ -2542,7 +2578,8 @@ return {
     exportedAt: new Date().toISOString(),
     items: metaItems,
     collectionGroups: normalizeCollectionGroupsForExport(collectionGroups, allCollectionNames),
-    generatorGroups: normalizeGeneratorGroupsForExport(generatorGroups, allGeneratorNames)
+    generatorGroups: normalizeGeneratorGroupsForExport(generatorGroups, allGeneratorNames),
+    generatorCatalog: customGenerators
   };
   const blob = new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const a = document.createElement('a');
@@ -2655,6 +2692,7 @@ const isMetadataOnly = fileType === 'metadata-only' || (!fileType && !hasAnyImag
 const isFullExport   = fileType === 'library-full' || (!isMetadataOnly && hasAnyImagePayload);
 const importedGroupDefs = Array.isArray(firstJson.collectionGroups) ? [...firstJson.collectionGroups] : [];
 const importedGeneratorGroupDefs = Array.isArray(firstJson.generatorGroups) ? [...firstJson.generatorGroups] : [];
+const importedGeneratorCatalog = Array.isArray(firstJson.generatorCatalog) ? [...firstJson.generatorCatalog] : [];
 
 
     // ======================================================
@@ -2709,6 +2747,9 @@ const importedGeneratorGroupDefs = Array.isArray(firstJson.generatorGroups) ? [.
         if(!json.items || !Array.isArray(json.items)){
           throw new Error(`Bad file format in ${f.name}`);
         }
+        if(Array.isArray(json.generatorCatalog)){
+          importedGeneratorCatalog.push(...json.generatorCatalog);
+        }
         await importItemsArray(json.items);
       }
 
@@ -2720,6 +2761,11 @@ const importedGeneratorGroupDefs = Array.isArray(firstJson.generatorGroups) ? [.
       }
       if(importedGeneratorGroupDefs.length){
         setGeneratorGroups(mergeGeneratorGroups(importedGeneratorGroupDefs));
+      }
+      if(importedGeneratorCatalog.length){
+        const mergedCatalog = mergeGeneratorCatalog(loadGeneratorCatalog(), importedGeneratorCatalog);
+        persistGeneratorCatalog(mergedCatalog);
+        setCustomGenerators(mergedCatalog);
       }
 
       alert(`Import complete. Added ${totalImported} images.`);
@@ -2750,6 +2796,9 @@ for (let idx = 1; idx < files.length; idx++) {
   }
   if(Array.isArray(json.generatorGroups)){
     importedGeneratorGroupDefs.push(...json.generatorGroups);
+  }
+  if(Array.isArray(json.generatorCatalog)){
+    importedGeneratorCatalog.push(...json.generatorCatalog);
   }
 }
 
@@ -2904,6 +2953,11 @@ for (let idx = 1; idx < files.length; idx++) {
     if(mergedImportedGeneratorGroups.length){
       setGeneratorGroups(mergeGeneratorGroups(mergedImportedGeneratorGroups));
     }
+    if(importedGeneratorCatalog.length){
+      const mergedCatalog = mergeGeneratorCatalog(loadGeneratorCatalog(), importedGeneratorCatalog);
+      persistGeneratorCatalog(mergedCatalog);
+      setCustomGenerators(mergedCatalog);
+    }
 
     alert(`Metadata sync complete. Updated ${totalUpdated} images.`);
   }catch(e){
@@ -2979,13 +3033,13 @@ for (let idx = 1; idx < files.length; idx++) {
         return Array.from(set).sort((a,b)=>a.localeCompare(b));
       },[items]);
       const allGeneratorNames = useMemo(()=>{
-        const set = new Set();
+        const set = new Set(customGenerators);
         for(const it of items){
           const name = (it.generator || '').trim() || 'Unspecified';
           set.add(name);
         }
         return Array.from(set).sort((a,b)=>a.localeCompare(b));
-      },[items]);
+      },[items, customGenerators]);
       const generatorSelectOptions = useMemo(()=>{
         const names = allGeneratorNames.filter(name=>name && name !== 'Unspecified');
         return [
@@ -2993,6 +3047,17 @@ for (let idx = 1; idx < files.length; idx++) {
           ...names.map(name=>({label:name, value:name}))
         ];
       },[allGeneratorNames]);
+
+      useEffect(()=>{
+        if(typeof window==='undefined') return;
+        const handleStorage = (event)=>{
+          if(event.key === 'generatorCatalog'){
+            setCustomGenerators(loadGeneratorCatalog());
+          }
+        };
+        window.addEventListener('storage', handleStorage);
+        return ()=>window.removeEventListener('storage', handleStorage);
+      },[]);
 
       const groupedCollectionNames = useMemo(()=>{
         const set = new Set();
