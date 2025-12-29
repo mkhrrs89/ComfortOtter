@@ -985,8 +985,8 @@ function mapDbRecordToUiItem(v){
     // UI image fields – SMALL ONLY
     thumbnail: thumb,
 
-    // keep raw dataUrl if it still exists (old items / new uploads)
-    dataUrl: v.dataUrl || null
+    // avoid loading full dataUrl into state (saves memory on mobile)
+    dataUrl: null
   };
 }
 
@@ -1982,6 +1982,11 @@ const SafeImage = ({
     rebuildQueue(src, fallbackSrcs, item);
   },[src, fallbackSrcs, item?.id, item?.thumbnail, item?.thumbDataUrl, item?.fullUrl, item?.dataUrl, rebuildQueue]);
 
+  useEffect(()=>{
+    if(currentSrc || !item?.id) return;
+    tryHydrate();
+  },[currentSrc, item?.id, tryHydrate]);
+
   const tryHydrate = useCallback(async ()=>{
     if(!item || !item.id || hydratedRef.current) return null;
     hydratedRef.current = true;
@@ -2597,12 +2602,23 @@ async function exportLibrary(){
     return;
   }
 
+  const fullItems = await Promise.all(exportItems.map(async (it) => {
+    if(!it || !it.id) return it;
+    try{
+      const full = await idbGet(it.id);
+      return full || it;
+    }catch(err){
+      console.warn('Failed to hydrate export item', it.id, err);
+      return it;
+    }
+  }));
+
   // Build and download JSON (full image export)
   const payload = {
     version: 2,
     type: 'library-full',
     exportedAt: new Date().toISOString(),
-    items: exportItems,
+    items: fullItems,
     generatorCatalog: customGenerators
   };
   const blob = new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
@@ -2639,7 +2655,7 @@ async function exportLibrary(){
 
 
 // NEW: export metadata ONLY (no dataUrl) for selected or all images
-function exportMetadata(){
+async function exportMetadata(){
   const exportItems = selectedIds.length
     ? items.filter(it => selectedIds.includes(it.id))
     : items;
@@ -2649,13 +2665,29 @@ function exportMetadata(){
     return;
   }
 
-  const metaItems = exportItems.map(it => {
+  const fullItems = await Promise.all(exportItems.map(async (it) => {
+    if(!it || !it.id) return it;
+    try{
+      const full = await idbGet(it.id);
+      return full || it;
+    }catch(err){
+      console.warn('Failed to hydrate metadata item', it.id, err);
+      return it;
+    }
+  }));
+
+  const metaItems = exportItems.map((it, index) => {
+    const sourceItem = fullItems[index] || it;
     const badges = badgeMap.get(it.id) || {};
     const badgeNames = Object.keys(badges).filter(k => badges[k]);
 
     // fingerprint ties this metadata entry to the actual image pixels
-    const fingerprint = (it.dataUrl && typeof it.dataUrl === 'string')
-      ? it.dataUrl.slice(0, 120)     // short prefix is enough, keeps file small
+    const fingerprintSource =
+      (sourceItem && typeof sourceItem.dataUrl === 'string' && sourceItem.dataUrl) ||
+      sourceItem?.fullUrl ||
+      sourceItem?.thumbnail;
+    const fingerprint = (fingerprintSource && typeof fingerprintSource === 'string')
+      ? fingerprintSource.slice(0, 120)     // short prefix is enough, keeps file small
       : null;
 
 return {
