@@ -4879,6 +4879,7 @@ if (dt && dt.files && dt.files.length) {
                       <div className="matchMetaTitle">Left image</div>
                       <div className="matchMetaStats">
                         {left.title || 'Untitled'}<br/>
+                        Image # {left.id}<br/>
                         W {left.wins} • L {left.losses} • Pts {computePoints(left.wins,left.losses,left.tourneyBonus||0)} • M {matchupsCount(left)}<br/>
                         Collections: {collectionsToString(left.collections)}
                       </div>
@@ -4892,6 +4893,7 @@ if (dt && dt.files && dt.files.length) {
                       <div className="matchMetaTitle">Right image</div>
                       <div className="matchMetaStats">
                         {right.title || 'Untitled'}<br/>
+                        Image # {right.id}<br/>
                         W {right.wins} • L {right.losses} • Pts {computePoints(right.wins,right.losses,right.tourneyBonus||0)} • M {matchupsCount(right)}<br/>
                         Collections: {collectionsToString(right.collections)}
                       </div>
@@ -4944,6 +4946,7 @@ if (dt && dt.files && dt.files.length) {
 <thead>
   <tr>
     <th>#</th>
+    <th>Image #</th>
     <th>Image</th>
     <th className="sortable" onClick={()=>changeStatsSort('title')}>
       Title{sortIndicator(statsSort.field==='title',statsSort.dir)}
@@ -4977,6 +4980,7 @@ if (dt && dt.files && dt.files.length) {
   {statsPageItems.map((x,i)=>(
     <tr key={x.id}>
       <td>{statsStart + i + 1}</td>
+      <td>{x.id}</td>
 <td>
   <div style={{display:'flex',alignItems:'center',gap:4}}>
     <div className="thumbWrap">
@@ -5676,6 +5680,10 @@ if (dt && dt.files && dt.files.length) {
                       value={previewItem.title}
                       onChange={e=>patchItem(previewItem.id,{title:e.target.value})}
                     />
+                  </div>
+                  <div>
+                    <div>Image #</div>
+                    <div className="smallMuted">{previewItem.id}</div>
                   </div>
                   <div>
                     <div>Collections (comma-separated)</div>
