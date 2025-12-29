@@ -714,8 +714,9 @@ const hydratingFullUrls = new Set();
 if(!tourneyState){
   statusEl.textContent = 'No active tournament.';
 
-  hintEl.textContent =
+  const baseHint =
     'Tournament uses up to 256 random images from the selected pool in a single-elimination bracket.';
+  hintEl.textContent = baseHint;
 
   // Build collection counts so we know which pools qualify (>=256 images)
   const collCounts = {};
@@ -769,15 +770,27 @@ if(!tourneyState){
     '<button class="btn" id="tStartBtn">Start new tournament</button>';
 
   const poolSelect = document.getElementById('tPoolSelect');
+  const startBtn = document.getElementById('tStartBtn');
+  const updatePoolSummary = ()=>{
+    const count = applyPoolFilter(items, currentPool || '__ALL__').length;
+    const poolLabel = describePool(currentPool || '__ALL__');
+    hintEl.innerHTML = baseHint + '<br><span class="smallMuted">Selected pool: ' +
+      escapeHtml(poolLabel) + ' (' + count + ' images).</span>';
+    if(startBtn){
+      startBtn.disabled = count < 2;
+      startBtn.title = count < 2 ? 'Select a pool with at least 2 images.' : '';
+    }
+  };
   if(poolSelect){
     poolSelect.addEventListener('change', (e)=>{
       const val = e.target.value || '__ALL__';
       currentPool = val;
+      updatePoolSummary();
     });
   }
 
-  const btn = document.getElementById('tStartBtn');
-  if(btn) addTap(btn, startNewTournament);
+  updatePoolSummary();
+  if(startBtn) addTap(startBtn, startNewTournament);
 
   return;
 }
@@ -1007,6 +1020,10 @@ async function startNewTournament(){
   if(items.length < 2){
     alert('You need at least 2 images to run a tournament.');
     return;
+  }
+  const poolSelect = document.getElementById('tPoolSelect');
+  if(poolSelect){
+    currentPool = poolSelect.value || '__ALL__';
   }
   if(tourneyState && !confirm('Start a new tournament? This will overwrite the current tournament progress.')){
     return;
