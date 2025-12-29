@@ -1476,6 +1476,10 @@ async function dataUrlToThumbDataUrl(src, maxSide = 320, quality = 0.80){
       }
     }
 
+    function generatorNameForMatchup(item){
+      return (item?.generator || '').trim() || 'Unspecified';
+    }
+
     // pickTwo with weight by fewer matchups
     function pickTwoFromPool(pool){
       if(!pool || pool.length<2) return [null,null];
@@ -1501,6 +1505,41 @@ async function dataUrlToThumbDataUrl(src, maxSide = 320, quality = 0.80){
       }
       const id1 = draw();
       const id2 = draw(id1);
+      return [id1,id2];
+    }
+
+    function pickTwoFromPoolDifferentGenerators(pool){
+      if(!pool || pool.length<2) return [null,null];
+      const totals = pool.map(matchupsCount);
+      const minT = Math.min(...totals);
+      const weights = totals.map(t=>1/((t-minT)+1));
+      const generatorById = new Map(pool.map(item=>[item.id, generatorNameForMatchup(item)]));
+      function draw(excludeId, excludeGenerator){
+        let totalW = 0;
+        for(let i=0;i<pool.length;i++){
+          if(pool[i].id===excludeId) continue;
+          if(excludeGenerator && generatorById.get(pool[i].id)===excludeGenerator) continue;
+          totalW += weights[i];
+        }
+        if(totalW<=0) return null;
+        let r = Math.random()*totalW;
+        for(let i=0;i<pool.length;i++){
+          if(pool[i].id===excludeId) continue;
+          if(excludeGenerator && generatorById.get(pool[i].id)===excludeGenerator) continue;
+          r -= weights[i];
+          if(r<=0) return pool[i].id;
+        }
+        for(let i=0;i<pool.length;i++){
+          if(pool[i].id===excludeId) continue;
+          if(excludeGenerator && generatorById.get(pool[i].id)===excludeGenerator) continue;
+          return pool[i].id;
+        }
+        return null;
+      }
+      const id1 = draw();
+      if(!id1) return [null,null];
+      const id2 = draw(id1, generatorById.get(id1));
+      if(!id2) return [null,null];
       return [id1,id2];
     }
 
@@ -2064,7 +2103,7 @@ const SafeImage = ({
       const [genStatsSort,setGenStatsSort] = useState({field:'pct',dir:'desc'});
       const [collStatsSort,setCollStatsSort] = useState({field:'pct',dir:'desc'});
       const [collectionSort, setCollectionSort] = useState({field:'points', dir:'asc'});
-      const [matchMode,setMatchMode] = useState({type:'all', collection:null, generator:null}); // all | bottom | collection | generator
+      const [matchMode,setMatchMode] = useState({type:'all', collection:null, generator:null}); // all | bottom | collection | generator | generated
       const [selectedIds,setSelectedIds] = useState([]); // for gallery batch + export
       const [batchOpen,setBatchOpen] = useState(false);
       const [batchCollectionsText,setBatchCollectionsText] = useState('');
@@ -2324,7 +2363,11 @@ useEffect(()=>{
         const next = items.filter(it=>it.id!==id);
         setItems(next);
         const pool = getMatchPool(next,matchMode);
-        const [a,b] = pickTwoFromPool(pool);
+        const [a,b] = (matchMode.type === 'allFlat')
+          ? pickTwoFromPoolFlat(pool)
+          : matchMode.type === 'generated'
+            ? pickTwoFromPoolDifferentGenerators(pool)
+            : pickTwoFromPool(pool);
         setMatchIds([a,b]);
         if(previewId===id) setPreviewId(null);
         setSelectedIds(prev=>prev.filter(x=>x!==id));
@@ -2425,12 +2468,14 @@ function getMatchPool(all,mode){
 
 
 function rerollMatch(poolOverride){
-        const pool = poolOverride || getMatchPool(items,matchMode);
-        const [a,b] = (matchMode.type === 'allFlat')
-          ? pickTwoFromPoolFlat(pool)
+      const pool = poolOverride || getMatchPool(items,matchMode);
+      const [a,b] = (matchMode.type === 'allFlat')
+        ? pickTwoFromPoolFlat(pool)
+        : matchMode.type === 'generated'
+          ? pickTwoFromPoolDifferentGenerators(pool)
           : pickTwoFromPool(pool);
-        setMatchIds([a,b]);
-      }
+      setMatchIds([a,b]);
+    }
 
 
 // file handling
@@ -3041,7 +3086,9 @@ for (let idx = 1; idx < files.length; idx++) {
         const pool = getMatchPool(next,matchMode);
         const [a,b] = (matchMode.type === 'allFlat')
           ? pickTwoFromPoolFlat(pool)
-          : pickTwoFromPool(pool);
+          : matchMode.type === 'generated'
+            ? pickTwoFromPoolDifferentGenerators(pool)
+            : pickTwoFromPool(pool);
         setMatchIds([a,b]);
 
       }
@@ -4059,6 +4106,7 @@ function labelForMatchMode(){
   if(matchMode.type==='topWinPct50') return 'Top 50% by win%';
   if(matchMode.type==='bottomWinPct10') return 'Bottom 10% by win%';
   if(matchMode.type==='freshLeaf') return 'Fresh images (leaf icon)';
+  if(matchMode.type==='generated') return 'Generated matchup (different generators)';
   if(matchMode.type==='collection' && matchMode.collection){
     return `Collection: ${matchMode.collection}`;
   }
@@ -4761,6 +4809,7 @@ if (dt && dt.files && dt.files.length) {
     const simpleModes = [
       'all',
       'allFlat',
+      'generated',
       'bottom',
       'bottom25',
       'bottom10',
@@ -4777,7 +4826,9 @@ if (dt && dt.files && dt.files.length) {
       const pool = getMatchPool(items,next);
       const [a,b] = (v === 'allFlat')
         ? pickTwoFromPoolFlat(pool)
-        : pickTwoFromPool(pool);
+        : v === 'generated'
+          ? pickTwoFromPoolDifferentGenerators(pool)
+          : pickTwoFromPool(pool);
       setMatchIds([a,b]);
     }else if(v.startsWith('collection:')){
       const name = v.slice('collection:'.length);
@@ -4800,6 +4851,7 @@ if (dt && dt.files && dt.files.length) {
 
 <option value="all">All images</option>
 <option value="allFlat">All images (equal chance)</option>
+<option value="generated">Generated matchups (different generators)</option>
 
 <option value="bottom">Bottom 50% by matchups</option>
 <option value="bottom25">Bottom 25% by matchups</option>
@@ -4847,7 +4899,11 @@ if (dt && dt.files && dt.files.length) {
               </div>
 
               {(!left || !right) ? (
-                <p className="hint">You need at least two images in the current pool to run matchups.</p>
+                <p className="hint">
+                  {matchMode.type==='generated'
+                    ? 'You need at least two generators with images in the current pool to run generated matchups.'
+                    : 'You need at least two images in the current pool to run matchups.'}
+                </p>
               ) : (
                 <>
 <div className="arena">
