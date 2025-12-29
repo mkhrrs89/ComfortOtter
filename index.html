@@ -963,6 +963,7 @@ function mapDbRecordToUiItem(v){
 
     // core metadata
     title: v.title || '',
+    imageNumber: Number.isFinite(Number(v.imageNumber)) ? Number(v.imageNumber) : null,
     generator: v.generator || '',
     collections: Array.isArray(v.collections)
       ? v.collections
@@ -1333,12 +1334,60 @@ const mergeGeneratorCatalog = (current, incoming)=>{
       return 4;
     };
 
-    const collectionsToString = arr => (arr && arr.length ? arr.join(', ') : '');
+const collectionsToString = arr => (arr && arr.length ? arr.join(', ') : '');
     const nowStamp = ()=>{
       const d = new Date();
       const pad = n => String(n).padStart(2,'0');
       return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     };
+
+const TITLE_MAX_LENGTH = 25;
+
+const trimTitle = (value) => {
+  if (typeof value !== 'string') return '';
+  return value.length > TITLE_MAX_LENGTH ? value.slice(0, TITLE_MAX_LENGTH) : value;
+};
+
+const getAddedAtTime = (value) => {
+  const parsed = new Date(value || 0).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const assignImageNumbersByAddedAt = (itemsList) => {
+  const sorted = [...itemsList].sort((a, b) => {
+    const ta = getAddedAtTime(a.addedAt);
+    const tb = getAddedAtTime(b.addedAt);
+    if (ta !== tb) return ta - tb;
+    return String(a.id || '').localeCompare(String(b.id || ''));
+  });
+  const numberMap = new Map();
+  let expected = 1;
+  for (const it of sorted) {
+    numberMap.set(it.id, expected);
+    expected += 1;
+  }
+  let changed = false;
+  const updated = itemsList.map(it => {
+    const nextNumber = numberMap.get(it.id);
+    if (it.imageNumber === nextNumber) return it;
+    changed = true;
+    return {
+      ...it,
+      imageNumber: nextNumber
+    };
+  });
+  return { updated, changed };
+};
+
+const getNextImageNumber = (itemsList) => {
+  let max = 0;
+  for (const it of itemsList) {
+    if (Number.isFinite(it.imageNumber) && it.imageNumber > max) {
+      max = it.imageNumber;
+    }
+  }
+  return max + 1;
+};
 
 function formatAddedAt(ts){
   if(!ts) return '';
@@ -2133,10 +2182,14 @@ useEffect(()=>{
       tourneyCount: Number(it.tourneyCount || 0),
       addedAt: it.addedAt || nowStamp(),
       hasBeenExported: !!it.hasBeenExported,
-      lastExportedAt: it.lastExportedAt || null
+      lastExportedAt: it.lastExportedAt || null,
+      imageNumber: Number.isFinite(it.imageNumber) ? it.imageNumber : null
     }));
-
-    setItems(norm);
+    const { updated, changed } = assignImageNumbersByAddedAt(norm);
+    if (changed) {
+      await idbBulkPut(updated);
+    }
+    setItems(updated);
     if (norm.length >= 2){
       const [a,b] = pickTwoFromPool(norm);
       setMatchIds([a,b]);
@@ -2249,9 +2302,15 @@ useEffect(()=>{
         });
       }
       async function addNewItems(newItems){
-        const merged = [...items,...newItems];
+        const nextNumber = getNextImageNumber(items);
+        const numberedItems = newItems.map((item, index) => ({
+          ...item,
+          title: trimTitle(item.title || ''),
+          imageNumber: nextNumber + index
+        }));
+        const merged = [...items, ...numberedItems];
         setItems(merged);
-        await idbBulkPut(newItems);
+        await idbBulkPut(numberedItems);
         if(merged.length>=2 && (!matchIds[0]||!matchIds[1])){
           const [a,b] = pickTwoFromPool(merged);
           setMatchIds([a,b]);
@@ -2393,7 +2452,7 @@ async function handleFiles(fileList, forcedCollections = null, forcedGenerator =
 
     processed.push({
       id,
-      title: file.name.replace(/\.[^.]+$/,''),
+      title: trimTitle(file.name.replace(/\.[^.]+$/,'')),
       generator: forcedGenerator || '',
       collections: forcedCollections || [],
       wins: 0,
@@ -2557,6 +2616,7 @@ function exportMetadata(){
 return {
   id: it.id,
   title: it.title || '',
+  imageNumber: it.imageNumber || null,
   generator: it.generator || '',
   collections: it.collections || [],
   wins: it.wins || 0,
@@ -2700,6 +2760,7 @@ const importedGeneratorCatalog = Array.isArray(firstJson.generatorCatalog) ? [..
     // ======================================================
     if(isFullExport){
       let totalImported = 0;
+      let nextImageNumber = getNextImageNumber(items);
 
       // Helper to normalize + write one items array to DB in chunks
       async function importItemsArray(itemsArr){
@@ -2708,6 +2769,8 @@ const importedGeneratorCatalog = Array.isArray(firstJson.generatorCatalog) ? [..
         const cleaned = itemsArr.map(it => ({
           ...it,
           id: it.id || crypto.randomUUID(),
+          title: trimTitle(typeof it.title === 'string' ? it.title : ''),
+          imageNumber: nextImageNumber++,
 
           // unify / normalize thumbnail field
           thumbnail: it.thumbnail || it.thumbDataUrl || null,
