@@ -945,9 +945,13 @@
 // 1. Fetch a SINGLE full item (High Res) from DB (you already have this)
 async function idbGet(id){
   const db = await openDB();
-  return db.transaction(DB_STORE,'readonly')
-           .objectStore(DB_STORE)
-           .get(id);
+  return new Promise((res,rej)=>{
+    const tx = db.transaction(DB_STORE,'readonly');
+    const st = tx.objectStore(DB_STORE);
+    const req = st.get(id);
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
 }
 
 // Turn a full DB record into a lightweight UI item
