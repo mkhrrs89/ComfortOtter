@@ -184,10 +184,12 @@ async function loadAll(){
 }
 
 // ----- Helpers shared with main app -----
-const normalizeCollections = (str)=>{
-  if(!str) return [];
+const normalizeCollectionName = (value)=>String(value || '').trim().toLowerCase();
+const normalizeCollections = (value)=>{
+  if(!value) return [];
+  const parts = Array.isArray(value) ? value : String(value).split(',');
   return Array.from(new Set(
-    String(str).split(',').map(s=>s.trim())
+    parts.map(normalizeCollectionName).filter(Boolean)
   ));
 };
 const collectionsToString = arr => (arr && arr.length ? arr.join(', ') : '');
