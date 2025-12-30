@@ -981,9 +981,7 @@ function mapDbRecordToUiItem(v){
     title: v.title || '',
     imageNumber: Number.isFinite(Number(v.imageNumber)) ? Number(v.imageNumber) : null,
     generator: v.generator || '',
-    collections: Array.isArray(v.collections)
-      ? v.collections
-      : normalizeCollections(v.collections || v.collectionsRaw || ''),
+    collections: normalizeCollections(v.collections || v.collectionsRaw || ''),
 
     wins: Number(v.wins || 0),
     losses: Number(v.losses || 0),
@@ -1160,9 +1158,7 @@ async function generateMissingThumbnails(){
       // normalize / enforce fields
       title: it.title || '',
       generator: it.generator || '',
-      collections: Array.isArray(it.collections)
-        ? it.collections
-        : normalizeCollections(it.collections || it.collectionsRaw || ''),
+      collections: normalizeCollections(it.collections || it.collectionsRaw || ''),
       wins: Number(it.wins || 0),
       losses: Number(it.losses || 0),
       tourneyBonus: Number(it.tourneyBonus || 0),
@@ -1222,13 +1218,17 @@ async function generateMissingThumbnails(){
       return pts;
     };
 
-const normalizeCollections = (str)=>{
-  if(!str) return [];
+const normalizeCollectionName = (value)=>String(value || '').trim().toLowerCase();
+
+const normalizeCollections = (value)=>{
+  if(!value) return [];
   // Allow trailing commas/empties so typing commas in the input feels natural;
   // empty names are ignored elsewhere in the app.
+  const parts = Array.isArray(value) ? value : String(value).split(',');
   return Array.from(new Set(
-    String(str).split(',')
-      .map(s=>s.trim())
+    parts
+      .map(normalizeCollectionName)
+      .filter(Boolean)
   ));
 };
 
@@ -1236,7 +1236,7 @@ const normalizeCollectionMembers = (value)=>{
   if(Array.isArray(value)){
     return Array.from(new Set(
       value
-        .map(v=>String(v||'').trim())
+        .map(normalizeCollectionName)
         .filter(Boolean)
         .sort((a,b)=>a.localeCompare(b))
     ));
@@ -2230,23 +2230,29 @@ useEffect(()=>{
       all = await idbGetAll();              // only as a fallback
     }
 
-    const norm = all.map(it => ({
-      ...it,
-      // (normalization fields, but DON'T re-add full dataUrl here)
-      collections: Array.isArray(it.collections)
-        ? it.collections
-        : normalizeCollections(it.collections || ''),
-      wins: Number(it.wins || 0),
-      losses: Number(it.losses || 0),
-      tourneyBonus: Number(it.tourneyBonus || 0),
-      tourneyCount: Number(it.tourneyCount || 0),
-      addedAt: it.addedAt || nowStamp(),
-      hasBeenExported: !!it.hasBeenExported,
-      lastExportedAt: it.lastExportedAt || null,
-      imageNumber: Number.isFinite(it.imageNumber) ? it.imageNumber : null
-    }));
+    let collectionsUpdated = false;
+    const norm = all.map(it => {
+      const normalizedCollections = normalizeCollections(it.collections || it.collectionsRaw || '');
+      const collectionsChanged = !Array.isArray(it.collections)
+        || it.collections.length !== normalizedCollections.length
+        || it.collections.some((c,idx)=>c !== normalizedCollections[idx]);
+      if(collectionsChanged) collectionsUpdated = true;
+      return {
+        ...it,
+        // (normalization fields, but DON'T re-add full dataUrl here)
+        collections: normalizedCollections,
+        wins: Number(it.wins || 0),
+        losses: Number(it.losses || 0),
+        tourneyBonus: Number(it.tourneyBonus || 0),
+        tourneyCount: Number(it.tourneyCount || 0),
+        addedAt: it.addedAt || nowStamp(),
+        hasBeenExported: !!it.hasBeenExported,
+        lastExportedAt: it.lastExportedAt || null,
+        imageNumber: Number.isFinite(it.imageNumber) ? it.imageNumber : null
+      };
+    });
     const { updated, changed } = assignImageNumbersByAddedAt(norm);
-    if (changed) {
+    if (changed || collectionsUpdated) {
       await idbBulkPut(updated);
     }
     setItems(updated);
@@ -2787,9 +2793,7 @@ async function generateMissingThumbnails(){
       ...it,
       title: it.title || '',
       generator: it.generator || '',
-      collections: Array.isArray(it.collections)
-        ? it.collections
-        : normalizeCollections(it.collections || it.collectionsRaw || ''),
+      collections: normalizeCollections(it.collections || it.collectionsRaw || ''),
       wins: Number(it.wins || 0),
       losses: Number(it.losses || 0),
       tourneyBonus: Number(it.tourneyBonus || 0),
@@ -2868,9 +2872,7 @@ const importedGeneratorCatalog = Array.isArray(firstJson.generatorCatalog) ? [..
           // unify / normalize thumbnail field
           thumbnail: it.thumbnail || it.thumbDataUrl || null,
 
-          collections: Array.isArray(it.collections)
-            ? it.collections
-            : normalizeCollections(it.collections || ''),
+          collections: normalizeCollections(it.collections || ''),
 
           wins: Number(it.wins || 0),
           losses: Number(it.losses || 0),
@@ -3022,11 +3024,9 @@ for (let idx = 1; idx < files.length; idx++) {
             ? incoming.generator
             : (existing.generator || ''),
 
-          collections: Array.isArray(incoming.collections)
-            ? incoming.collections
-            : (incoming.collections != null
-                ? normalizeCollections(incoming.collections)
-                : (existing.collections || [])),
+          collections: incoming.collections != null
+            ? normalizeCollections(incoming.collections)
+            : normalizeCollections(existing.collections || []),
 
           wins: incoming.wins != null
             ? Number(incoming.wins)
@@ -3078,11 +3078,9 @@ for (let idx = 1; idx < files.length; idx++) {
             ? incoming.generator
             : (existing.generator || ''),
 
-          collections: Array.isArray(incoming.collections)
-            ? incoming.collections
-            : (incoming.collections != null
-                ? normalizeCollections(incoming.collections)
-                : (existing.collections || [])),
+          collections: incoming.collections != null
+            ? normalizeCollections(incoming.collections)
+            : normalizeCollections(existing.collections || []),
 
           wins: incoming.wins != null
             ? Number(incoming.wins)
