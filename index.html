@@ -894,6 +894,22 @@
         cur.onerror = () => rej(cur.error);
       });
     }
+    function mergeLargeFields(existing, incoming){
+      if (!existing) return incoming;
+      if (!incoming) return existing;
+
+      const merged = { ...existing, ...incoming };
+      const preserveFields = ['dataUrl', 'thumbnail', 'thumbDataUrl', 'fullUrl'];
+
+      for (const field of preserveFields) {
+        if (incoming[field] == null && existing[field] != null) {
+          merged[field] = existing[field];
+        }
+      }
+
+      return merged;
+    }
+
     async function idbBulkPut(items){
       let db;
       try{
@@ -910,6 +926,33 @@
         tx.onerror = () => rej(tx.error);
       });
     }
+    async function idbBulkPutMerged(items){
+      let db;
+      try{
+        db = await openDB();
+      }catch(err){
+        console.warn('IndexedDB unavailable, cannot persist items.', err);
+        return;
+      }
+      return new Promise((res,rej)=>{
+        const tx = db.transaction(DB_STORE,'readwrite');
+        const st = tx.objectStore(DB_STORE);
+        for (const item of items) {
+          if (!item || !item.id) continue;
+          const getReq = st.get(item.id);
+          getReq.onsuccess = () => {
+            const merged = mergeLargeFields(getReq.result, item);
+            st.put(merged);
+          };
+          getReq.onerror = () => {
+            st.put(item);
+          };
+        }
+        tx.oncomplete = () => res();
+        tx.onerror = () => rej(tx.error);
+      });
+    }
+
     async function idbPut(item){
       let db;
       try{
@@ -922,10 +965,38 @@
         const tx = db.transaction(DB_STORE,'readwrite');
         tx.objectStore(DB_STORE).put(item);
         tx.oncomplete = () => {
-        res();
-        if (window.saveItemToCloud) window.saveItemToCloud(item);
-      };
-      tx.onerror = () => rej(tx.error);
+          res();
+          if (window.saveItemToCloud) window.saveItemToCloud(item);
+        };
+        tx.onerror = () => rej(tx.error);
+      });
+    }
+
+    async function idbPutMerged(item){
+      let db;
+      try{
+        db = await openDB();
+      }catch(err){
+        console.warn('IndexedDB unavailable, cannot persist item.', err);
+        return;
+      }
+      if (!item || !item.id) return;
+      return new Promise((res,rej)=>{
+        const tx = db.transaction(DB_STORE,'readwrite');
+        const st = tx.objectStore(DB_STORE);
+        const getReq = st.get(item.id);
+        getReq.onsuccess = () => {
+          const merged = mergeLargeFields(getReq.result, item);
+          st.put(merged);
+        };
+        getReq.onerror = () => {
+          st.put(item);
+        };
+        tx.oncomplete = () => {
+          res();
+          if (window.saveItemToCloud) window.saveItemToCloud(item);
+        };
+        tx.onerror = () => rej(tx.error);
       });
     }
     async function idbDelete(id){
@@ -2324,9 +2395,9 @@ useEffect(()=>{
       };
     });
     const { updated, changed } = assignImageNumbersByAddedAt(norm);
-    if (changed || collectionsUpdated) {
-      await idbBulkPut(updated);
-    }
+      if (changed || collectionsUpdated) {
+        await idbBulkPutMerged(updated);
+      }
     setItems(updated);
     if (norm.length >= 2){
       const [a,b] = pickTwoFromPool(norm);
@@ -2425,15 +2496,14 @@ useEffect(()=>{
       // helpers to persist + update
       async function replaceAllItems(next){
         setItems(next);
-        await idbClear();
-        await idbBulkPut(next);
+        await idbBulkPutMerged(next);
       }
       async function patchItem(id,patch){
         setItems(prev=>{
           const next = prev.map(it=>{
             if(it.id!==id) return it;
             const updated = {...it,...patch};
-            idbPut(updated);
+            idbPutMerged(updated);
             return updated;
           });
           return next;
