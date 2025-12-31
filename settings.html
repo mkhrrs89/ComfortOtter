@@ -52,6 +52,11 @@
       color:var(--muted);
       font-size:13px;
     }
+    .syncStatus{
+      color:var(--muted);
+      font-size:13px;
+      min-height:18px;
+    }
   </style>
 </head>
 <body>
@@ -88,6 +93,16 @@
       <a class="btn" href="generator-settings.html">Generator Catalog</a>
       <a class="btn" href="migrate.html">Firebase Migrations</a>
       <a class="btn" href="thumb-maintenance.html">Thumb Maintenance</a>
+    </section>
+    <section class="card" style="display:flex;flex-direction:column;gap:12px;">
+      <div>
+        <h2 style="margin:0 0 6px;">Download from Firebase</h2>
+        <div class="subhead">
+          Pull every image stored in Firebase down to this device. This can take a while and use significant disk space.
+        </div>
+      </div>
+      <button class="btn danger" id="firebaseDownloadBtn" type="button">Download images from Firebase</button>
+      <div class="syncStatus" id="firebaseDownloadStatus"></div>
     </section>
     <section class="card generatorPanel">
       <div>
@@ -209,6 +224,254 @@
     });
 
     render();
+  </script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getStorage, ref, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBOVGz7QH_iPtxoM25baGqTIR-2yxUQwH8",
+      authDomain: "comforting-otter.firebaseapp.com",
+      projectId: "comforting-otter",
+      storageBucket: "comforting-otter.firebasestorage.app",
+      messagingSenderId: "1074346290690",
+      appId: "1:1074346290690:web:bd2721e73fbdf029e7411b",
+      measurementId: "G-2JT31JFGNJ"
+    };
+
+    const app     = initializeApp(firebaseConfig);
+    const auth    = getAuth(app);
+    const db      = getFirestore(app);
+    const storage = getStorage(app);
+
+    const DB_NAME  = "modelMatchupDB";
+    const DB_STORE = "items";
+
+    const downloadButton = document.getElementById('firebaseDownloadBtn');
+    const statusEl = document.getElementById('firebaseDownloadStatus');
+
+    const normalizeCollectionName = (value)=>String(value || '').trim().toLowerCase();
+    const normalizeCollections = (value)=>{
+      if(!value) return [];
+      const parts = Array.isArray(value) ? value : String(value).split(',');
+      return Array.from(new Set(
+        parts
+          .map(normalizeCollectionName)
+          .filter(Boolean)
+      ));
+    };
+
+    const CANVAS_FORMAT = (() => {
+      try {
+        const c = document.createElement('canvas');
+        if (c.toDataURL) {
+          const av = c.toDataURL('image/avif');
+          if (av && av.startsWith('data:image/avif')) return 'image/avif';
+          const wp = c.toDataURL('image/webp');
+          if (wp && wp.startsWith('data:image/webp')) return 'image/webp';
+        }
+      } catch (e) {}
+      return 'image/jpeg';
+    })();
+
+    function fitWithin(sw,sh,maxSide){
+      const s = Math.min(maxSide/sw, maxSide/sh, 1);
+      return { w:Math.round(sw*s), h:Math.round(sh*s) };
+    }
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains(DB_STORE)) {
+            db.createObjectStore(DB_STORE, { keyPath: "id" });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror   = () => reject(req.error);
+      });
+    }
+
+    async function idbGet(id){
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(DB_STORE, "readonly");
+        const store = tx.objectStore(DB_STORE);
+        const req = store.get(id);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function idbPut(item){
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(DB_STORE, "readwrite");
+        tx.objectStore(DB_STORE).put(item);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function fetchAsDataUrl(url){
+      const res = await fetch(url);
+      if (!res.ok) {
+        throw new Error(`Failed to fetch image (${res.status})`);
+      }
+      const blob = await res.blob();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    async function dataUrlToThumbDataUrl(src, maxSide = 480, quality = 0.7){
+      const dataUrl = await new Promise((resolve, reject)=>{
+        const img = new Image();
+        img.onload = ()=> resolve(img);
+        img.onerror = reject;
+        img.src = src;
+      }).then(img=>{
+        const {w,h} = fitWithin(img.naturalWidth,img.naturalHeight,maxSide);
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img,0,0,w,h);
+        return c.toDataURL(CANVAS_FORMAT, quality);
+      });
+      return dataUrl;
+    }
+
+    function setStatus(text){
+      statusEl.textContent = text;
+    }
+
+    async function downloadFromFirebase(){
+      const ok = confirm(
+        "This will download every image stored in Firebase to this device.\n\n" +
+        "It may take a while and use significant disk space.\n\n" +
+        "Continue?"
+      );
+      if (!ok) return;
+
+      downloadButton.disabled = true;
+      setStatus('Signing into Firebase...');
+
+      try {
+        await signInAnonymously(auth);
+      } catch (err) {
+        console.warn('Anonymous sign-in failed or already active.', err);
+      }
+
+      let docs = [];
+      try {
+        setStatus('Fetching cloud metadata...');
+        const snapshot = await getDocs(collection(db, "images"));
+        docs = snapshot.docs || [];
+      } catch (err) {
+        console.error('Failed to read Firestore metadata', err);
+        setStatus('Failed to read Firestore metadata. See console for details.');
+        downloadButton.disabled = false;
+        return;
+      }
+
+      if (!docs.length) {
+        setStatus('No cloud images found.');
+        downloadButton.disabled = false;
+        return;
+      }
+
+      let downloaded = 0;
+      let skipped = 0;
+      let failed = 0;
+      let processed = 0;
+
+      for (const docSnap of docs) {
+        const id = docSnap.id;
+        const data = docSnap.data() || {};
+        processed += 1;
+        setStatus(`Processing ${processed} of ${docs.length}...`);
+
+        try {
+          const existing = await idbGet(id);
+          const fullUrlFromCloud = data.fullUrl || null;
+          let fullUrl = fullUrlFromCloud || (existing && existing.fullUrl) || null;
+          if (!fullUrl) {
+            try {
+              fullUrl = await getDownloadURL(ref(storage, `images/${id}.jpg`));
+            } catch (err) {
+              console.warn('Missing fullUrl for', id, err);
+            }
+          }
+
+          let dataUrl = existing && existing.dataUrl ? existing.dataUrl : null;
+          let thumbnail = (existing && (existing.thumbnail || existing.thumbDataUrl)) || null;
+
+          if (!dataUrl && fullUrl) {
+            dataUrl = await fetchAsDataUrl(fullUrl);
+          }
+
+          if (!thumbnail && dataUrl) {
+            thumbnail = await dataUrlToThumbDataUrl(dataUrl, 480, 0.7);
+          }
+
+          const merged = {
+            ...(existing || {}),
+            ...data,
+            id,
+            title: data.title || (existing && existing.title) || '',
+            imageNumber: Number.isFinite(Number(data.imageNumber))
+              ? Number(data.imageNumber)
+              : Number.isFinite(Number(existing && existing.imageNumber))
+                ? Number(existing.imageNumber)
+                : null,
+            generator: data.generator || (existing && existing.generator) || '',
+            collections: normalizeCollections(data.collections || data.collectionsRaw || (existing && existing.collections) || ''),
+            wins: Number(data.wins || (existing && existing.wins) || 0),
+            losses: Number(data.losses || (existing && existing.losses) || 0),
+            tourneyBonus: Number(data.tourneyBonus || (existing && existing.tourneyBonus) || 0),
+            tourneyCount: Number(data.tourneyCount || (existing && existing.tourneyCount) || 0),
+            addedAt: data.addedAt || (existing && existing.addedAt) || new Date().toISOString(),
+            hasBeenExported: data.hasBeenExported === undefined
+              ? !!(existing && existing.hasBeenExported)
+              : !!data.hasBeenExported,
+            lastExportedAt: data.lastExportedAt || (existing && existing.lastExportedAt) || null,
+            fullUrl: fullUrl || null,
+            dataUrl: dataUrl || null,
+            thumbnail: thumbnail || null,
+            thumbDataUrl: thumbnail || null,
+            updatedAt: data.updatedAt || (existing && existing.updatedAt) || new Date().toISOString()
+          };
+
+          if (existing && existing.dataUrl && existing.thumbnail) {
+            skipped += 1;
+          } else {
+            downloaded += 1;
+          }
+
+          await idbPut(merged);
+          await new Promise(r => setTimeout(r, 0));
+        } catch (err) {
+          failed += 1;
+          console.error('Failed to download image', id, err);
+        }
+      }
+
+      setStatus(`Done. Downloaded ${downloaded}, skipped ${skipped}, failed ${failed}.`);
+      downloadButton.disabled = false;
+    }
+
+    downloadButton.addEventListener('click', () => {
+      if (!downloadButton.disabled) {
+        downloadFromFirebase();
+      }
+    });
   </script>
 </body>
 </html>
