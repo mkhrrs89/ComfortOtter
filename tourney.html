@@ -552,6 +552,8 @@ function buildTopPoolOptions(allItems){
 function describePool(value){
   if(!value || value === '__ALL__') return 'All images';
   if(value === '__RECENT_256__') return 'Most recent 256';
+  if(value === '__NEVER_TOURNEY__') return 'Never in a tournament';
+  if(value === '__FEWEST_TOURNEYS__') return 'Fewest tournaments';
   const topMatch = /^__TOP_(POINTS|WINS)_(\d+)__$/i.exec(value);
   if(topMatch){
     const metric = topMatch[1].toLowerCase() === 'wins' ? 'wins' : 'points';
@@ -570,6 +572,16 @@ function applyPoolFilter(allItems, poolValue){
       return tb - ta;
     });
     return sorted.slice(0, 256);
+  }
+
+  if(poolValue === '__NEVER_TOURNEY__'){
+    return allItems.filter(it => Number(it.tourneyCount || 0) === 0);
+  }
+
+  if(poolValue === '__FEWEST_TOURNEYS__'){
+    const minCount = allItems.reduce((min, it)=> Math.min(min, Number(it.tourneyCount || 0)), Infinity);
+    if(!Number.isFinite(minCount)) return [];
+    return allItems.filter(it => Number(it.tourneyCount || 0) === minCount);
   }
 
   // Top X% pools
@@ -734,6 +746,11 @@ if(!tourneyState){
     .sort((a,b) => a[0].localeCompare(b[0]));
 
   const topPools = buildTopPoolOptions(items);
+  const neverTourneyCount = items.filter(it => Number(it.tourneyCount || 0) === 0).length;
+  const minTourneyCount = items.reduce((min, it)=> Math.min(min, Number(it.tourneyCount || 0)), Infinity);
+  const fewestTourneyCount = Number.isFinite(minTourneyCount)
+    ? items.filter(it => Number(it.tourneyCount || 0) === minTourneyCount).length
+    : 0;
 
   // Build the dropdown + button (layout B: Pool [select]   Start button)
   let poolSelectHtml = '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">';
@@ -745,6 +762,11 @@ if(!tourneyState){
 
   const recentCount = Math.min(256, items.length);
   poolSelectHtml += '<option value="__RECENT_256__"'+(currentPool==='__RECENT_256__'?' selected':'')+'>Most recent 256 ('+recentCount+')</option>';
+
+  poolSelectHtml += '<optgroup label="Tournament history">';
+  poolSelectHtml += '<option value="__NEVER_TOURNEY__"'+(currentPool==='__NEVER_TOURNEY__'?' selected':'')+'>Never in a tournament ('+neverTourneyCount+')</option>';
+  poolSelectHtml += '<option value="__FEWEST_TOURNEYS__"'+(currentPool==='__FEWEST_TOURNEYS__'?' selected':'')+'>Fewest tournaments (min '+(Number.isFinite(minTourneyCount) ? minTourneyCount : 0)+', '+fewestTourneyCount+')</option>';
+  poolSelectHtml += '</optgroup>';
 
   if(topPools.length){
     poolSelectHtml += '<optgroup label="Top performers">';
