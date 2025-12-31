@@ -849,7 +849,18 @@
     const DB_NAME = 'modelMatchupDB';
     const DB_STORE = 'items';
 
+    const canUseIndexedDB = () => {
+      try{
+        return typeof indexedDB !== 'undefined';
+      }catch(err){
+        return false;
+      }
+    };
+
     function openDB(){
+      if(!canUseIndexedDB()){
+        return Promise.reject(new Error('IndexedDB unavailable'));
+      }
       return new Promise((resolve,reject)=>{
         const req = indexedDB.open(DB_NAME,1);
         req.onupgradeneeded = () => {
@@ -863,7 +874,13 @@
       });
     }
     async function idbGetAll(){
-      const db = await openDB();
+      let db;
+      try{
+        db = await openDB();
+      }catch(err){
+        console.warn('IndexedDB unavailable, running without local storage.', err);
+        return [];
+      }
       return new Promise((res,rej)=>{
         const tx = db.transaction(DB_STORE,'readonly');
         const st = tx.objectStore(DB_STORE);
@@ -878,7 +895,13 @@
       });
     }
     async function idbBulkPut(items){
-      const db = await openDB();
+      let db;
+      try{
+        db = await openDB();
+      }catch(err){
+        console.warn('IndexedDB unavailable, cannot persist items.', err);
+        return;
+      }
       return new Promise((res,rej)=>{
         const tx = db.transaction(DB_STORE,'readwrite');
         const st = tx.objectStore(DB_STORE);
@@ -888,7 +911,13 @@
       });
     }
     async function idbPut(item){
-      const db = await openDB();
+      let db;
+      try{
+        db = await openDB();
+      }catch(err){
+        console.warn('IndexedDB unavailable, cannot persist item.', err);
+        return;
+      }
       return new Promise((res,rej)=>{
         const tx = db.transaction(DB_STORE,'readwrite');
         tx.objectStore(DB_STORE).put(item);
@@ -900,7 +929,13 @@
       });
     }
     async function idbDelete(id){
-      const db = await openDB();
+      let db;
+      try{
+        db = await openDB();
+      }catch(err){
+        console.warn('IndexedDB unavailable, cannot delete item.', err);
+        return;
+      }
       return new Promise((res,rej)=>{
         const tx = db.transaction(DB_STORE,'readwrite');
         tx.objectStore(DB_STORE).delete(id);
@@ -909,7 +944,13 @@
       });
     }
     async function idbClear(){
-      const db = await openDB();
+      let db;
+      try{
+        db = await openDB();
+      }catch(err){
+        console.warn('IndexedDB unavailable, cannot clear items.', err);
+        return;
+      }
       return new Promise((res,rej)=>{
         const tx = db.transaction(DB_STORE,'readwrite');
         tx.objectStore(DB_STORE).clear();
@@ -922,7 +963,13 @@
     // Low-memory way to get a map of ID -> Fingerprint
 
     async function getSmartLookupMap(){
-      const db = await openDB();
+      let db;
+      try{
+        db = await openDB();
+      }catch(err){
+        console.warn('IndexedDB unavailable, cannot build lookup map.', err);
+        return { byId: new Map(), byFingerprint: new Map() };
+      }
       return new Promise((res,rej)=>{
         const tx = db.transaction(DB_STORE,'readonly');
         const st = tx.objectStore(DB_STORE);
@@ -956,7 +1003,13 @@
 
 // 1. Fetch a SINGLE full item (High Res) from DB (you already have this)
 async function idbGet(id){
-  const db = await openDB();
+  let db;
+  try{
+    db = await openDB();
+  }catch(err){
+    console.warn('IndexedDB unavailable, cannot read item.', err);
+    return null;
+  }
   return new Promise((res,rej)=>{
     const tx = db.transaction(DB_STORE,'readonly');
     const st = tx.objectStore(DB_STORE);
@@ -1007,7 +1060,13 @@ function mapDbRecordToUiItem(v){
 
 // Load Library WITHOUT massive DataURLs (memory-safe)
 async function loadOptimizedLibrary(){
-  const db = await openDB();
+  let db;
+  try{
+    db = await openDB();
+  }catch(err){
+    console.warn('IndexedDB unavailable, skipping library load.', err);
+    return [];
+  }
 
   return new Promise((resolve) => {
     const items = [];
@@ -1039,7 +1098,13 @@ async function loadOptimizedLibrary(){
 
 // 3. Batched Thumbnail Generator (memory-friendly, extra defensive)
 async function generateMissingThumbnails_Safe(updateStatusCallback){
-  const db = await openDB();
+  let db;
+  try{
+    db = await openDB();
+  }catch(err){
+    console.warn('IndexedDB unavailable, skipping thumbnail generation.', err);
+    return 0;
+  }
 
   // 1) Grab all keys
   let keys = [];
@@ -1251,7 +1316,7 @@ const normalizeCollectionGroupsInput = (groups)=>{
   if(!Array.isArray(groups)) return [];
   return groups.map((g,idx)=>{
     const members = normalizeCollectionMembers(g && g.members);
-    const id = (g && g.id) || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + idx));
+    const id = (g && g.id) || createId();
     const nameRaw = g && g.name ? String(g.name).trim() : '';
     const name = nameRaw || 'Group';
     const open = g && g.open === false ? false : true;
@@ -1362,6 +1427,13 @@ const TITLE_MAX_LENGTH = 25;
 const trimTitle = (value) => {
   if (typeof value !== 'string') return '';
   return value.length > TITLE_MAX_LENGTH ? value.slice(0, TITLE_MAX_LENGTH) : value;
+};
+
+const createId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
 const getAddedAtTime = (value) => {
@@ -2514,7 +2586,7 @@ async function handleFiles(fileList, forcedCollections = null, forcedGenerator =
   const processed = [];
 
   for (const file of arr){
-    const id = crypto.randomUUID();
+    const id = createId();
 
     // Full-size compressed image (same as before, max ~1200px)
     const dataUrl = await fileToCompressedDataUrl(file, 1200);
@@ -2865,7 +2937,7 @@ const importedGeneratorCatalog = Array.isArray(firstJson.generatorCatalog) ? [..
 
         const cleaned = itemsArr.map(it => ({
           ...it,
-          id: it.id || crypto.randomUUID(),
+          id: it.id || createId(),
           title: trimTitle(typeof it.title === 'string' ? it.title : ''),
           imageNumber: nextImageNumber++,
 
@@ -2988,7 +3060,14 @@ for (let idx = 1; idx < files.length; idx++) {
     }
 
     // ---- 2. Apply updates to IndexedDB in small batches ----
-    const db = await openDB();
+    let db;
+    try{
+      db = await openDB();
+    }catch(err){
+      console.warn('IndexedDB unavailable, cannot update metadata.', err);
+      alert('IndexedDB is unavailable in this browser, so metadata updates cannot be applied.');
+      return;
+    }
     const BATCH_SIZE = 20;
     let totalUpdated = 0;
 
@@ -3370,7 +3449,7 @@ for (let idx = 1; idx < files.length; idx++) {
             return prev;
           }
           return [...prev,{
-            id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+            id: createId(),
             name: clean,
             members: [],
             open: true
@@ -3506,7 +3585,7 @@ for (let idx = 1; idx < files.length; idx++) {
             return prev;
           }
           return [...prev,{
-            id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+            id: createId(),
             name: clean,
             members: [],
             open: true
