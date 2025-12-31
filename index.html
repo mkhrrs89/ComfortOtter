@@ -2235,6 +2235,7 @@ const SafeImage = ({
       const [libraryCollectionFilter,setLibraryCollectionFilter] = useState({include:[],exclude:[],includeGroups:[],excludeGroups:[],mode:'all'});
       const [libraryGeneratorFilter,setLibraryGeneratorFilter] = useState({include:[],exclude:[],includeGroups:[],excludeGroups:[],mode:'all'});
       const [collectionStatsFilter,setCollectionStatsFilter] = useState({include:[],exclude:[],includeGroups:[],excludeGroups:[]});
+      const [statsCollectionFilter,setStatsCollectionFilter] = useState({include:[],exclude:[],includeGroups:[],excludeGroups:[],mode:'all'});
       const [libraryCollectionEdits, setLibraryCollectionEdits] = useState({});
       const [collectionGroups, setCollectionGroups] = useState(()=>{
         if(typeof localStorage==='undefined') return [];
@@ -3650,6 +3651,56 @@ for (let idx = 1; idx < files.length; idx++) {
         });
       }
 
+      function cycleStatsCollectionFilter(name){
+        setStatsCollectionFilter(prev=>{
+          const inc = new Set(prev.include || []);
+          const exc = new Set(prev.exclude || []);
+          const includeGroups = prev.includeGroups || [];
+          const excludeGroups = prev.excludeGroups || [];
+          const mode = prev.mode || 'all';
+          if(!inc.has(name) && !exc.has(name)){
+            inc.add(name);
+          }else if(inc.has(name)){
+            inc.delete(name);
+            exc.add(name);
+          }else if(exc.has(name)){
+            exc.delete(name);
+          }
+          return {
+            include: [...inc],
+            exclude: [...exc],
+            includeGroups: [...includeGroups],
+            excludeGroups: [...excludeGroups],
+            mode
+          };
+        });
+      }
+
+      function cycleStatsCollectionGroupFilter(groupId){
+        setStatsCollectionFilter(prev=>{
+          const inc = new Set(prev.includeGroups || []);
+          const exc = new Set(prev.excludeGroups || []);
+          const include = prev.include || [];
+          const exclude = prev.exclude || [];
+          const mode = prev.mode || 'all';
+          if(!inc.has(groupId) && !exc.has(groupId)){
+            inc.add(groupId);
+          }else if(inc.has(groupId)){
+            inc.delete(groupId);
+            exc.add(groupId);
+          }else if(exc.has(groupId)){
+            exc.delete(groupId);
+          }
+          return {
+            include,
+            exclude,
+            includeGroups: [...inc],
+            excludeGroups: [...exc],
+            mode
+          };
+        });
+      }
+
       function createGeneratorGroup(){
         const name = prompt('Name for the new generator group?');
         if(!name) return;
@@ -3783,6 +3834,38 @@ for (let idx = 1; idx < files.length; idx++) {
             <button
               className={'btn sm '+cls}
               onClick={()=>{ cycleCollectionStatsFilter(name); }}
+            >
+              {name}
+            </button>
+            {collectionGroups.length>0 && (
+              <select
+                className="select sm collectionGroupSelect"
+                value={collectionGroupLookup[name] || ''}
+                onChange={e=>moveCollectionToGroup(name, e.target.value || null)}
+              >
+                <option value="">Ungrouped</option>
+                {collectionGroups.map(g=>(
+                  <option key={g.id} value={g.id}>
+                    {collectionGroupLookup[name]===g.id ? `In ${g.name}` : `Move to ${g.name}`}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        );
+      };
+
+      const renderStatsCollectionRow = (name) => {
+        const isInclude = statsCollectionFilter.include.includes(name);
+        const isExclude = statsCollectionFilter.exclude.includes(name);
+        let cls = 'ghost';
+        if(isInclude) cls = 'secondary';
+        if(isExclude) cls = 'danger';
+        return (
+          <div key={name} className="collectionGroupRow">
+            <button
+              className={'btn sm '+cls}
+              onClick={()=>{ cycleStatsCollectionFilter(name); }}
             >
               {name}
             </button>
@@ -4054,16 +4137,52 @@ for (let idx = 1; idx < files.length; idx++) {
       const hasGeneratorFilters = activeGeneratorIncludeFilters + (libraryGeneratorFilter.exclude?.length || 0) + (libraryGeneratorFilter.excludeGroups?.length || 0) > 0;
       const activeCollectionStatsFilters = (collectionStatsFilter.include?.length || 0) + (collectionStatsFilter.includeGroups?.length || 0);
       const hasCollectionStatsFilters = activeCollectionStatsFilters + (collectionStatsFilter.exclude?.length || 0) + (collectionStatsFilter.excludeGroups?.length || 0) > 0;
+      const activeStatsCollectionIncludeFilters = (statsCollectionFilter.include?.length || 0) + (statsCollectionFilter.includeGroups?.length || 0);
+      const hasStatsCollectionFilters = activeStatsCollectionIncludeFilters + (statsCollectionFilter.exclude?.length || 0) + (statsCollectionFilter.excludeGroups?.length || 0) > 0;
 
 // stats rows (with win% tie-breaker by wins then matchups)
 const statsRows = useMemo(()=>{
-  const rows = items.map(it=>({
+  let rows = items.map(it=>({
     ...it,
     matchups: matchupsCount(it),
     pct: pct(it.wins,it.losses),
     points: computePoints(it.wins,it.losses,it.tourneyBonus||0),
     tourneyCount: Number(it.tourneyCount || 0)    // 👈 NEW
   }));
+  const include = statsCollectionFilter.include || [];
+  const exclude = statsCollectionFilter.exclude || [];
+  const includeGroups = statsCollectionFilter.includeGroups || [];
+  const excludeGroups = statsCollectionFilter.excludeGroups || [];
+  const includeMode = statsCollectionFilter.mode || 'all';
+  const includePredicates = [
+    ...include.map(name => (cols)=>cols.includes(name)),
+    ...includeGroups.map(id => {
+      const members = collectionGroupMembersMap[id] || [];
+      return (cols)=>members.some(name=>cols.includes(name));
+    })
+  ];
+  if(includePredicates.length){
+    rows = rows.filter(it=>{
+      const cols = it.collections || [];
+      if(includeMode==='any'){
+        return includePredicates.some(fn=>fn(cols));
+      }
+      return includePredicates.every(fn=>fn(cols));
+    });
+  }
+  const excludePredicates = [
+    ...exclude.map(name => (cols)=>cols.includes(name)),
+    ...excludeGroups.map(id => {
+      const members = collectionGroupMembersMap[id] || [];
+      return (cols)=>members.some(name=>cols.includes(name));
+    })
+  ];
+  if(excludePredicates.length){
+    rows = rows.filter(it=>{
+      const cols = it.collections || [];
+      return !excludePredicates.some(fn=>fn(cols));
+    });
+  }
   rows.sort((a,b)=>{
     const dir = statsSort.dir==='asc' ? 1 : -1;
     const f = statsSort.field;
@@ -4090,7 +4209,7 @@ const statsRows = useMemo(()=>{
     return 0;
   });
   return rows.reverse();
-},[items,statsSort]);
+},[items,statsSort,statsCollectionFilter,collectionGroupMembersMap]);
 
 
       // pagination: stats
@@ -5203,6 +5322,96 @@ if (dt && dt.files && dt.files.length) {
                 </div>
                 {statsView==='images' ? (
                   <>
+                    {allCollectionNames.length > 0 && (
+                      <div className="toolbar collectionFilterToolbar" style={{marginTop:8}}>
+                        <div className="collectionFilterHeader">
+                          <span className="smallMuted">
+                            Collection/group filter (click names to include → exclude → clear; use the arrow to open a group):
+                          </span>
+                          <div className="flexRow" style={{gap:6, flexWrap:'wrap'}}>
+                            <button className="btn sm ghost" onClick={createCollectionGroup}>
+                              Create group
+                            </button>
+                            {hasStatsCollectionFilters && (
+                              <button
+                                className="btn sm ghost"
+                                onClick={()=>setStatsCollectionFilter({include:[],exclude:[],includeGroups:[],excludeGroups:[],mode:'all'})}
+                              >
+                                Clear filters
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {activeStatsCollectionIncludeFilters > 1 && (
+                          <div className="flexRow" style={{gap:6, alignItems:'center', flexWrap:'wrap'}}>
+                            <span className="smallMuted">Include logic:</span>
+                            <button
+                              className={'btn sm '+((statsCollectionFilter.mode||'all')==='all' ? 'secondary' : 'ghost')}
+                              onClick={()=>setStatsCollectionFilter(prev=>({...prev,mode:'all'}))}
+                            >
+                              Match all selected
+                            </button>
+                            <button
+                              className={'btn sm '+((statsCollectionFilter.mode||'all')==='any' ? 'secondary' : 'ghost')}
+                              onClick={()=>setStatsCollectionFilter(prev=>({...prev,mode:'any'}))}
+                            >
+                              Match any selected
+                            </button>
+                          </div>
+                        )}
+                        <div className="collectionGroupsGrid">
+                          {collectionGroups.map(group=>{
+                            const visibleMembers = (group.members || []).filter(name=>allCollectionNames.includes(name));
+                            const isIncludeGroup = (statsCollectionFilter.includeGroups || []).includes(group.id);
+                            const isExcludeGroup = (statsCollectionFilter.excludeGroups || []).includes(group.id);
+                            let groupClass = 'ghost';
+                            if(isIncludeGroup) groupClass = 'secondary';
+                            if(isExcludeGroup) groupClass = 'danger';
+                            return (
+                              <div className="collectionGroupCard" key={group.id}>
+                                <div className="collectionGroupHeader">
+                                  <button
+                                    className={'btn sm '+groupClass+' collectionGroupToggle'}
+                                    onClick={()=>cycleStatsCollectionGroupFilter(group.id)}
+                                  >
+                                    <span>{group.name}</span>
+                                    <span className="smallMuted">({visibleMembers.length})</span>
+                                  </button>
+                                  <button
+                                    className="btn sm ghost collectionGroupCaret"
+                                    aria-label={group.open ? 'Collapse group' : 'Expand group'}
+                                    title={group.open ? 'Collapse group' : 'Expand group'}
+                                    onClick={()=>toggleGroupOpen(group.id)}
+                                  >
+                                    <span aria-hidden="true">{group.open ? '▾' : '▸'}</span>
+                                  </button>
+                                </div>
+                                {group.open && (
+                                  <div className="collectionGroupItems">
+                                    {visibleMembers.length>0 ? (
+                                      visibleMembers.map(renderStatsCollectionRow)
+                                    ) : (
+                                      <span className="smallMuted">No collections in this group yet.</span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {ungroupedCollections.length>0 && (
+                            <div className="collectionGroupCard">
+                              <div className="collectionGroupHeader">
+                                <span className="smallMuted">Ungrouped</span>
+                                <span className="smallMuted">{ungroupedCollections.length} collections</span>
+                              </div>
+                              <div className="collectionGroupItems">
+                                {ungroupedCollections.map(renderStatsCollectionRow)}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                 <table>
 <thead>
   <tr>
