@@ -2099,9 +2099,7 @@ function getMatchupSources(item){
   if(!item) return [];
   return dedupeSources([
     item.fullUrl,
-    item.dataUrl,
-    item.thumbnail,
-    item.thumbDataUrl
+    item.dataUrl
   ]);
 }
 // Pick the best image source for matchups / small thumbs
@@ -2130,7 +2128,9 @@ const SafeImage = ({
   style = {},
   item = null,
   onClick,
-  onResolved
+  onResolved,
+  preferRemote = false,
+  eagerHydrate = false
 }) => {
   const queueRef = useRef([]);
   const hydratedRef = useRef(false);
@@ -2152,17 +2152,28 @@ const SafeImage = ({
     tryHydrate();
   },[currentSrc, item?.id, tryHydrate]);
 
+  useEffect(()=>{
+    if(!eagerHydrate || !item?.id) return;
+    tryHydrate();
+  },[eagerHydrate, item?.id, tryHydrate]);
+
   const tryHydrate = useCallback(async ()=>{
     if(!item || !item.id || hydratedRef.current) return null;
     hydratedRef.current = true;
     try{
       const full = await idbGet(item.id);
       const remote = window.fetchFullImageUrl ? await window.fetchFullImageUrl(item.id) : null;
-      const merged = dedupeSources([
-        ...queueRef.current,
-        ...getDisplaySources(full),
-        remote
-      ]);
+      const merged = preferRemote
+        ? dedupeSources([
+            remote,
+            ...queueRef.current,
+            ...getDisplaySources(full)
+          ])
+        : dedupeSources([
+            ...queueRef.current,
+            ...getDisplaySources(full),
+            remote
+          ]);
       queueRef.current = merged;
       if(remote && onResolved){
         onResolved(remote);
@@ -2176,7 +2187,7 @@ const SafeImage = ({
       console.warn('SafeImage hydration failed', err);
     }
     return null;
-  },[item, currentSrc, onResolved]);
+  },[item, currentSrc, onResolved, preferRemote]);
 
   const handleError = useCallback(async ()=>{
     const next = queueRef.current.find(url => url && url !== currentSrc);
@@ -5233,6 +5244,8 @@ if (dt && dt.files && dt.files.length) {
       src={leftSources[0]}
       fallbackSrcs={leftSources}
       alt="left"
+      preferRemote={true}
+      eagerHydrate={true}
       onResolved={(url)=>patchItem(left.id,{fullUrl:url})}
     />
     {renderBadges(left.id,'badgeRow-top-right')}
@@ -5244,6 +5257,8 @@ if (dt && dt.files && dt.files.length) {
       src={rightSources[0]}
       fallbackSrcs={rightSources}
       alt="right"
+      preferRemote={true}
+      eagerHydrate={true}
       onResolved={(url)=>patchItem(right.id,{fullUrl:url})}
     />
     {renderBadges(right.id,'badgeRow-top-right')}
