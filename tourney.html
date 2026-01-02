@@ -552,6 +552,7 @@ function describePool(value){
   if(value === '__RECENT_256__') return 'Most recent 256';
   if(value === '__NEVER_TOURNEY__') return 'Never in a tournament';
   if(value === '__FEWEST_TOURNEYS__') return 'Fewest tournaments';
+  if(value === '__TOP_WINPCT_25_BOTTOM_MATCHUPS_50__') return 'Top 25% win% & bottom 50% matchups';
   const topMatch = /^__TOP_(POINTS|WINS)_(\d+)__$/i.exec(value);
   if(topMatch){
     const metric = topMatch[1].toLowerCase() === 'wins' ? 'wins' : 'points';
@@ -580,6 +581,16 @@ function applyPoolFilter(allItems, poolValue){
     const minCount = allItems.reduce((min, it)=> Math.min(min, Number(it.tourneyCount || 0)), Infinity);
     if(!Number.isFinite(minCount)) return [];
     return allItems.filter(it => Number(it.tourneyCount || 0) === minCount);
+  }
+
+  if(poolValue === '__TOP_WINPCT_25_BOTTOM_MATCHUPS_50__'){
+    const winPctSorted = allItems.slice().sort((a,b)=> pct(b.wins, b.losses) - pct(a.wins, a.losses));
+    const topCount = Math.max(1, Math.floor(winPctSorted.length * 0.25));
+    const topIds = new Set(winPctSorted.slice(0, topCount).map(it => it.id));
+    const matchupsSorted = allItems.slice().sort((a,b)=> matchupsCount(a) - matchupsCount(b));
+    const bottomCount = Math.max(1, Math.floor(matchupsSorted.length * 0.5));
+    const bottomIds = new Set(matchupsSorted.slice(0, bottomCount).map(it => it.id));
+    return allItems.filter(it => topIds.has(it.id) && bottomIds.has(it.id));
   }
 
   // Top X% pools
@@ -744,6 +755,8 @@ if(!tourneyState){
     .sort((a,b) => a[0].localeCompare(b[0]));
 
   const topPools = buildTopPoolOptions(items);
+  const specialPoolValue = '__TOP_WINPCT_25_BOTTOM_MATCHUPS_50__';
+  const specialPoolCount = applyPoolFilter(items, specialPoolValue).length;
   const neverTourneyCount = items.filter(it => Number(it.tourneyCount || 0) === 0).length;
   const minTourneyCount = items.reduce((min, it)=> Math.min(min, Number(it.tourneyCount || 0)), Infinity);
   const fewestTourneyCount = Number.isFinite(minTourneyCount)
@@ -774,6 +787,10 @@ if(!tourneyState){
     }
     poolSelectHtml += '</optgroup>';
   }
+
+  poolSelectHtml += '<optgroup label="Targeted pools">';
+  poolSelectHtml += '<option value="'+specialPoolValue+'"'+(currentPool===specialPoolValue?' selected':'')+'>Top 25% win% &amp; bottom 50% matchups ('+specialPoolCount+')</option>';
+  poolSelectHtml += '</optgroup>';
 
   // One option per eligible collection
   for(const [name,count] of eligibleCollections){
