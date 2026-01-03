@@ -371,6 +371,8 @@ function getDisplaySrc(item){
   return (
     item.fullUrl ||
     item.dataUrl ||
+    item.thumbnail ||
+    item.thumbDataUrl ||
     ""
   );
 }
@@ -876,7 +878,7 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
           matchEl.innerHTML =
             '<div class="champCard">' +
 '<div class="champImgWrap">' +
-  '<img src="'+(champ.fullUrl || champ.dataUrl || '')+'" alt="Champion" />' +
+  '<img src="'+getDisplaySrc(champ)+'" alt="Champion" />' +
 '</div>' +
 
               '<div>' +
@@ -942,13 +944,13 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
 '<div class="arena">' +
   '<button class="imageCardBtn" id="tLeftImgBtn">' +
     '<div class="imageCard">' +
-      '<img src="'+(left.fullUrl || left.dataUrl || '')+'" alt="Left" />' +
+      '<img src="'+getDisplaySrc(left)+'" alt="Left" />' +
     '</div>' +
   '</button>' +
   '<div class="vs">VS</div>' +
   '<button class="imageCardBtn" id="tRightImgBtn">' +
     '<div class="imageCard">' +
-      '<img src="'+(right.fullUrl || right.dataUrl || '')+'" alt="Right" />' +
+      '<img src="'+getDisplaySrc(right)+'" alt="Right" />' +
     '</div>' +
   '</button>' +
 '</div>' +
