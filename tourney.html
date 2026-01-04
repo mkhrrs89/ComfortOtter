@@ -366,15 +366,35 @@
 
   <script>
 
+function isNonEmptySrc(src){
+  return typeof src === 'string' && src.trim().length > 0;
+}
+
+function dedupeSources(list){
+  const seen = new Set();
+  const clean = [];
+  for(const src of list){
+    if(!isNonEmptySrc(src)) continue;
+    if(seen.has(src)) continue;
+    seen.add(src);
+    clean.push(src);
+  }
+  return clean;
+}
+
+function getDisplaySources(item){
+  if (!item) return [];
+  return dedupeSources([
+    item.fullUrl,
+    item.dataUrl,
+    item.thumbnail,
+    item.thumbDataUrl
+  ]);
+}
+
 function getDisplaySrc(item){
-  if (!item) return "";
-  return (
-    item.fullUrl ||
-    item.dataUrl ||
-    item.thumbnail ||
-    item.thumbDataUrl ||
-    ""
-  );
+  const sources = getDisplaySources(item);
+  return sources[0] || "";
 }
 
 function isHttpUrl(str){
@@ -386,6 +406,35 @@ function preloadImage(src){
   if (!src) return;
   const img = new Image();
   img.src = src;
+}
+
+function serializeSources(sources){
+  return sources.map(src => encodeURIComponent(src)).join('|');
+}
+
+function parseSources(serialized){
+  if(!serialized) return [];
+  return serialized.split('|').map(part => decodeURIComponent(part)).filter(Boolean);
+}
+
+function advanceImageFallback(imgEl){
+  if(!imgEl) return;
+  const sources = parseSources(imgEl.dataset.srcs || '');
+  const currentIndex = Number(imgEl.dataset.srcIndex || 0);
+  const nextIndex = currentIndex + 1;
+  if(nextIndex >= sources.length) return;
+  imgEl.dataset.srcIndex = String(nextIndex);
+  imgEl.src = sources[nextIndex];
+}
+
+function attachImageFallbacks(rootEl){
+  if(!rootEl) return;
+  const imgs = rootEl.querySelectorAll('img[data-srcs]');
+  imgs.forEach(img => {
+    if(img.dataset.fallbackBound) return;
+    img.dataset.fallbackBound = 'true';
+    img.addEventListener('error', () => advanceImageFallback(img));
+  });
 }
 
 
@@ -878,7 +927,7 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
           matchEl.innerHTML =
             '<div class="champCard">' +
 '<div class="champImgWrap">' +
-  '<img src="'+getDisplaySrc(champ)+'" alt="Champion" />' +
+  '<img src="'+getDisplaySrc(champ)+'" data-srcs="'+escapeHtml(serializeSources(getDisplaySources(champ)))+'" data-src-index="0" alt="Champion" />' +
 '</div>' +
 
               '<div>' +
@@ -890,6 +939,7 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
                 '<div class="champMetaLine">Started: '+formatDate(s.createdAt)+'</div>' +
               '</div>' +
             '</div>';
+          attachImageFallbacks(matchEl);
         }
 
         renderBracket();
@@ -944,13 +994,13 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
 '<div class="arena">' +
   '<button class="imageCardBtn" id="tLeftImgBtn">' +
     '<div class="imageCard">' +
-      '<img src="'+getDisplaySrc(left)+'" alt="Left" />' +
+      '<img src="'+getDisplaySrc(left)+'" data-srcs="'+escapeHtml(serializeSources(getDisplaySources(left)))+'" data-src-index="0" alt="Left" />' +
     '</div>' +
   '</button>' +
   '<div class="vs">VS</div>' +
   '<button class="imageCardBtn" id="tRightImgBtn">' +
     '<div class="imageCard">' +
-      '<img src="'+getDisplaySrc(right)+'" alt="Right" />' +
+      '<img src="'+getDisplaySrc(right)+'" data-srcs="'+escapeHtml(serializeSources(getDisplaySources(right)))+'" data-src-index="0" alt="Right" />' +
     '</div>' +
   '</button>' +
 '</div>' +
@@ -976,6 +1026,7 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
           '<button class="btn sm" id="tLeftWinBtn">Left wins</button>' +
           '<button class="btn sm" id="tRightWinBtn">Right wins</button>' +
         '</div>';
+      attachImageFallbacks(matchEl);
 
       const leftImgBtn = document.getElementById('tLeftImgBtn');
       const rightImgBtn = document.getElementById('tRightImgBtn');
