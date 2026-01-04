@@ -386,6 +386,8 @@ function getDisplaySources(item){
   if (!item) return [];
   return dedupeSources([
     item.fullUrl,
+    item.thumbnail,
+    item.thumbDataUrl,
     item.dataUrl
   ]);
 }
