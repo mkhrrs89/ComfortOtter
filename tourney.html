@@ -705,6 +705,15 @@ let tourneyState = null;
 let isProcessing = false;
 let currentPool = '__ALL__'; // "__ALL__" means use all images
 const hydratingFullUrls = new Set();
+const DISPLAY_TITLE_MAX_LENGTH = 20;
+
+function formatDisplayTitle(value){
+  const text = typeof value === 'string' ? value : '';
+  if(!text) return '';
+  return text.length > DISPLAY_TITLE_MAX_LENGTH
+    ? `${text.slice(0, DISPLAY_TITLE_MAX_LENGTH)}…`
+    : text;
+}
 
     function roundLabel(size){
       if(size === 2) return 'Championship';
@@ -727,7 +736,7 @@ const hydratingFullUrls = new Set();
     function shortLabelForId(id){
       const it = itemsById.get(id);
       if(!it) return '(deleted)';
-      if(it.title) return it.title;
+      if(it.title) return formatDisplayTitle(it.title);
       return id.slice(0,8);
     }
 
@@ -930,7 +939,7 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
 
               '<div>' +
                 '<div class="champMetaTitle">🏆 Tournament Champion</div>' +
-                '<div class="champMetaLine">'+(champ.title || 'Untitled image')+'</div>' +
+                '<div class="champMetaLine">'+(formatDisplayTitle(champ.title) || 'Untitled image')+'</div>' +
                 '<div class="champMetaLine">W '+champ.wins+' • L '+champ.losses+' • M '+m+'</div>' +
                 '<div class="champMetaLine">Win% '+winPct.toFixed(3)+' • Points '+pts+'</div>' +
                 '<div class="champMetaLine">Tournament bonus: '+(champ.tourneyBonus||0)+'</div>' +
@@ -1007,7 +1016,7 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
           '<div class="matchMetaBox">' +
             '<div class="matchMetaTitle">Left image</div>' +
             '<div class="matchMetaStats">' +
-              (left.title || 'Untitled') + '<br/>' +
+              (formatDisplayTitle(left.title) || 'Untitled') + '<br/>' +
               'W '+left.wins+' • L '+left.losses+' • Pts '+leftPts+' • M '+matchupsCount(left) +
             '</div>' +
           '</div>' +
@@ -1015,7 +1024,7 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
           '<div class="matchMetaBox">' +
             '<div class="matchMetaTitle">Right image</div>' +
             '<div class="matchMetaStats">' +
-              (right.title || 'Untitled') + '<br/>' +
+              (formatDisplayTitle(right.title) || 'Untitled') + '<br/>' +
               'W '+right.wins+' • L '+right.losses+' • Pts '+rightPts+' • M '+matchupsCount(right) +
             '</div>' +
           '</div>' +

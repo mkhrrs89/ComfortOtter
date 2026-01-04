@@ -1500,10 +1500,19 @@ const collectionsToString = arr => (arr && arr.length ? arr.join(', ') : '');
     };
 
 const TITLE_MAX_LENGTH = 25;
+const DISPLAY_TITLE_MAX_LENGTH = 20;
 
 const trimTitle = (value) => {
   if (typeof value !== 'string') return '';
   return value.length > TITLE_MAX_LENGTH ? value.slice(0, TITLE_MAX_LENGTH) : value;
+};
+
+const formatDisplayTitle = (value) => {
+  const text = typeof value === 'string' ? value : '';
+  if (!text) return '';
+  return text.length > DISPLAY_TITLE_MAX_LENGTH
+    ? `${text.slice(0, DISPLAY_TITLE_MAX_LENGTH)}…`
+    : text;
 };
 
 const createId = () => {
@@ -1978,7 +1987,7 @@ const MatchCard = ({ item, onClick, result }) => {
         )}
       </div>
       <div className="match-info">
-        <div className="match-title">{item.title}</div>
+        <div className="match-title">{formatDisplayTitle(item.title) || 'Untitled'}</div>
         <div className="match-stats">
           Wins: {item.wins} | Losses: {item.losses}
         </div>
