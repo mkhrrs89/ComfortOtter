@@ -151,6 +151,16 @@
       background:#000;
       display:block;
     }
+    .imageCard.imageFailed{
+      border-style:dashed;
+      border-color:rgba(255,255,255,0.2);
+    }
+    .imageFailureMsg{
+      color:var(--muted);
+      font-size:12px;
+      padding:16px;
+      text-align:center;
+    }
     .vs{
       font-weight:700;
       opacity:0.8;
@@ -386,9 +396,9 @@ function getDisplaySources(item){
   if (!item) return [];
   return dedupeSources([
     item.fullUrl,
-    item.thumbnail,
+    item.dataUrl,
     item.thumbDataUrl,
-    item.dataUrl
+    item.thumbnail
   ]);
 }
 
@@ -422,9 +432,23 @@ function advanceImageFallback(imgEl){
   const sources = parseSources(imgEl.dataset.srcs || '');
   const currentIndex = Number(imgEl.dataset.srcIndex || 0);
   const nextIndex = currentIndex + 1;
-  if(nextIndex >= sources.length) return;
+  if(nextIndex >= sources.length) return false;
   imgEl.dataset.srcIndex = String(nextIndex);
   imgEl.src = sources[nextIndex];
+  return true;
+}
+
+function showImageFailure(imgEl, reason){
+  if(!imgEl || imgEl.dataset.failureShown) return;
+  imgEl.dataset.failureShown = 'true';
+  const wrapper = imgEl.closest('.imageCard') || imgEl.parentElement;
+  if(!wrapper) return;
+  wrapper.classList.add('imageFailed');
+  const msg = document.createElement('div');
+  msg.className = 'imageFailureMsg';
+  msg.textContent = reason;
+  wrapper.appendChild(msg);
+  imgEl.style.display = 'none';
 }
 
 function attachImageFallbacks(rootEl){
@@ -433,7 +457,17 @@ function attachImageFallbacks(rootEl){
   imgs.forEach(img => {
     if(img.dataset.fallbackBound) return;
     img.dataset.fallbackBound = 'true';
-    img.addEventListener('error', () => advanceImageFallback(img));
+    const sources = parseSources(img.dataset.srcs || '');
+    if(!sources.length){
+      showImageFailure(img, 'Image unavailable: no source URL found.');
+      return;
+    }
+    img.addEventListener('error', () => {
+      const advanced = advanceImageFallback(img);
+      if(!advanced){
+        showImageFailure(img, 'Image unavailable: all available sources failed to load.');
+      }
+    });
   });
 }
 
