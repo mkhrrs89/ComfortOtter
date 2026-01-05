@@ -1359,6 +1359,9 @@ async function generateMissingThumbnails(){
       if(W>0 && L===0) pts += 5;
       return pts;
     };
+    const tourneyWinsFromBonus = (tourneyBonus=0)=>{
+      return Math.max(0, Math.floor((tourneyBonus || 0) / 5));
+    };
 
 const normalizeCollectionName = (value)=>String(value || '').trim().toLowerCase();
 
@@ -3948,11 +3951,13 @@ for (let idx = 1; idx < files.length; idx++) {
           const cols = it.collections || [];
           for(const name of cols){
             if(!name) continue;
-            const cur = map.get(name) || {name,wins:0,losses:0,bonus:0,images:new Set(),bestItem:null,bestItemPoints:-Infinity};
+            const cur = map.get(name) || {name,wins:0,losses:0,bonus:0,tourneyCount:0,tourneyWins:0,images:new Set(),bestItem:null,bestItemPoints:-Infinity};
             const itemPoints = computePoints(it.wins,it.losses,it.tourneyBonus||0);
             cur.wins += it.wins||0;
             cur.losses += it.losses||0;
             cur.bonus += Number(it.tourneyBonus||0);
+            cur.tourneyCount += Number(it.tourneyCount || 0);
+            cur.tourneyWins += tourneyWinsFromBonus(it.tourneyBonus || 0);
             cur.images.add(it.id);
             if(!cur.bestItem || itemPoints>cur.bestItemPoints){
               cur.bestItem = it;
@@ -3967,6 +3972,8 @@ for (let idx = 1; idx < files.length; idx++) {
           losses: r.losses,
           imagesCount: r.images.size,
           matchups: r.wins + r.losses,
+          tourneyCount: r.tourneyCount,
+          tourneyWins: r.tourneyWins,
           pct: pct(r.wins,r.losses),
           points: computePoints(r.wins,r.losses,r.bonus),
           bestItem: r.bestItem
@@ -3975,7 +3982,7 @@ for (let idx = 1; idx < files.length; idx++) {
           const dir = collStatsSort.dir==='asc' ? 1 : -1;
           const f = collStatsSort.field;
           if(f==='name'){return a.name.localeCompare(b.name)*dir;}
-          if(f==='imagesCount' || f==='wins' || f==='losses' || f==='matchups' || f==='points'){
+          if(f==='imagesCount' || f==='wins' || f==='losses' || f==='matchups' || f==='points' || f==='tourneyCount' || f==='tourneyWins'){
             return (a[f]-b[f])*dir;
           }
           if(f==='pct'){return (a.pct-b.pct)*dir;}
@@ -4167,7 +4174,8 @@ const statsRows = useMemo(()=>{
     matchups: matchupsCount(it),
     pct: pct(it.wins,it.losses),
     points: computePoints(it.wins,it.losses,it.tourneyBonus||0),
-    tourneyCount: Number(it.tourneyCount || 0)    // 👈 NEW
+    tourneyCount: Number(it.tourneyCount || 0),
+    tourneyWins: tourneyWinsFromBonus(it.tourneyBonus || 0)
   }));
   const include = statsCollectionFilter.include || [];
   const exclude = statsCollectionFilter.exclude || [];
@@ -4210,8 +4218,10 @@ const statsRows = useMemo(()=>{
       return a.title.localeCompare(b.title)*dir;
     }else if(f==='matchups'){
       return (a.matchups-b.matchups)*dir;
-    }else if(f==='tourneyCount'){                  // 👈 NEW
+    }else if(f==='tourneyCount'){
       return (a.tourneyCount-b.tourneyCount)*dir;
+    }else if(f==='tourneyWins'){
+      return (a.tourneyWins-b.tourneyWins)*dir;
     }else if(f==='wins' || f==='losses' || f==='points'){
       return (a[f]-b[f])*dir;
     }else if(f==='pct'){
@@ -5457,7 +5467,10 @@ if (dt && dt.files && dt.files.length) {
       M{sortIndicator(statsSort.field==='matchups',statsSort.dir)}
     </th>
     <th className="sortable" onClick={()=>changeStatsSort('tourneyCount')}>
-      T{sortIndicator(statsSort.field==='tourneyCount',statsSort.dir)} {/* 👈 NEW */}
+      T{sortIndicator(statsSort.field==='tourneyCount',statsSort.dir)}
+    </th>
+    <th className="sortable" onClick={()=>changeStatsSort('tourneyWins')}>
+      TW{sortIndicator(statsSort.field==='tourneyWins',statsSort.dir)}
     </th>
     <th className="sortable" onClick={()=>changeStatsSort('pct')}>
       Win%{sortIndicator(statsSort.field==='pct',statsSort.dir)}
@@ -5496,6 +5509,7 @@ if (dt && dt.files && dt.files.length) {
       <td>{x.losses}</td>
       <td>{x.matchups}</td>
       <td>{x.tourneyCount || 0}</td>
+      <td>{x.tourneyWins || 0}</td>
       <td>{x.pct.toFixed(3)}</td>
       <td>{x.points}</td>
     </tr>
@@ -5721,6 +5735,12 @@ if (dt && dt.files && dt.files.length) {
                               <th className="sortable" onClick={()=>changeCollStatsSort('matchups')}>
                                 M{sortIndicator(collStatsSort.field==='matchups',collStatsSort.dir)}
                               </th>
+                              <th className="sortable" onClick={()=>changeCollStatsSort('tourneyCount')}>
+                                T{sortIndicator(collStatsSort.field==='tourneyCount',collStatsSort.dir)}
+                              </th>
+                              <th className="sortable" onClick={()=>changeCollStatsSort('tourneyWins')}>
+                                TW{sortIndicator(collStatsSort.field==='tourneyWins',collStatsSort.dir)}
+                              </th>
                               <th className="sortable" onClick={()=>changeCollStatsSort('pct')}>
                                 Win%{sortIndicator(collStatsSort.field==='pct',collStatsSort.dir)}
                               </th>
@@ -5768,6 +5788,8 @@ if (dt && dt.files && dt.files.length) {
                                 <td>{c.wins}</td>
                                 <td>{c.losses}</td>
                                 <td>{c.matchups}</td>
+                                <td>{c.tourneyCount}</td>
+                                <td>{c.tourneyWins}</td>
                                 <td>{c.pct.toFixed(3)}</td>
                                 <td>{c.points}</td>
                               </tr>
