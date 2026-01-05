@@ -1239,7 +1239,7 @@ if (!item || !src || item.thumbDataUrl) {
 
 let thumb;
 try {
-  thumb = await dataUrlToThumbDataUrl(src, 480, 0.7);
+  thumb = await dataUrlToThumbDataUrl(src, 480, 0.8);
 } catch (e) {
   console.error('Failed to create thumbnail for', id, e);
   continue;
@@ -1607,7 +1607,7 @@ function sleep(ms){
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-    // *** UPDATED: default maxSide 1200 + quality 0.70 ***
+    // *** UPDATED: default maxSide 1200 + quality 0.80 ***
     async function fileToCompressedDataUrl(file,maxSide=1200){
       const dataUrl = await new Promise((resolve,reject)=>{
         const img = new Image();
@@ -1621,7 +1621,7 @@ function sleep(ms){
         c.height = h;
         const ctx = c.getContext('2d');
         ctx.drawImage(img,0,0,w,h);
-        return c.toDataURL(CANVAS_FORMAT,0.70);
+        return c.toDataURL(CANVAS_FORMAT,0.80);
       });
       return dataUrl;
     }
@@ -1647,9 +1647,9 @@ async function dataUrlToThumbDataUrl(src, maxSide = 320, quality = 0.80){
 
     function encodeCanvas(canvas){
       try{
-        return canvas.toDataURL(CANVAS_FORMAT,0.70);
+        return canvas.toDataURL(CANVAS_FORMAT,0.80);
       }catch(e){
-        return canvas.toDataURL('image/jpeg',0.70);
+        return canvas.toDataURL('image/jpeg',0.80);
       }
     }
 
@@ -4362,7 +4362,7 @@ async function applyCrop(){
   // Build a fresh thumbnail from the cropped pixels (keeps small views sharp)
   let thumb = result.dataUrl;
   try{
-    thumb = await dataUrlToThumbDataUrl(result.dataUrl, 480, 0.7);
+    thumb = await dataUrlToThumbDataUrl(result.dataUrl, 480, 0.8);
   }catch(err){
     console.warn('Falling back to cropped full image for thumbnail', err);
   }
