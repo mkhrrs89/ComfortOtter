@@ -1607,7 +1607,7 @@ function sleep(ms){
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-    // *** UPDATED: default maxSide 1200 + quality 0.80 ***
+    // *** UPDATED: default maxSide 1200 + quality 0.90 ***
     async function fileToCompressedDataUrl(file,maxSide=1200){
       const dataUrl = await new Promise((resolve,reject)=>{
         const img = new Image();
@@ -1621,7 +1621,7 @@ function sleep(ms){
         c.height = h;
         const ctx = c.getContext('2d');
         ctx.drawImage(img,0,0,w,h);
-        return c.toDataURL(CANVAS_FORMAT,0.80);
+        return c.toDataURL(CANVAS_FORMAT,0.90);
       });
       return dataUrl;
     }
@@ -1647,9 +1647,9 @@ async function dataUrlToThumbDataUrl(src, maxSide = 320, quality = 0.80){
 
     function encodeCanvas(canvas){
       try{
-        return canvas.toDataURL(CANVAS_FORMAT,0.80);
+        return canvas.toDataURL(CANVAS_FORMAT,0.90);
       }catch(e){
-        return canvas.toDataURL('image/jpeg',0.80);
+        return canvas.toDataURL('image/jpeg',0.90);
       }
     }
 
