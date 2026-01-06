@@ -1607,8 +1607,8 @@ function sleep(ms){
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-    // *** UPDATED: default maxSide 1200 + quality 0.90 ***
-    async function fileToCompressedDataUrl(file,maxSide=1200){
+    // *** UPDATED: default maxSide 1300 + quality 0.90 ***
+    async function fileToCompressedDataUrl(file,maxSide=1300){
       const dataUrl = await new Promise((resolve,reject)=>{
         const img = new Image();
         img.onload = ()=> resolve(img);
@@ -1929,7 +1929,7 @@ async function dataUrlToThumbDataUrl(src, maxSide = 320, quality = 0.80){
       function apply(){
         if(!crop) return null;
         const r = crop.rect;
-        const max = 1200; // UPDATED from 1500
+        const max = 1300; // UPDATED from 1500
         const c = document.createElement('canvas');
         const scale = Math.min(max/r.w,max/r.h,1);
         c.width = Math.round(r.w*scale);
@@ -2688,8 +2688,8 @@ async function handleFiles(fileList, forcedCollections = null, forcedGenerator =
   for (const file of arr){
     const id = createId();
 
-    // Full-size compressed image (same as before, max ~1200px)
-    const dataUrl = await fileToCompressedDataUrl(file, 1200);
+    // Full-size compressed image (same as before, max ~1300px)
+    const dataUrl = await fileToCompressedDataUrl(file, 1300);
 
     // NEW: smaller thumbnail (around 320px)
     const thumbDataUrl = await fileToCompressedDataUrl(file, 480);
