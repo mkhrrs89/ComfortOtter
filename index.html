@@ -2367,6 +2367,7 @@ const SafeImage = ({
       const [rankNotice, setRankNotice] = useState(null);
       const [rankNoticeVisible, setRankNoticeVisible] = useState(false);
       const rankNoticeTimers = useRef({hide:null, clear:null});
+      const rankNoticeStorageKey = 'rankNoticeFeed';
       const topPointsPrevRef = useRef(null);
       const [viewportMode, setViewportMode] = useState(detectViewportMode()); // desktop | mobile-landscape | mobile-portrait
       const [libraryGalleryColumns, setLibraryGalleryColumns] = useState(()=>defaultColumnsForMode(detectViewportMode()));
@@ -2843,6 +2844,42 @@ async function handleFiles(fileList, forcedCollections = null, forcedGenerator =
         rankNoticeTimers.current.clear = setTimeout(()=>setRankNotice(null), 10600);
       }
 
+      function loadRankNoticeFeed(){
+        if(typeof localStorage === 'undefined') return [];
+        try{
+          const raw = localStorage.getItem(rankNoticeStorageKey);
+          if(!raw) return [];
+          const parsed = JSON.parse(raw);
+          if(Array.isArray(parsed)) return parsed;
+        }catch(err){
+          console.warn('Failed to load rank notice feed', err);
+        }
+        return [];
+      }
+
+      function saveRankNoticeFeed(entries){
+        if(typeof localStorage === 'undefined') return;
+        try{
+          localStorage.setItem(rankNoticeStorageKey, JSON.stringify(entries));
+        }catch(err){
+          console.warn('Failed to save rank notice feed', err);
+        }
+      }
+
+      function appendRankNoticeFeed(changes){
+        const existing = loadRankNoticeFeed();
+        const now = new Date().toISOString();
+        const next = [
+          ...changes.map(change => ({
+            id: change.id,
+            message: change.message,
+            createdAt: now
+          })),
+          ...existing
+        ];
+        saveRankNoticeFeed(next.slice(0, 500));
+      }
+
       useEffect(()=>{
         return ()=>clearRankNoticeTimers();
       },[]);
@@ -2861,6 +2898,8 @@ async function handleFiles(fileList, forcedCollections = null, forcedGenerator =
         const nextById = new Map(topPointsRanking.map(entry=>[entry.id, entry]));
         const affected = [];
         const seen = new Set();
+        const rankingChanged = prev.length !== topPointsRanking.length
+          || prev.some((entry, index) => !topPointsRanking[index] || topPointsRanking[index].id !== entry.id);
 
         const addChange = (entry, message)=>{
           if(!entry || seen.has(entry.id)) return;
@@ -2878,16 +2917,16 @@ async function handleFiles(fileList, forcedCollections = null, forcedGenerator =
             if(entry.rank < prevEntry.rank){
               const displaced = prev[entry.rank - 1];
               if(displaced && displaced.id !== entry.id){
-                addChange(entry, `Image #${entry.id} took the #${entry.rank} spot away from image #${displaced.id}!!`);
+                addChange(entry, `ID ${entry.id} took the #${entry.rank} spot away from ID ${displaced.id}!!`);
               }else{
-                addChange(entry, `Image #${entry.id} climbed to #${entry.rank} from #${prevEntry.rank}.`);
+                addChange(entry, `ID ${entry.id} climbed to #${entry.rank} from #${prevEntry.rank}.`);
               }
             }else{
               const usurper = topPointsRanking[prevEntry.rank - 1];
               if(usurper && usurper.id !== entry.id){
-                addChange(entry, `Image #${entry.id} lost the #${prevEntry.rank} spot to image #${usurper.id}.`);
+                addChange(entry, `ID ${entry.id} lost the #${prevEntry.rank} spot to ID ${usurper.id}.`);
               }else{
-                addChange(entry, `Image #${entry.id} slid down to #${entry.rank} from #${prevEntry.rank}.`);
+                addChange(entry, `ID ${entry.id} slid down to #${entry.rank} from #${prevEntry.rank}.`);
               }
             }
           }
@@ -2895,17 +2934,18 @@ async function handleFiles(fileList, forcedCollections = null, forcedGenerator =
 
         for(const prevEntry of prev){
           if(!nextById.has(prevEntry.id)){
-            addChange(prevEntry, `Image #${prevEntry.id} dropped out of the top 25 from #${prevEntry.rank}.`);
+            addChange(prevEntry, `ID ${prevEntry.id} dropped out of the top 25 from #${prevEntry.rank}.`);
           }
         }
 
         for(const entry of topPointsRanking){
           if(!prevById.has(entry.id)){
-            addChange(entry, `Image #${entry.id} entered the top 25 at #${entry.rank}.`);
+            addChange(entry, `ID ${entry.id} entered the top 25 at #${entry.rank}.`);
           }
         }
 
-        if(affected.length){
+        if(affected.length && rankingChanged){
+          appendRankNoticeFeed(affected);
           showRankNotice(affected);
         }
         topPointsPrevRef.current = topPointsRanking;

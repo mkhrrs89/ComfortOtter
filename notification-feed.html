@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Comforting Otter – Notifications</title>
+  <link rel="stylesheet" href="app-style.css">
+  <style>
+    .feedStack{
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+    .feedList{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .feedItem{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      padding:12px 14px;
+      border-radius:14px;
+      border:1px solid var(--borderSoft);
+      background:rgba(10,16,24,0.6);
+    }
+    .feedMessage{
+      font-size:14px;
+    }
+    .feedTime{
+      font-size:12px;
+      color:var(--muted);
+    }
+    .emptyState{
+      color:var(--muted);
+      font-size:13px;
+    }
+  </style>
+</head>
+<body>
+  <header class="pageHeader">
+    <div>
+      <h1>Notification Feed</h1>
+      <div class="subhead">Most recent top 25 updates appear first.</div>
+    </div>
+    <div class="navMenuShell">
+      <details class="navDropdown">
+        <summary class="navTrigger">Menu ▾</summary>
+        <div class="navMenuList">
+          <a class="navItem" href="index.html?tab=Library">Library</a>
+          <a class="navItem" href="index.html?tab=Matchups">Matchups</a>
+          <a class="navItem" href="index.html?tab=Stats">Stats</a>
+          <a class="navItem" href="index.html?tab=Collections">Collections</a>
+          <div class="navSpacer"></div>
+          <a class="navItem" href="tourney.html">Tournament</a>
+          <a class="navItem" href="settings.html">Settings</a>
+          <a class="navItem active" href="notification-feed.html">Notifications</a>
+        </div>
+      </details>
+    </div>
+  </header>
+
+  <main class="feedStack">
+    <section class="card">
+      <div class="feedList" id="notificationFeed"></div>
+    </section>
+  </main>
+
+  <script>
+    const STORAGE_KEY = 'rankNoticeFeed';
+    const feed = document.getElementById('notificationFeed');
+
+    const loadFeed = () => {
+      if (typeof localStorage === 'undefined') return [];
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (err) {
+        console.warn('Failed to load notification feed', err);
+        return [];
+      }
+    };
+
+    const renderFeed = () => {
+      const entries = loadFeed();
+      feed.innerHTML = '';
+      if (!entries.length) {
+        const empty = document.createElement('div');
+        empty.className = 'emptyState';
+        empty.textContent = 'No notifications yet.';
+        feed.appendChild(empty);
+        return;
+      }
+      entries.forEach(entry => {
+        const item = document.createElement('div');
+        item.className = 'feedItem';
+
+        const message = document.createElement('div');
+        message.className = 'feedMessage';
+        message.textContent = entry.message || 'Top 25 updated.';
+
+        const time = document.createElement('div');
+        time.className = 'feedTime';
+        const date = entry.createdAt ? new Date(entry.createdAt) : null;
+        time.textContent = date && !Number.isNaN(date.getTime())
+          ? date.toLocaleString()
+          : 'Just now';
+
+        item.appendChild(message);
+        item.appendChild(time);
+        feed.appendChild(item);
+      });
+    };
+
+    renderFeed();
+  </script>
+</body>
+</html>
