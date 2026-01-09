@@ -646,6 +646,11 @@ function describePool(value){
   return value;
 }
 
+function describeTagPool(value){
+  if(!value || value === '__ALL_TAGS__') return 'All tags';
+  return value;
+}
+
 function applyPoolFilter(allItems, poolValue){
   if(!poolValue || poolValue === '__ALL__') return allItems.slice();
 
@@ -694,6 +699,13 @@ function applyPoolFilter(allItems, poolValue){
   );
 }
 
+function applyTagPoolFilter(allItems, tagValue){
+  if(!tagValue || tagValue === '__ALL_TAGS__') return allItems.slice();
+  return allItems.filter(it =>
+    Array.isArray(it.collections) && it.collections.includes(tagValue)
+  );
+}
+
 async function maybeHydrateFullImage(item){
   if(!item || hydratingFullUrls.has(item.id)) return;
   if(item.fullUrl && isHttpUrl(item.fullUrl)) return;
@@ -739,7 +751,10 @@ let items = [];
 let itemsById = new Map();
 let tourneyState = null;
 let isProcessing = false;
+let currentPoolMode = 'single';
 let currentPool = '__ALL__'; // "__ALL__" means use all images
+let currentTagPool = '__ALL_TAGS__';
+let currentOtherPool = '__ALL__';
 const hydratingFullUrls = new Set();
 const DISPLAY_TITLE_MAX_LENGTH = 20;
 
@@ -847,6 +862,8 @@ if(!tourneyState){
   const eligibleCollections = Object.entries(collCounts)
     .filter(([name,count]) => count >= 256)
     .sort((a,b) => a[0].localeCompare(b[0]));
+  const allCollections = Object.entries(collCounts)
+    .sort((a,b) => a[0].localeCompare(b[0]));
 
   const topPools = buildTopPoolOptions(items);
   const specialPoolValue = '__TOP_WINPCT_25_BOTTOM_MATCHUPS_50__';
@@ -858,6 +875,14 @@ if(!tourneyState){
     : 0;
 
   // Build the dropdown + button (layout B: Pool [select]   Start button)
+  let poolModeHtml = '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">';
+  poolModeHtml += '<span class="smallMuted">Pool mode:</span>';
+  poolModeHtml += '<label style="display:flex;align-items:center;gap:6px;">' +
+    '<input type="radio" name="tPoolMode" value="single"'+(currentPoolMode==='single'?' checked':'')+' /> Single filter</label>';
+  poolModeHtml += '<label style="display:flex;align-items:center;gap:6px;">' +
+    '<input type="radio" name="tPoolMode" value="dual"'+(currentPoolMode==='dual'?' checked':'')+' /> Tag + filter</label>';
+  poolModeHtml += '</div>';
+
   let poolSelectHtml = '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">';
   poolSelectHtml += '<span class="smallMuted">Pool:</span>';
   poolSelectHtml += '<select id="tPoolSelect" style="font-size:13px;padding:4px 6px;border-radius:8px;border:1px solid var(--ring);background:var(--ghost);color:var(--text);">';
@@ -896,22 +921,95 @@ if(!tourneyState){
   poolSelectHtml += '</select>';
   poolSelectHtml += '</div>';
 
+  let tagSelectHtml = '<div id="tDualPoolControls" style="display:flex;flex-direction:column;gap:6px;">';
+  tagSelectHtml += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">';
+  tagSelectHtml += '<span class="smallMuted">Tag:</span>';
+  tagSelectHtml += '<select id="tTagPoolSelect" style="font-size:13px;padding:4px 6px;border-radius:8px;border:1px solid var(--ring);background:var(--ghost);color:var(--text);">';
+  tagSelectHtml += '<option value="__ALL_TAGS__"'+(currentTagPool==='__ALL_TAGS__'?' selected':'')+'>All tags</option>';
+  for(const [name,count] of allCollections){
+    const sel = (currentTagPool === name) ? ' selected' : '';
+    tagSelectHtml += '<option value="'+escapeHtml(name)+'"'+sel+'>'+
+      escapeHtml(name)+' ('+count+')</option>';
+  }
+  tagSelectHtml += '</select>';
+  tagSelectHtml += '</div>';
+
+  tagSelectHtml += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">';
+  tagSelectHtml += '<span class="smallMuted">Filter:</span>';
+  tagSelectHtml += '<select id="tOtherPoolSelect" style="font-size:13px;padding:4px 6px;border-radius:8px;border:1px solid var(--ring);background:var(--ghost);color:var(--text);">';
+  tagSelectHtml += '<option value="__ALL__"'+(currentOtherPool==='__ALL__'?' selected':'')+'>All images</option>';
+  tagSelectHtml += '<option value="__RECENT_256__"'+(currentOtherPool==='__RECENT_256__'?' selected':'')+'>Most recent 256 ('+recentCount+')</option>';
+  tagSelectHtml += '<optgroup label="Tournament history">';
+  tagSelectHtml += '<option value="__NEVER_TOURNEY__"'+(currentOtherPool==='__NEVER_TOURNEY__'?' selected':'')+'>Never in a tournament ('+neverTourneyCount+')</option>';
+  tagSelectHtml += '<option value="__FEWEST_TOURNEYS__"'+(currentOtherPool==='__FEWEST_TOURNEYS__'?' selected':'')+'>Fewest tournaments (min '+(Number.isFinite(minTourneyCount) ? minTourneyCount : 0)+', '+fewestTourneyCount+')</option>';
+  tagSelectHtml += '</optgroup>';
+
+  if(topPools.length){
+    tagSelectHtml += '<optgroup label="Top performers">';
+    for(const opt of topPools){
+      const sel = (currentOtherPool === opt.value) ? ' selected' : '';
+      tagSelectHtml += '<option value="'+opt.value+'"'+sel+'>'+escapeHtml(opt.label)+' ('+opt.count+')</option>';
+    }
+    tagSelectHtml += '</optgroup>';
+  }
+
+  tagSelectHtml += '<optgroup label="Targeted pools">';
+  tagSelectHtml += '<option value="'+specialPoolValue+'"'+(currentOtherPool===specialPoolValue?' selected':'')+'>Top 25% win% &amp; bottom 50% matchups ('+specialPoolCount+')</option>';
+  tagSelectHtml += '</optgroup>';
+  tagSelectHtml += '</select>';
+  tagSelectHtml += '</div>';
+  tagSelectHtml += '</div>';
+
   controlsEl.innerHTML =
+    poolModeHtml +
     poolSelectHtml +
+    tagSelectHtml +
     '<button class="btn" id="tStartBtn">Start new tournament</button>';
 
+  const poolModeInputs = Array.from(document.querySelectorAll('input[name="tPoolMode"]'));
   const poolSelect = document.getElementById('tPoolSelect');
+  const tagSelect = document.getElementById('tTagPoolSelect');
+  const otherSelect = document.getElementById('tOtherPoolSelect');
   const startBtn = document.getElementById('tStartBtn');
+  const dualControls = document.getElementById('tDualPoolControls');
+  const singleControls = poolSelect && poolSelect.parentElement;
+
+  const updatePoolModeUI = ()=>{
+    const isDual = currentPoolMode === 'dual';
+    if(dualControls) dualControls.style.display = isDual ? 'flex' : 'none';
+    if(singleControls) singleControls.style.display = isDual ? 'none' : 'flex';
+  };
+
   const updatePoolSummary = ()=>{
-    const count = applyPoolFilter(items, currentPool || '__ALL__').length;
-    const poolLabel = describePool(currentPool || '__ALL__');
-    hintEl.innerHTML = baseHint + '<br><span class="smallMuted">Selected pool: ' +
-      escapeHtml(poolLabel) + ' (' + count + ' images).</span>';
+    let count = 0;
+    let summary = '';
+    if(currentPoolMode === 'dual'){
+      const tagLabel = describeTagPool(currentTagPool || '__ALL_TAGS__');
+      const otherLabel = describePool(currentOtherPool || '__ALL__');
+      const tagItems = applyTagPoolFilter(items, currentTagPool || '__ALL_TAGS__');
+      count = applyPoolFilter(tagItems, currentOtherPool || '__ALL__').length;
+      summary = 'Selected filters: Tag: ' + escapeHtml(tagLabel) + ' • Filter: ' + escapeHtml(otherLabel);
+    }else{
+      count = applyPoolFilter(items, currentPool || '__ALL__').length;
+      const poolLabel = describePool(currentPool || '__ALL__');
+      summary = 'Selected pool: ' + escapeHtml(poolLabel);
+    }
+    hintEl.innerHTML = baseHint + '<br><span class="smallMuted">' +
+      summary + ' (' + count + ' images).</span>';
     if(startBtn){
       startBtn.disabled = count < 2;
       startBtn.title = count < 2 ? 'Select a pool with at least 2 images.' : '';
     }
   };
+  if(poolModeInputs.length){
+    for(const input of poolModeInputs){
+      input.addEventListener('change', (e)=>{
+        currentPoolMode = e.target.value === 'dual' ? 'dual' : 'single';
+        updatePoolModeUI();
+        updatePoolSummary();
+      });
+    }
+  }
   if(poolSelect){
     poolSelect.addEventListener('change', (e)=>{
       const val = e.target.value || '__ALL__';
@@ -919,7 +1017,22 @@ if(!tourneyState){
       updatePoolSummary();
     });
   }
+  if(tagSelect){
+    tagSelect.addEventListener('change', (e)=>{
+      const val = e.target.value || '__ALL_TAGS__';
+      currentTagPool = val;
+      updatePoolSummary();
+    });
+  }
+  if(otherSelect){
+    otherSelect.addEventListener('change', (e)=>{
+      const val = e.target.value || '__ALL__';
+      currentOtherPool = val;
+      updatePoolSummary();
+    });
+  }
 
+  updatePoolModeUI();
   updatePoolSummary();
   if(startBtn) addTap(startBtn, startNewTournament);
 
@@ -934,7 +1047,11 @@ const matchIndex = s.currentMatchIndex;
 const totalMatchesThisRound = size/2;
 
 let poolLabel = '';
-if(s.pool){
+if(s.poolMode === 'dual'){
+  const tagLabel = describeTagPool(s.poolTag || '__ALL_TAGS__');
+  const otherLabel = describePool(s.poolOther || '__ALL__');
+  poolLabel = ' • Pool: Tag: '+tagLabel+' + Filter: '+otherLabel;
+}else if(s.pool){
   poolLabel = ' • Pool: '+describePool(s.pool);
 }
 
@@ -1154,16 +1271,39 @@ async function startNewTournament(){
     alert('You need at least 2 images to run a tournament.');
     return;
   }
+  const modeInput = document.querySelector('input[name="tPoolMode"]:checked');
+  if(modeInput){
+    currentPoolMode = modeInput.value === 'dual' ? 'dual' : 'single';
+  }
   const poolSelect = document.getElementById('tPoolSelect');
   if(poolSelect){
     currentPool = poolSelect.value || '__ALL__';
+  }
+  const tagSelect = document.getElementById('tTagPoolSelect');
+  if(tagSelect){
+    currentTagPool = tagSelect.value || '__ALL_TAGS__';
+  }
+  const otherSelect = document.getElementById('tOtherPoolSelect');
+  if(otherSelect){
+    currentOtherPool = otherSelect.value || '__ALL__';
   }
   if(tourneyState && !confirm('Start a new tournament? This will overwrite the current tournament progress.')){
     return;
   }
 
   // Decide which images to use based on the selected pool
-  const poolItems = applyPoolFilter(items, currentPool || '__ALL__');
+  let poolItems = [];
+  let poolLabel = '';
+  if(currentPoolMode === 'dual'){
+    const tagLabel = describeTagPool(currentTagPool || '__ALL_TAGS__');
+    const otherLabel = describePool(currentOtherPool || '__ALL__');
+    const tagItems = applyTagPoolFilter(items, currentTagPool || '__ALL_TAGS__');
+    poolItems = applyPoolFilter(tagItems, currentOtherPool || '__ALL__');
+    poolLabel = 'Tag: '+tagLabel+' + Filter: '+otherLabel;
+  }else{
+    poolItems = applyPoolFilter(items, currentPool || '__ALL__');
+    poolLabel = describePool(currentPool || '__ALL__');
+  }
 
   if(poolItems.length < 2){
     alert('Not enough images in the selected pool to run a tournament.');
@@ -1201,7 +1341,11 @@ async function startNewTournament(){
     completed: false,
     championId: null,
     matchHistory: [],
-    pool: currentPool || '__ALL__'  // 👈 track which pool this tourney used
+    pool: currentPoolMode === 'single' ? (currentPool || '__ALL__') : null,
+    poolMode: currentPoolMode,
+    poolTag: currentPoolMode === 'dual' ? (currentTagPool || '__ALL_TAGS__') : null,
+    poolOther: currentPoolMode === 'dual' ? (currentOtherPool || '__ALL__') : null,
+    poolLabel
   };
 
   try{
