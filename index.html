@@ -1783,6 +1783,17 @@ async function dataUrlToThumbDataUrl(src, maxSide = 320, quality = 0.80){
       return [pool[i1].id, pool[i2].id];
     }
 
+    function pickLockedMatch(pool, lockedId){
+      if(!lockedId) return [null,null];
+      if(!pool || pool.length<2) return [lockedId,null];
+      const lockedExists = pool.some(it=>it.id===lockedId);
+      if(!lockedExists) return [null,null];
+      const opponents = pool.filter(it=>it.id!==lockedId);
+      if(!opponents.length) return [lockedId,null];
+      const idx = Math.floor(Math.random()*opponents.length);
+      return [lockedId, opponents[idx].id];
+    }
+
     // ---------- Cropper hook ----------
     function useCropper(){
       const [crop,setCrop] = useState(null); // {img, iw, ih, rect, targetId}
@@ -2350,7 +2361,7 @@ const SafeImage = ({
       const [genStatsSort,setGenStatsSort] = useState({field:'pct',dir:'desc'});
       const [collStatsSort,setCollStatsSort] = useState({field:'pct',dir:'desc'});
       const [collectionSort, setCollectionSort] = useState({field:'points', dir:'asc'});
-      const [matchMode,setMatchMode] = useState({type:'all', collection:null, generator:null}); // all | bottom | collection | generator | generated
+      const [matchMode,setMatchMode] = useState({type:'all', collection:null, generator:null, lockedId:null}); // all | bottom | collection | generator | generated | locked
       const [selectedIds,setSelectedIds] = useState([]); // for gallery batch + export
       const [batchOpen,setBatchOpen] = useState(false);
       const [batchCollectionsText,setBatchCollectionsText] = useState('');
@@ -2619,10 +2630,16 @@ useEffect(()=>{
         await idbDelete(id);
         const next = items.filter(it=>it.id!==id);
         setItems(next);
-        const pool = getMatchPool(next,matchMode);
-        const [a,b] = (matchMode.type === 'allFlat')
+        const nextMatchMode = (matchMode.type==='locked' && matchMode.lockedId===id)
+          ? {type:'all', collection:null, generator:null, lockedId:null}
+          : matchMode;
+        if(nextMatchMode !== matchMode){
+          setMatchMode(nextMatchMode);
+        }
+        const pool = getMatchPool(next,nextMatchMode);
+        const [a,b] = (nextMatchMode.type === 'allFlat')
           ? pickTwoFromPoolFlat(pool)
-          : matchMode.type === 'generated'
+          : nextMatchMode.type === 'generated'
             ? pickTwoFromPoolDifferentGenerators(pool)
             : pickTwoFromPool(pool);
         setMatchIds([a,b]);
@@ -2710,6 +2727,9 @@ function getMatchPool(all,mode){
       return gen === mode.generator;
     });
 
+  }else if(mode.type==='locked'){
+    pool = all;
+
 } else if(mode.type==='freshLeaf'){
   // Only images that would show the 🌱 icon ("fresh")
   // New = fewer than 4 matchups (M < 4)
@@ -2726,11 +2746,13 @@ function getMatchPool(all,mode){
 
 function rerollMatch(poolOverride){
       const pool = poolOverride || getMatchPool(items,matchMode);
-      const [a,b] = (matchMode.type === 'allFlat')
-        ? pickTwoFromPoolFlat(pool)
-        : matchMode.type === 'generated'
-          ? pickTwoFromPoolDifferentGenerators(pool)
-          : pickTwoFromPool(pool);
+      const [a,b] = (matchMode.type === 'locked')
+        ? pickLockedMatch(pool, matchMode.lockedId)
+        : (matchMode.type === 'allFlat')
+          ? pickTwoFromPoolFlat(pool)
+          : matchMode.type === 'generated'
+            ? pickTwoFromPoolDifferentGenerators(pool)
+            : pickTwoFromPool(pool);
       setMatchIds([a,b]);
     }
 
@@ -3514,12 +3536,7 @@ for (let idx = 1; idx < files.length; idx++) {
         await replaceAllItems(next);
         setLastMatch(null);
         const pool = getMatchPool(next,matchMode);
-        const [a,b] = (matchMode.type === 'allFlat')
-          ? pickTwoFromPoolFlat(pool)
-          : matchMode.type === 'generated'
-            ? pickTwoFromPoolDifferentGenerators(pool)
-            : pickTwoFromPool(pool);
-        setMatchIds([a,b]);
+        rerollMatch(pool);
 
       }
       async function clearLibrary(){
@@ -4506,6 +4523,9 @@ const statsRows = useMemo(()=>{
       const right = items.find(it=>it.id===matchIds[1]) || null;
       const leftSources = useMemo(()=>getMatchupSources(left), [left]);
       const rightSources = useMemo(()=>getMatchupSources(right), [right]);
+      const lockedMatchItem = matchMode.type === 'locked'
+        ? items.find(it=>it.id===matchMode.lockedId) || null
+        : null;
       const previewItem = previewId ? items.find(it=>it.id===previewId) : null;
       const selectionMode = selectedIds.length>0;
 
@@ -4643,12 +4663,23 @@ async function applyCrop(){
       }
 
       function startCollectionMatchups(name,type='collection'){
-        const next = {type:type,collection:type==='collection'?name:null,generator:type==='generator'?name:null};
+        const next = {type:type,collection:type==='collection'?name:null,generator:type==='generator'?name:null,lockedId:null};
         setMatchMode(next);
         setTab('Matchups');
         const pool = getMatchPool(items,next);
         const [a,b] = pickTwoFromPool(pool);
         setMatchIds([a,b]);
+      }
+
+      function startLockedMatchup(item){
+        if(!item) return;
+        const next = {type:'locked', collection:null, generator:null, lockedId:item.id};
+        setMatchMode(next);
+        setTab('Matchups');
+        const pool = getMatchPool(items,next);
+        const [a,b] = pickLockedMatch(pool, item.id);
+        setMatchIds([a,b]);
+        setPreviewId(null);
       }
 
 function labelForMatchMode(){
@@ -4662,6 +4693,11 @@ function labelForMatchMode(){
   if(matchMode.type==='bottomWinPct10') return 'Bottom 10% by win%';
   if(matchMode.type==='freshLeaf') return 'Fresh images (leaf icon)';
   if(matchMode.type==='generated') return 'Generated matchup (different generators)';
+  if(matchMode.type==='locked' && matchMode.lockedId){
+    const lockedItem = items.find(it=>it.id===matchMode.lockedId);
+    const name = lockedItem?.title || lockedItem?.id || 'Locked image';
+    return `Locked matchup: ${name}`;
+  }
   if(matchMode.type==='collection' && matchMode.collection){
     return `Collection: ${matchMode.collection}`;
   }
@@ -4673,6 +4709,9 @@ function labelForMatchMode(){
 
 
       const matchSelectValue =
+        matchMode.type === 'locked'
+          ? 'all'
+          :
         matchMode.type === 'collection' && matchMode.collection
           ? `collection:${matchMode.collection}`
           : matchMode.type === 'generator' && matchMode.generator
@@ -5393,7 +5432,7 @@ if (dt && dt.files && dt.files.length) {
     ];
 
     if(simpleModes.includes(v)){
-      const next = {type:v, collection:null, generator:null};
+      const next = {type:v, collection:null, generator:null, lockedId:null};
       setMatchMode(next);
       const pool = getMatchPool(items,next);
       const [a,b] = (v === 'allFlat')
@@ -5404,14 +5443,14 @@ if (dt && dt.files && dt.files.length) {
       setMatchIds([a,b]);
     }else if(v.startsWith('collection:')){
       const name = v.slice('collection:'.length);
-      const next = {type:'collection',collection:name,generator:null};
+      const next = {type:'collection',collection:name,generator:null,lockedId:null};
       setMatchMode(next);
       const pool = getMatchPool(items,next);
       const [a,b] = pickTwoFromPool(pool);
       setMatchIds([a,b]);
     }else if(v.startsWith('generator:')){
       const name = v.slice('generator:'.length);
-      const next = {type:'generator',generator:name,collection:null};
+      const next = {type:'generator',generator:name,collection:null,lockedId:null};
       setMatchMode(next);
       const pool = getMatchPool(items,next);
       const [a,b] = pickTwoFromPool(pool);
@@ -5458,6 +5497,9 @@ if (dt && dt.files && dt.files.length) {
                   )}
                   {matchMode.type==='generator' && matchMode.generator && (
                     <span className="pill">Current: {matchMode.generator}</span>
+                  )}
+                  {matchMode.type==='locked' && lockedMatchItem && (
+                    <span className="pill">Locked: {lockedMatchItem.title || 'Untitled'}</span>
                   )}
                 </div>
                 <div className="flexRow">
@@ -5519,6 +5561,7 @@ if (dt && dt.files && dt.files.length) {
                       <div className="toolbar" style={{marginTop:4,gap:6}}>
                         <button className="btn ghost sm" onClick={()=>openPreviewFor(left)}>View</button>
                         <button className="btn ghost sm" onClick={()=>startCropFor(left)}>Crop</button>
+                        <button className="btn ghost sm" onClick={()=>startLockedMatchup(left)}>Lock matchup</button>
                       </div>
                     </div>
                     <div></div>
@@ -5534,6 +5577,7 @@ if (dt && dt.files && dt.files.length) {
                       <div className="toolbar" style={{marginTop:4,gap:6}}>
                         <button className="btn ghost sm" onClick={()=>openPreviewFor(right)}>View</button>
                         <button className="btn ghost sm" onClick={()=>startCropFor(right)}>Crop</button>
+                        <button className="btn ghost sm" onClick={()=>startLockedMatchup(right)}>Lock matchup</button>
                       </div>
                     </div>
                   </div>
@@ -6458,6 +6502,9 @@ if (dt && dt.files && dt.files.length) {
                 </div>
                 <div className="modalFooter">
                   <button className="btn ghost" onClick={()=>startCropFor(previewItem)}>Crop</button>
+                  <button className="btn ghost" onClick={()=>startLockedMatchup(previewItem)}>
+                    Lock matchup
+                  </button>
                   <button
                     className="btn danger"
                     onClick={()=>{
