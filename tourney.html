@@ -862,8 +862,9 @@ if(!tourneyState){
   const eligibleCollections = Object.entries(collCounts)
     .filter(([name,count]) => count >= 256)
     .sort((a,b) => a[0].localeCompare(b[0]));
-  const allCollections = Object.entries(collCounts)
-    .sort((a,b) => a[0].localeCompare(b[0]));
+  const tagCollections = Object.entries(collCounts)
+    .filter(([name,count]) => count >= 256)
+    .sort((a,b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 
   const topPools = buildTopPoolOptions(items);
   const specialPoolValue = '__TOP_WINPCT_25_BOTTOM_MATCHUPS_50__';
@@ -926,7 +927,7 @@ if(!tourneyState){
   tagSelectHtml += '<span class="smallMuted">Tag:</span>';
   tagSelectHtml += '<select id="tTagPoolSelect" style="font-size:13px;padding:4px 6px;border-radius:8px;border:1px solid var(--ring);background:var(--ghost);color:var(--text);">';
   tagSelectHtml += '<option value="__ALL_TAGS__"'+(currentTagPool==='__ALL_TAGS__'?' selected':'')+'>All tags</option>';
-  for(const [name,count] of allCollections){
+  for(const [name,count] of tagCollections){
     const sel = (currentTagPool === name) ? ' selected' : '';
     tagSelectHtml += '<option value="'+escapeHtml(name)+'"'+sel+'>'+
       escapeHtml(name)+' ('+count+')</option>';
