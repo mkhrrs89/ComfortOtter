@@ -1706,6 +1706,10 @@ async function dataUrlToThumbDataUrl(src, maxSide = 320, quality = 0.80){
       }
     }
 
+    function encodeCanvasLossless(canvas){
+      return canvas.toDataURL('image/png');
+    }
+
     function generatorNameForMatchup(item){
       return (item?.generator || '').trim() || 'Unspecified';
     }
@@ -2004,7 +2008,7 @@ async function dataUrlToThumbDataUrl(src, maxSide = 320, quality = 0.80){
           r.x,r.y,r.w,r.h,
           0,0,c.width,c.height
         );
-        return { dataUrl: encodeCanvas(c), targetId: crop.targetId };
+        return { dataUrl: encodeCanvasLossless(c), targetId: crop.targetId };
       }
 
       return { ref, crop, setCrop, startForItem, onPointerDown, apply };
