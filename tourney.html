@@ -1002,6 +1002,40 @@ if(!tourneyState){
       startBtn.title = count < 2 ? 'Select a pool with at least 2 images.' : '';
     }
   };
+  const updateOtherPoolOptions = ()=>{
+    if(!otherSelect) return;
+    const tagItems = applyTagPoolFilter(items, currentTagPool || '__ALL_TAGS__');
+    const tagRecentCount = applyPoolFilter(tagItems, '__RECENT_256__').length;
+    const tagNeverTourneyCount = tagItems.filter(it => Number(it.tourneyCount || 0) === 0).length;
+    const tagMinTourneyCount = tagItems.reduce((min, it)=> Math.min(min, Number(it.tourneyCount || 0)), Infinity);
+    const tagFewestTourneyCount = Number.isFinite(tagMinTourneyCount)
+      ? tagItems.filter(it => Number(it.tourneyCount || 0) === tagMinTourneyCount).length
+      : 0;
+    const tagTopPools = buildTopPoolOptions(tagItems);
+    const tagSpecialPoolCount = applyPoolFilter(tagItems, specialPoolValue).length;
+
+    let html = '';
+    html += '<option value="__ALL__"'+(currentOtherPool==='__ALL__'?' selected':'')+'>All images</option>';
+    html += '<option value="__RECENT_256__"'+(currentOtherPool==='__RECENT_256__'?' selected':'')+'>Most recent 256 ('+tagRecentCount+')</option>';
+    html += '<optgroup label="Tournament history">';
+    html += '<option value="__NEVER_TOURNEY__"'+(currentOtherPool==='__NEVER_TOURNEY__'?' selected':'')+'>Never in a tournament ('+tagNeverTourneyCount+')</option>';
+    html += '<option value="__FEWEST_TOURNEYS__"'+(currentOtherPool==='__FEWEST_TOURNEYS__'?' selected':'')+'>Fewest tournaments (min '+(Number.isFinite(tagMinTourneyCount) ? tagMinTourneyCount : 0)+', '+tagFewestTourneyCount+')</option>';
+    html += '</optgroup>';
+
+    if(tagTopPools.length){
+      html += '<optgroup label="Top performers">';
+      for(const opt of tagTopPools){
+        const sel = (currentOtherPool === opt.value) ? ' selected' : '';
+        html += '<option value="'+opt.value+'"'+sel+'>'+escapeHtml(opt.label)+' ('+opt.count+')</option>';
+      }
+      html += '</optgroup>';
+    }
+
+    html += '<optgroup label="Targeted pools">';
+    html += '<option value="'+specialPoolValue+'"'+(currentOtherPool===specialPoolValue?' selected':'')+'>Top 25% win% &amp; bottom 50% matchups ('+tagSpecialPoolCount+')</option>';
+    html += '</optgroup>';
+    otherSelect.innerHTML = html;
+  };
   if(poolModeInputs.length){
     for(const input of poolModeInputs){
       input.addEventListener('change', (e)=>{
@@ -1022,9 +1056,11 @@ if(!tourneyState){
     tagSelect.addEventListener('change', (e)=>{
       const val = e.target.value || '__ALL_TAGS__';
       currentTagPool = val;
+      updateOtherPoolOptions();
       updatePoolSummary();
     });
   }
+  updateOtherPoolOptions();
   if(otherSelect){
     otherSelect.addEventListener('change', (e)=>{
       const val = e.target.value || '__ALL__';
