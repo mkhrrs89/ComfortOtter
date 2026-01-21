@@ -755,6 +755,7 @@ let currentPoolMode = 'single';
 let currentPool = '__ALL__'; // "__ALL__" means use all images
 let currentTagPool = '__ALL_TAGS__';
 let currentOtherPool = '__ALL__';
+let currentMaxFieldSize = 256;
 const hydratingFullUrls = new Set();
 const DISPLAY_TITLE_MAX_LENGTH = 20;
 
@@ -845,10 +846,10 @@ if(!tourneyState){
   statusEl.textContent = 'No active tournament.';
 
   const baseHint =
-    'Tournament uses up to 256 random images from the selected pool in a single-elimination bracket.';
+    `Tournament uses up to ${currentMaxFieldSize} random images from the selected pool in a single-elimination bracket.`;
   hintEl.textContent = baseHint;
 
-  // Build collection counts so we know which pools qualify (>=256 images)
+  // Build collection counts so we know which pools qualify (>= current field size)
   const collCounts = {};
   for(const it of items){
     if(Array.isArray(it.collections)){
@@ -860,10 +861,10 @@ if(!tourneyState){
   }
 
   const eligibleCollections = Object.entries(collCounts)
-    .filter(([name,count]) => count >= 256)
+    .filter(([name,count]) => count >= currentMaxFieldSize)
     .sort((a,b) => a[0].localeCompare(b[0]));
   const tagCollections = Object.entries(collCounts)
-    .filter(([name,count]) => count >= 256)
+    .filter(([name,count]) => count >= currentMaxFieldSize)
     .sort((a,b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 
   const topPools = buildTopPoolOptions(items);
@@ -876,6 +877,14 @@ if(!tourneyState){
     : 0;
 
   // Build the dropdown + button (layout B: Pool [select]   Start button)
+  let fieldSizeHtml = '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px;">';
+  fieldSizeHtml += '<span class="smallMuted">Field size:</span>';
+  fieldSizeHtml += '<select id="tFieldSizeSelect" style="font-size:13px;padding:4px 6px;border-radius:8px;border:1px solid var(--ring);background:var(--ghost);color:var(--text);">';
+  fieldSizeHtml += '<option value="256"'+(currentMaxFieldSize===256?' selected':'')+'>256</option>';
+  fieldSizeHtml += '<option value="128"'+(currentMaxFieldSize===128?' selected':'')+'>128</option>';
+  fieldSizeHtml += '</select>';
+  fieldSizeHtml += '</div>';
+
   let poolModeHtml = '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">';
   poolModeHtml += '<span class="smallMuted">Pool mode:</span>';
   poolModeHtml += '<label style="display:flex;align-items:center;gap:6px;">' +
@@ -962,6 +971,7 @@ if(!tourneyState){
   tagSelectHtml += '</div>';
 
   controlsEl.innerHTML =
+    fieldSizeHtml +
     poolModeHtml +
     poolSelectHtml +
     tagSelectHtml +
@@ -971,6 +981,7 @@ if(!tourneyState){
   const poolSelect = document.getElementById('tPoolSelect');
   const tagSelect = document.getElementById('tTagPoolSelect');
   const otherSelect = document.getElementById('tOtherPoolSelect');
+  const fieldSizeSelect = document.getElementById('tFieldSizeSelect');
   const startBtn = document.getElementById('tStartBtn');
   const dualControls = document.getElementById('tDualPoolControls');
   const singleControls = poolSelect && poolSelect.parentElement;
@@ -1071,6 +1082,15 @@ if(!tourneyState){
 
   updatePoolModeUI();
   updatePoolSummary();
+  if(fieldSizeSelect){
+    fieldSizeSelect.addEventListener('change', (e)=>{
+      const nextSize = Number(e.target.value) || 256;
+      if(nextSize !== currentMaxFieldSize){
+        currentMaxFieldSize = nextSize;
+        renderAll();
+      }
+    });
+  }
   if(startBtn) addTap(startBtn, startNewTournament);
 
   return;
@@ -1324,6 +1344,10 @@ async function startNewTournament(){
   if(otherSelect){
     currentOtherPool = otherSelect.value || '__ALL__';
   }
+  const fieldSizeSelect = document.getElementById('tFieldSizeSelect');
+  if(fieldSizeSelect){
+    currentMaxFieldSize = Number(fieldSizeSelect.value) || 256;
+  }
   if(tourneyState && !confirm('Start a new tournament? This will overwrite the current tournament progress.')){
     return;
   }
@@ -1353,7 +1377,7 @@ async function startNewTournament(){
     [ids[i],ids[j]] = [ids[j],ids[i]];
   }
 
-  let initialSize = Math.min(256, ids.length);
+  let initialSize = Math.min(currentMaxFieldSize, ids.length);
   let pow = 1;
   while(pow*2 <= initialSize){ pow *= 2; }
   initialSize = Math.max(2, pow);
