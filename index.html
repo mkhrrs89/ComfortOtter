@@ -799,7 +799,7 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-  import { getStorage, ref, uploadString, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+  import { getStorage, ref, uploadBytes, uploadString, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
   // Comforting Otter config
   const firebaseConfig = {
@@ -1697,6 +1697,45 @@ function sleep(ms){
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function fileToDataUrl(file){
+  return new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function fileToResizedBlobAndDataUrl(file, maxSide = 2000){
+  const objectUrl = URL.createObjectURL(file);
+  const img = await new Promise((resolve, reject)=>{
+    const image = new Image();
+    image.onload = ()=> resolve(image);
+    image.onerror = reject;
+    image.src = objectUrl;
+  });
+  URL.revokeObjectURL(objectUrl);
+  const {w,h} = fitWithin(img.naturalWidth, img.naturalHeight, maxSide);
+  const needsResize = w !== img.naturalWidth || h !== img.naturalHeight;
+
+  if(!needsResize){
+    const dataUrl = await fileToDataUrl(file);
+    return { dataUrl, blob: file, mime: file.type || 'image/jpeg', resized: false };
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, w, h);
+
+  const mime = (file.type === 'image/jpeg' || file.type === 'image/png') ? file.type : 'image/png';
+  const quality = mime === 'image/jpeg' ? 1.0 : undefined;
+  const dataUrl = canvas.toDataURL(mime, quality);
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, mime, quality));
+  return { dataUrl, blob: blob || file, mime, resized: true };
+}
+
     // *** UPDATED: default maxSide 1500 + quality 0.95 ***
     async function fileToCompressedDataUrl(file,maxSide=1500){
       const dataUrl = await new Promise((resolve,reject)=>{
@@ -2539,6 +2578,7 @@ const [pendingOpenId, setPendingOpenId] = useState(() => {
 const fileRef = useRef(null);
 const importRef = useRef(null);      // for JSON / metadata imports
 const imageImportRef = useRef(null); // for image uploads
+const replaceImageRef = useRef(null); // for preview replace uploads
 const cropper = useCropper();
 const hydratingFullUrls = useRef(new Set());
 const navMenuRef = useRef(null);
@@ -2725,6 +2765,40 @@ useEffect(()=>{
         if(merged.length>=2 && (!matchIds[0]||!matchIds[1])){
           const [a,b] = pickTwoFromPool(merged);
           setMatchIds([a,b]);
+        }
+      }
+
+      async function handleReplaceImageFile(file, item){
+        if(!file || !item) return;
+        try{
+          const { dataUrl, blob, mime } = await fileToResizedBlobAndDataUrl(file, 2000);
+          const thumbDataUrl = await dataUrlToThumbDataUrl(dataUrl);
+          setPreviewSrc(dataUrl);
+
+          let uploadedUrl = null;
+          if (window.firebaseStorage){
+            try{
+              const storageRef = ref(window.firebaseStorage, `images/${item.id}.jpg`);
+              await uploadBytes(storageRef, blob, { contentType: mime || file.type || 'image/jpeg' });
+              uploadedUrl = await getDownloadURL(storageRef);
+            }catch(err){
+              console.error('Failed to upload replacement image to Firebase', err);
+            }
+          }
+
+          const finalFullUrl = uploadedUrl || dataUrl;
+          await patchItem(item.id, {
+            dataUrl,
+            thumbnail: thumbDataUrl,
+            fullUrl: finalFullUrl
+          });
+
+          if(window.firebaseStorage && !uploadedUrl){
+            alert('Saved the replacement image locally, but updating Firebase failed. The app will use the local copy until you retry online.');
+          }
+        }catch(err){
+          console.error('Replace image failed', err);
+          alert('Failed to replace image. Please try again.');
         }
       }
 
@@ -6676,6 +6750,14 @@ if (dt && dt.files && dt.files.length) {
                 </div>
                 <div className="modalFooter">
                   <button className="btn ghost" onClick={()=>startCropFor(previewItem)}>Crop</button>
+                  <button
+                    className="btn ghost"
+                    onClick={()=>{
+                      if(replaceImageRef.current) replaceImageRef.current.click();
+                    }}
+                  >
+                    Replace image
+                  </button>
                   <button className="btn ghost" onClick={()=>startLockedMatchup(previewItem)}>
                     Lock matchup
                   </button>
@@ -6689,6 +6771,17 @@ if (dt && dt.files && dt.files.length) {
                     Delete
                   </button>
                   <button className="btn" onClick={()=>setPreviewId(null)}>Close</button>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    ref={replaceImageRef}
+                    style={{display:'none'}}
+                    onChange={e=>{
+                      const file = e.target.files && e.target.files[0];
+                      if(file) handleReplaceImageFile(file, previewItem);
+                      e.target.value = '';
+                    }}
+                  />
                 </div>
               </div>
             </div>
