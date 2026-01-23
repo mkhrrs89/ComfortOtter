@@ -575,6 +575,27 @@
       padding:6px 7px;
       font-size:13px;
     }
+    .statEditGrid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+      gap:8px;
+    }
+    .statEditGrid label{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      color:var(--muted);
+      font-size:11px;
+    }
+    .statEditGrid input{
+      width:100%;
+      background:#050c0a;
+      border:1px solid var(--ring);
+      color:var(--text);
+      border-radius:8px;
+      padding:6px 7px;
+      font-size:13px;
+    }
     @media (hover: none) and (pointer: coarse){
       .modalFields input,
       .modalFields select{
@@ -1637,6 +1658,22 @@ function formatAddedAt(ts){
   return `${dateStr}\n${timeStr}`;
 }
 
+function toDateTimeLocalValue(ts){
+  if(!ts) return '';
+  const d = new Date(ts);
+  if(isNaN(d)) return '';
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function fromDateTimeLocalValue(value){
+  if(!value) return '';
+  const d = new Date(value);
+  if(isNaN(d)) return value;
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
     // image format detection once
     const CANVAS_FORMAT = (()=>{
       try{
@@ -2071,6 +2108,11 @@ const ImageModal = ({ item, onClose, onSave, onDelete, generatorOptions = [] }) 
       const [editedTitle, setEditedTitle] = useState(item.title);
       const [editedCollections, setEditedCollections] = useState(item.collections.join(', '));
       const [editedGenerator, setEditedGenerator] = useState(item.generator || '');
+      const [editedWins, setEditedWins] = useState(String(item.wins ?? 0));
+      const [editedLosses, setEditedLosses] = useState(String(item.losses ?? 0));
+      const [editedTourneyCount, setEditedTourneyCount] = useState(String(item.tourneyCount ?? 0));
+      const [editedTourneyWins, setEditedTourneyWins] = useState(String(tourneyWinsFromBonus(item.tourneyBonus || 0)));
+      const [editedAddedAt, setEditedAddedAt] = useState(toDateTimeLocalValue(item.addedAt));
       
       // Lazy Load High Res (This is the memory-safe part)
 const [displaySrc, setDisplaySrc] = useState(
@@ -2103,7 +2145,12 @@ useEffect(() => {
         onSave(item.id, {
           title: editedTitle,
           collections: normalizeCollections(editedCollections),
-          generator: editedGenerator
+          generator: editedGenerator,
+          wins: Number(editedWins || 0),
+          losses: Number(editedLosses || 0),
+          tourneyCount: Number(editedTourneyCount || 0),
+          tourneyBonus: Number(editedTourneyWins || 0) * 5,
+          addedAt: editedAddedAt ? fromDateTimeLocalValue(editedAddedAt) : item.addedAt
         });
       };
 
@@ -2138,6 +2185,44 @@ useEffect(() => {
                    <option key={opt.label} value={opt.value}>{opt.label}</option>
                  ))}
                </select>
+               <input
+                 type="number"
+                 min="0"
+                 value={editedWins}
+                 onChange={e=>setEditedWins(e.target.value)}
+                 className="input"
+                 placeholder="Wins"
+               />
+               <input
+                 type="number"
+                 min="0"
+                 value={editedLosses}
+                 onChange={e=>setEditedLosses(e.target.value)}
+                 className="input"
+                 placeholder="Losses"
+               />
+               <input
+                 type="number"
+                 min="0"
+                 value={editedTourneyCount}
+                 onChange={e=>setEditedTourneyCount(e.target.value)}
+                 className="input"
+                 placeholder="Tournaments"
+               />
+               <input
+                 type="number"
+                 min="0"
+                 value={editedTourneyWins}
+                 onChange={e=>setEditedTourneyWins(e.target.value)}
+                 className="input"
+                 placeholder="Tournament wins"
+               />
+               <input
+                 type="datetime-local"
+                 value={editedAddedAt}
+                 onChange={e=>setEditedAddedAt(e.target.value)}
+                 className="input"
+               />
             </div>
             <div className="modalFooter">
               <button className="btn danger" onClick={()=> onDelete(item.id)}>Delete</button>
@@ -2374,6 +2459,11 @@ const SafeImage = ({
       const [batchReplaceTo,setBatchReplaceTo] = useState('');
       const [batchGenerator,setBatchGenerator] = useState('__keep__');
       const [previewCollectionsText,setPreviewCollectionsText] = useState('');
+      const [previewWins,setPreviewWins] = useState('');
+      const [previewLosses,setPreviewLosses] = useState('');
+      const [previewTourneyCount,setPreviewTourneyCount] = useState('');
+      const [previewTourneyWins,setPreviewTourneyWins] = useState('');
+      const [previewAddedAt,setPreviewAddedAt] = useState('');
       const [libraryPage,setLibraryPage] = useState(1);
       const [libraryPageSize,setLibraryPageSize] = useState(50);
       const [collectionPage,setCollectionPage] = useState(1);
@@ -2551,10 +2641,20 @@ useEffect(() => {
       useEffect(()=>{
         if(!previewId){
           setPreviewCollectionsText('');
+          setPreviewWins('');
+          setPreviewLosses('');
+          setPreviewTourneyCount('');
+          setPreviewTourneyWins('');
+          setPreviewAddedAt('');
           return;
         }
         const it = items.find(x=>x.id===previewId);
         setPreviewCollectionsText(it ? collectionsToString(it.collections) : '');
+        setPreviewWins(it ? String(it.wins ?? 0) : '');
+        setPreviewLosses(it ? String(it.losses ?? 0) : '');
+        setPreviewTourneyCount(it ? String(it.tourneyCount ?? 0) : '');
+        setPreviewTourneyWins(it ? String(tourneyWinsFromBonus(it.tourneyBonus || 0)) : '');
+        setPreviewAddedAt(it ? toDateTimeLocalValue(it.addedAt) : '');
       },[previewId,items]);
 
 // lazy-load full-res image for preview modal
@@ -6494,13 +6594,79 @@ if (dt && dt.files && dt.files.length) {
                     </select>
                   </div>
                   <div>
-                    <div>Stats</div>
-                    <div className="smallMuted">
+                    <div>Stats (editable)</div>
+                    <div className="statEditGrid">
+                      <label>
+                        <div>Wins</div>
+                        <input
+                          type="number"
+                          min="0"
+                          value={previewWins}
+                          onChange={e=>{
+                            const next = e.target.value;
+                            setPreviewWins(next);
+                            patchItem(previewItem.id,{wins:Number(next || 0)});
+                          }}
+                        />
+                      </label>
+                      <label>
+                        <div>Losses</div>
+                        <input
+                          type="number"
+                          min="0"
+                          value={previewLosses}
+                          onChange={e=>{
+                            const next = e.target.value;
+                            setPreviewLosses(next);
+                            patchItem(previewItem.id,{losses:Number(next || 0)});
+                          }}
+                        />
+                      </label>
+                      <label>
+                        <div>Tournaments</div>
+                        <input
+                          type="number"
+                          min="0"
+                          value={previewTourneyCount}
+                          onChange={e=>{
+                            const next = e.target.value;
+                            setPreviewTourneyCount(next);
+                            patchItem(previewItem.id,{tourneyCount:Number(next || 0)});
+                          }}
+                        />
+                      </label>
+                      <label>
+                        <div>Tournament wins</div>
+                        <input
+                          type="number"
+                          min="0"
+                          value={previewTourneyWins}
+                          onChange={e=>{
+                            const next = e.target.value;
+                            setPreviewTourneyWins(next);
+                            patchItem(previewItem.id,{tourneyBonus:Number(next || 0) * 5});
+                          }}
+                        />
+                      </label>
+                      <label>
+                        <div>Date added</div>
+                        <input
+                          type="datetime-local"
+                          value={previewAddedAt}
+                          onChange={e=>{
+                            const next = e.target.value;
+                            setPreviewAddedAt(next);
+                            patchItem(previewItem.id,{addedAt: next ? fromDateTimeLocalValue(next) : ''});
+                          }}
+                        />
+                      </label>
+                    </div>
+                    <div className="smallMuted" style={{marginTop:8}}>
                       W {previewItem.wins} • L {previewItem.losses} • M {matchupsCount(previewItem)}<br/>
                       Win% {pct(previewItem.wins,previewItem.losses).toFixed(3)} • Points {computePoints(previewItem.wins,previewItem.losses,previewItem.tourneyBonus||0)}<br/>
-<div style={{whiteSpace:'pre-line'}}>
-  Added {formatAddedAt(previewItem.addedAt)}
-</div>
+                      <div style={{whiteSpace:'pre-line'}}>
+                        Added {formatAddedAt(previewItem.addedAt)}
+                      </div>
                     </div>
                   </div>
                 </div>
