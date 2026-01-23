@@ -2922,7 +2922,9 @@ async function handleFiles(fileList, forcedCollections = null, forcedGenerator =
           if(m < 4) b.fresh = true;
           if(wins >= 3 && losses === 0) b.undefeated = true;
           if(losses >= 3 && wins === 0) b.winless = true;
-          if((it.tourneyBonus||0) > 0) b.champion = true;
+          const tourneyWins = tourneyWinsFromBonus(it.tourneyBonus || 0);
+          if(tourneyWins > 0) b.champion = true;
+          if(tourneyWins > 0) b.tourneyWins = tourneyWins;
           if(Object.keys(b).length>0){
             map.set(it.id,b);
           }
@@ -3092,9 +3094,11 @@ const totalWinless = Array.from(badgeMap.values())
       function renderBadges(id, placement='badgeRow-top-right'){
         const b = badgeMap.get(id);
         if(!b) return null;
+        const trophyCount = Math.max(0, Number(b.tourneyWins || 0));
+        const trophyBadges = trophyCount > 0 ? '🏆'.repeat(trophyCount) : '';
         return (
           <div className={'badgeRow '+placement}>
-            {b.champion && <span className="badge gold">🏆</span>}
+            {trophyBadges && <span className="badge gold">{trophyBadges}</span>}
             {b.gold && <span className="badge gold">🥇</span>}
             {b.silver && <span className="badge silver">🥈</span>}
             {b.bronze && <span className="badge bronze">🥉</span>}
