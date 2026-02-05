@@ -301,25 +301,40 @@ function openPreview(item){
   collBlock.appendChild(collInput);
   fields.appendChild(collBlock);
 
-// Record (wins / losses / points)
-const recBlock = document.createElement('div');
-const recLabel = document.createElement('div');
-recLabel.textContent = 'Record';
+  // Record fields
+  const winsBlock = document.createElement('div');
+  const winsLabel = document.createElement('div');
+  winsLabel.textContent = 'Wins';
+  const winsInput = document.createElement('input');
+  winsInput.type = 'number';
+  winsInput.min = '0';
+  winsInput.step = '1';
+  winsInput.value = String(item.wins || 0);
+  winsInput.addEventListener('blur', ()=>{
+    const next = Math.max(0, Number(winsInput.value || 0));
+    winsInput.value = String(next);
+    patchItem(item.id, { wins: next });
+  });
+  winsBlock.appendChild(winsLabel);
+  winsBlock.appendChild(winsInput);
+  fields.appendChild(winsBlock);
 
-const recValue = document.createElement('div');
-recValue.style.color = 'var(--text)';
-recValue.style.fontSize = '13px';
-recValue.style.padding = '6px 0';
-
-const w = item.wins || 0;
-const l = item.losses || 0;
-const pts = (item.points || 0).toFixed(1);
-
-recValue.textContent = `${w} – ${l} (Points: ${pts})`;
-
-recBlock.appendChild(recLabel);
-recBlock.appendChild(recValue);
-fields.appendChild(recBlock);
+  const lossesBlock = document.createElement('div');
+  const lossesLabel = document.createElement('div');
+  lossesLabel.textContent = 'Losses';
+  const lossesInput = document.createElement('input');
+  lossesInput.type = 'number';
+  lossesInput.min = '0';
+  lossesInput.step = '1';
+  lossesInput.value = String(item.losses || 0);
+  lossesInput.addEventListener('blur', ()=>{
+    const next = Math.max(0, Number(lossesInput.value || 0));
+    lossesInput.value = String(next);
+    patchItem(item.id, { losses: next });
+  });
+  lossesBlock.appendChild(lossesLabel);
+  lossesBlock.appendChild(lossesInput);
+  fields.appendChild(lossesBlock);
 
 // Date Added
 const dateBlock = document.createElement('div');
