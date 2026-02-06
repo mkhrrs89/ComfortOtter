@@ -942,11 +942,19 @@
         return Promise.reject(new Error('IndexedDB unavailable'));
       }
       return new Promise((resolve,reject)=>{
-        const req = indexedDB.open(DB_NAME,1);
+        const req = indexedDB.open(DB_NAME,2);
         req.onupgradeneeded = () => {
           const db = req.result;
           if(!db.objectStoreNames.contains(DB_STORE)){
-            db.createObjectStore(DB_STORE,{keyPath:'id'});
+            const store = db.createObjectStore(DB_STORE,{keyPath:'id'});
+            if(!store.indexNames.contains('addedAt')){
+              store.createIndex('addedAt','addedAt',{unique:false});
+            }
+          }else{
+            const store = req.transaction.objectStore(DB_STORE);
+            if(!store.indexNames.contains('addedAt')){
+              store.createIndex('addedAt','addedAt',{unique:false});
+            }
           }
         };
         req.onsuccess = () => resolve(req.result);
@@ -1210,7 +1218,11 @@ function mapDbRecordToUiItem(v){
 
 
 // Load Library WITHOUT massive DataURLs (memory-safe)
-async function loadOptimizedLibrary(){
+async function loadOptimizedLibrary({
+  limit = null,
+  direction = 'next',
+  preferAddedAtIndex = false
+} = {}){
   let db;
   try{
     db = await openDB();
@@ -1223,7 +1235,10 @@ async function loadOptimizedLibrary(){
     const items = [];
     const tx = db.transaction(DB_STORE, 'readonly');
     const store = tx.objectStore(DB_STORE);
-    const cursorReq = store.openCursor();
+    const source = (preferAddedAtIndex && store.indexNames.contains('addedAt'))
+      ? store.index('addedAt')
+      : store;
+    const cursorReq = source.openCursor(null, direction);
 
     cursorReq.onsuccess = (e) => {
       const cursor = e.target.result;
@@ -1236,12 +1251,75 @@ async function loadOptimizedLibrary(){
       const uiItem = mapDbRecordToUiItem(v);
       if (uiItem) items.push(uiItem);
 
+      if (limit && items.length >= limit) {
+        resolve(items);
+        return;
+      }
       cursor.continue();
     };
 
     cursorReq.onerror = () => {
       console.error('loadOptimizedLibrary cursor error', cursorReq.error);
       resolve([]);
+    };
+  });
+}
+
+// Stream the library in batches (useful for background hydration)
+async function loadOptimizedLibraryInBatches({
+  batchSize = 200,
+  direction = 'next',
+  preferAddedAtIndex = false,
+  onBatch
+} = {}){
+  let db;
+  try{
+    db = await openDB();
+  }catch(err){
+    console.warn('IndexedDB unavailable, skipping library load.', err);
+    return;
+  }
+
+  return new Promise((resolve) => {
+    const tx = db.transaction(DB_STORE, 'readonly');
+    const store = tx.objectStore(DB_STORE);
+    const source = (preferAddedAtIndex && store.indexNames.contains('addedAt'))
+      ? store.index('addedAt')
+      : store;
+    const cursorReq = source.openCursor(null, direction);
+    let batch = [];
+
+    const flushBatch = () => {
+      if (!batch.length) return;
+      const payload = batch;
+      batch = [];
+      if (typeof onBatch === 'function') {
+        onBatch(payload);
+      }
+    };
+
+    cursorReq.onsuccess = (e) => {
+      const cursor = e.target.result;
+      if (!cursor) {
+        flushBatch();
+        resolve();
+        return;
+      }
+
+      const v = cursor.value || {};
+      const uiItem = mapDbRecordToUiItem(v);
+      if (uiItem) batch.push(uiItem);
+
+      if (batch.length >= batchSize) {
+        flushBatch();
+      }
+
+      cursor.continue();
+    };
+
+    cursorReq.onerror = () => {
+      console.error('loadOptimizedLibraryInBatches cursor error', cursorReq.error);
+      resolve();
     };
   });
 }
@@ -2574,6 +2652,7 @@ const [pendingOpenId, setPendingOpenId] = useState(() => {
         setCleanupModalOpen(false);
       }
       const statsPageSize = 250;
+      const initialLibraryPageSize = 100;
 
 const fileRef = useRef(null);
 const importRef = useRef(null);      // for JSON / metadata imports
@@ -2598,47 +2677,93 @@ function commitLibraryCollections(id){
 // load from IDB (thumbnail-first)
 useEffect(()=>{
   (async()=>{
-    let all;
-    try {
-      all = await loadOptimizedLibrary();   // ✅ use this
-    } catch (e) {
-      console.error('loadOptimizedLibrary failed on startup, falling back to idbGetAll', e);
-      all = await idbGetAll();              // only as a fallback
-    }
-
-    let collectionsUpdated = false;
-    const norm = all.map(it => {
+    const normalizeItem = (it) => {
       const normalizedCollections = normalizeCollections(it.collections || it.collectionsRaw || '');
       const collectionsChanged = !Array.isArray(it.collections)
         || it.collections.length !== normalizedCollections.length
         || it.collections.some((c,idx)=>c !== normalizedCollections[idx]);
-      if(collectionsChanged) collectionsUpdated = true;
       return {
-        ...it,
-        // (normalization fields, but DON'T re-add full dataUrl here)
-        collections: normalizedCollections,
-        wins: Number(it.wins || 0),
-        losses: Number(it.losses || 0),
-        tourneyBonus: Number(it.tourneyBonus || 0),
-        tourneyCount: Number(it.tourneyCount || 0),
-        addedAt: it.addedAt || nowStamp(),
-        hasBeenExported: !!it.hasBeenExported,
-        lastExportedAt: it.lastExportedAt || null,
-        imageNumber: Number.isFinite(it.imageNumber) ? it.imageNumber : null
+        normalizedCollections,
+        collectionsChanged,
+        item: {
+          ...it,
+          // (normalization fields, but DON'T re-add full dataUrl here)
+          collections: normalizedCollections,
+          wins: Number(it.wins || 0),
+          losses: Number(it.losses || 0),
+          tourneyBonus: Number(it.tourneyBonus || 0),
+          tourneyCount: Number(it.tourneyCount || 0),
+          addedAt: it.addedAt || nowStamp(),
+          hasBeenExported: !!it.hasBeenExported,
+          lastExportedAt: it.lastExportedAt || null,
+          imageNumber: Number.isFinite(it.imageNumber) ? it.imageNumber : null
+        }
       };
+    };
+
+    let collectionsUpdated = false;
+    let initial = [];
+    let loadedAll = false;
+    try {
+      initial = await loadOptimizedLibrary({
+        limit: initialLibraryPageSize,
+        direction: 'prev',
+        preferAddedAtIndex: true
+      });
+    } catch (e) {
+      console.error('loadOptimizedLibrary failed on startup, falling back to idbGetAll', e);
+      initial = await idbGetAll();
+      loadedAll = true;
+    }
+
+    const loadedIds = new Set();
+    const initialNorm = initial.map(it => {
+      const normalized = normalizeItem(it);
+      if (normalized.collectionsChanged) collectionsUpdated = true;
+      loadedIds.add(normalized.item.id);
+      return normalized.item;
     });
-    const { updated, changed } = assignImageNumbersByAddedAt(norm);
-      if (changed || collectionsUpdated) {
-        await idbBulkPutMerged(updated);
-      }
-    setItems(updated);
-    if (norm.length >= 2){
-      const [a,b] = pickTwoFromPool(norm);
+
+    setItems(initialNorm);
+    if (initialNorm.length >= 2){
+      const [a,b] = pickTwoFromPool(initialNorm);
       setMatchIds([a,b]);
     }
+
+    setLibraryHydrated(true);
+
+    const fullList = [...initialNorm];
+    if (!loadedAll) {
+      await loadOptimizedLibraryInBatches({
+        batchSize: 200,
+        direction: 'prev',
+        preferAddedAtIndex: true,
+        onBatch: (batch) => {
+          const newItems = [];
+          for (const it of batch) {
+            const normalized = normalizeItem(it);
+            if (normalized.collectionsChanged) collectionsUpdated = true;
+            if (!loadedIds.has(normalized.item.id)) {
+              loadedIds.add(normalized.item.id);
+              newItems.push(normalized.item);
+            }
+          }
+          if (newItems.length) {
+            fullList.push(...newItems);
+            setItems(prev => [...prev, ...newItems]);
+          }
+        }
+      });
+    }
+
+    const { updated, changed } = assignImageNumbersByAddedAt(fullList);
+    if (changed || collectionsUpdated) {
+      await idbBulkPutMerged(updated);
+    }
+    setItems(updated);
+    setMatchIds(prev => (prev && prev[0] && prev[1]) ? prev : pickTwoFromPool(updated));
   })()
-  .catch(e => console.error('Failed to hydrate library on startup', e))
-  .finally(()=>{ setLibraryHydrated(true); });
+  .catch(e => console.error('Failed to hydrate library on startup', e));
 },[]);
 
 // Auto-open an image when arriving from duplicates.html with ?openId=<id>
