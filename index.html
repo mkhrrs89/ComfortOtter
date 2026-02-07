@@ -4828,8 +4828,15 @@ const statsRows = useMemo(()=>{
 
       const left = items.find(it=>it.id===matchIds[0]) || null;
       const right = items.find(it=>it.id===matchIds[1]) || null;
-      const leftSources = useMemo(()=>getMatchupSources(left), [left]);
-      const rightSources = useMemo(()=>getMatchupSources(right), [right]);
+      const isMobile = viewportMode !== 'desktop';
+      const leftSources = useMemo(
+        () => (isMobile ? getDisplaySources(left) : getMatchupSources(left)),
+        [left, isMobile]
+      );
+      const rightSources = useMemo(
+        () => (isMobile ? getDisplaySources(right) : getMatchupSources(right)),
+        [right, isMobile]
+      );
       const lockedMatchItem = matchMode.type === 'locked'
         ? items.find(it=>it.id===matchMode.lockedId) || null
         : null;
@@ -5834,8 +5841,8 @@ if (dt && dt.files && dt.files.length) {
       src={leftSources[0]}
       fallbackSrcs={leftSources}
       alt="left"
-      preferRemote={true}
-      eagerHydrate={true}
+      preferRemote={!isMobile}
+      eagerHydrate={!isMobile}
       onResolved={(url)=>patchItem(left.id,{fullUrl:url})}
     />
     {renderBadges(left.id,'badgeRow-top-right')}
@@ -5847,8 +5854,8 @@ if (dt && dt.files && dt.files.length) {
       src={rightSources[0]}
       fallbackSrcs={rightSources}
       alt="right"
-      preferRemote={true}
-      eagerHydrate={true}
+      preferRemote={!isMobile}
+      eagerHydrate={!isMobile}
       onResolved={(url)=>patchItem(right.id,{fullUrl:url})}
     />
     {renderBadges(right.id,'badgeRow-top-right')}
