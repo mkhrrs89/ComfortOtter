@@ -392,14 +392,24 @@ function dedupeSources(list){
   return clean;
 }
 
-function getDisplaySources(item){
+function getThumbOnlySources(item){
+  if (!item) return [];
+  return dedupeSources([
+    item.thumbnail,
+    item.thumbDataUrl
+  ]);
+}
+
+function getFullOnlySources(item){
   if (!item) return [];
   return dedupeSources([
     item.fullUrl,
-    item.dataUrl,
-    item.thumbDataUrl,
-    item.thumbnail
+    item.dataUrl
   ]);
+}
+
+function getDisplaySources(item){
+  return getThumbOnlySources(item);
 }
 
 function getDisplaySrc(item){
@@ -467,6 +477,35 @@ function attachImageFallbacks(rootEl){
       if(!advanced){
         showImageFailure(img, 'Image unavailable: all available sources failed to load.');
       }
+    });
+  });
+}
+
+function attachHdButtons(rootEl){
+  if(!rootEl) return;
+  const buttons = rootEl.querySelectorAll('[data-hd-target]');
+  buttons.forEach(btn => {
+    if(btn.dataset.hdBound) return;
+    btn.dataset.hdBound = 'true';
+    const targetId = btn.dataset.hdTarget;
+    const img = document.getElementById(targetId);
+    if(!img) return;
+    const fullSources = parseSources(img.dataset.fullSrcs || '');
+    if(!fullSources.length){
+      btn.disabled = true;
+      btn.textContent = 'HD unavailable';
+      return;
+    }
+    btn.addEventListener('click', (ev)=>{
+      ev.preventDefault();
+      ev.stopPropagation();
+      const sources = parseSources(img.dataset.fullSrcs || '');
+      if(!sources.length) return;
+      img.dataset.srcs = serializeSources(sources);
+      img.dataset.srcIndex = '0';
+      img.src = sources[0];
+      btn.disabled = true;
+      btn.textContent = 'HD loaded';
     });
   });
 }
@@ -1144,7 +1183,10 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
           matchEl.innerHTML =
             '<div class="champCard">' +
 '<div class="champImgWrap">' +
-  '<img src="'+getDisplaySrc(champ)+'" data-srcs="'+escapeHtml(serializeSources(getDisplaySources(champ)))+'" data-src-index="0" alt="Champion" />' +
+  '<img id="tChampImg" src="'+getDisplaySrc(champ)+'" data-srcs="'+escapeHtml(serializeSources(getDisplaySources(champ)))+'" data-full-srcs="'+escapeHtml(serializeSources(dedupeSources([...getFullOnlySources(champ), ...getThumbOnlySources(champ)])))+'" data-src-index="0" alt="Champion" />' +
+  '<div class="toolbar" style="margin-top:8px;justify-content:center;">' +
+    '<button class="btn ghost sm" data-hd-target="tChampImg">Load HD</button>' +
+  '</div>' +
 '</div>' +
 
               '<div>' +
@@ -1157,6 +1199,7 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
               '</div>' +
             '</div>';
           attachImageFallbacks(matchEl);
+          attachHdButtons(matchEl);
         }
 
         renderBracket();
@@ -1211,13 +1254,13 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
 '<div class="arena">' +
   '<button class="imageCardBtn" id="tLeftImgBtn">' +
     '<div class="imageCard">' +
-      '<img src="'+getDisplaySrc(left)+'" data-srcs="'+escapeHtml(serializeSources(getDisplaySources(left)))+'" data-src-index="0" alt="Left" />' +
+      '<img id="tLeftImg" src="'+getDisplaySrc(left)+'" data-srcs="'+escapeHtml(serializeSources(getDisplaySources(left)))+'" data-full-srcs="'+escapeHtml(serializeSources(dedupeSources([...getFullOnlySources(left), ...getThumbOnlySources(left)])))+'" data-src-index="0" alt="Left" />' +
     '</div>' +
   '</button>' +
   '<div class="vs">VS</div>' +
   '<button class="imageCardBtn" id="tRightImgBtn">' +
     '<div class="imageCard">' +
-      '<img src="'+getDisplaySrc(right)+'" data-srcs="'+escapeHtml(serializeSources(getDisplaySources(right)))+'" data-src-index="0" alt="Right" />' +
+      '<img id="tRightImg" src="'+getDisplaySrc(right)+'" data-srcs="'+escapeHtml(serializeSources(getDisplaySources(right)))+'" data-full-srcs="'+escapeHtml(serializeSources(dedupeSources([...getFullOnlySources(right), ...getThumbOnlySources(right)])))+'" data-src-index="0" alt="Right" />' +
     '</div>' +
   '</button>' +
 '</div>' +
@@ -1229,6 +1272,9 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
               (formatDisplayTitle(left.title) || 'Untitled') + '<br/>' +
               'W '+left.wins+' • L '+left.losses+' • Pts '+leftPts+' • M '+matchupsCount(left) +
             '</div>' +
+            '<div class="toolbar" style="margin-top:4px;justify-content:flex-start;">' +
+              '<button class="btn ghost sm" data-hd-target="tLeftImg">Load HD</button>' +
+            '</div>' +
           '</div>' +
           '<div></div>' +
           '<div class="matchMetaBox">' +
@@ -1237,6 +1283,9 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
               (formatDisplayTitle(right.title) || 'Untitled') + '<br/>' +
               'W '+right.wins+' • L '+right.losses+' • Pts '+rightPts+' • M '+matchupsCount(right) +
             '</div>' +
+            '<div class="toolbar" style="margin-top:4px;justify-content:flex-start;">' +
+              '<button class="btn ghost sm" data-hd-target="tRightImg">Load HD</button>' +
+            '</div>' +
           '</div>' +
         '</div>' +
         '<div class="matchFooter">' +
@@ -1244,6 +1293,7 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
           '<button class="btn sm" id="tRightWinBtn">Right wins</button>' +
         '</div>';
       attachImageFallbacks(matchEl);
+      attachHdButtons(matchEl);
 
       const leftImgBtn = document.getElementById('tLeftImgBtn');
       const rightImgBtn = document.getElementById('tRightImgBtn');

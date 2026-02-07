@@ -2171,40 +2171,13 @@ async function dataUrlToThumbDataUrl(src, maxSide = 320, quality = 0.80){
 // ... useCropper ends above here ...
 
 const MatchCard = ({ item, onClick, result }) => {
-  const [highResSrc, setHighResSrc] = useState(
-    item.fullUrl || item.dataUrl || item.thumbnail
-  );
-
-  useEffect(() => {
-    // If we already have a cloud URL, just use that and stop.
-    if (item.fullUrl) {
-      setHighResSrc(item.fullUrl);
-      return;
-    }
-
-    // Fall back to local dataUrl / thumbnail
-    if (item.dataUrl) {
-      setHighResSrc(item.dataUrl);
-      return;
-    }
-
-    // Old "lightweight" items: try to hydrate from IndexedDB if needed
-    if (item.id) {
-      idbGet(item.id).then(full => {
-        if (full) {
-          setHighResSrc(full.fullUrl || full.dataUrl || full.thumbnail || highResSrc);
-        }
-      });
-    }
-  }, [item.id, item.fullUrl, item.dataUrl]);
-
   return (
     <div
       className={`match-card ${result || ''}`}
       onClick={() => onClick(item.id)}
     >
       <div className="img-container">
-        <SafeImage item={item} src={highResSrc} fallbackSrcs={getDisplaySources(item)} alt={item.title} className="match-img" />
+        <SafeImage item={item} src={getDisplaySrc(item)} fallbackSrcs={getDisplaySources(item)} alt={item.title} className="match-img" />
         {result && (
           <div className={`overlay ${result}`}>
             {result === 'win' ? 'WINNER' : 'ELIMINATED'}
@@ -2230,32 +2203,12 @@ const ImageModal = ({ item, onClose, onSave, onDelete, generatorOptions = [] }) 
       const [editedTourneyCount, setEditedTourneyCount] = useState(String(item.tourneyCount ?? 0));
       const [editedTourneyWins, setEditedTourneyWins] = useState(String(tourneyWinsFromBonus(item.tourneyBonus || 0)));
       const [editedAddedAt, setEditedAddedAt] = useState(toDateTimeLocalValue(item.addedAt));
-      
-      // Lazy Load High Res (This is the memory-safe part)
-const [displaySrc, setDisplaySrc] = useState(
-  item.fullUrl || item.dataUrl || item.thumbnail
-);
+      const [modalWantHd, setModalWantHd] = useState(false);
+      const displaySrc = getDisplaySrc(item);
 
-useEffect(() => {
-  // Prefer cloud URL if we have it
-  if (item.fullUrl) {
-    setDisplaySrc(item.fullUrl);
-    return;
-  }
-
-  if (item.dataUrl) {
-    setDisplaySrc(item.dataUrl);
-    return;
-  }
-
-  if (item.id) {
-    idbGet(item.id).then(full => {
-      if (full) {
-        setDisplaySrc(full.fullUrl || full.dataUrl || full.thumbnail || displaySrc);
-      }
-    });
-  }
-}, [item.id, item.fullUrl, item.dataUrl]);
+      useEffect(()=>{
+        setModalWantHd(false);
+      },[item.id]);
 
       
       const handleSave = () => {
@@ -2276,7 +2229,22 @@ useEffect(() => {
           <div className="modalInner" onClick={e => e.stopPropagation()}>
             <div className="modal-img-container">
               {/* NOTE: If SafeImage is undefined, change this to <img src={displaySrc} className="modal-img" /> */}
-              <SafeImage item={item} src={displaySrc} fallbackSrcs={getDisplaySources(item)} className="modal-img" />
+              <SafeImage
+                item={item}
+                src={displaySrc}
+                fallbackSrcs={getDisplaySources(item)}
+                className="modal-img"
+                allowFull={modalWantHd}
+              />
+              <div className="toolbar" style={{marginTop:8}}>
+                <button
+                  className="btn ghost sm"
+                  onClick={()=>setModalWantHd(true)}
+                  disabled={modalWantHd}
+                >
+                  {modalWantHd ? 'HD loaded' : 'Load HD'}
+                </button>
+              </div>
             </div>
             <div style={{display:'flex', gap:10, flexDirection:'column'}}>
                <input 
@@ -2367,23 +2335,32 @@ function dedupeSources(list){
   }
   return clean;
 }
-function getDisplaySources(item){
+function getThumbOnlySources(item){
   if(!item) return [];
   return dedupeSources([
     item.thumbnail,
-    item.thumbDataUrl,
-    item.fullUrl,
-    item.dataUrl
+    item.thumbDataUrl
   ]);
 }
-// Matchups should prefer the full-size image whenever possible.
-function getMatchupSources(item){
+
+function getFullOnlySources(item){
   if(!item) return [];
   return dedupeSources([
     item.fullUrl,
     item.dataUrl
   ]);
 }
+
+// Display sources across the app should be THUMBNAILS ONLY.
+function getDisplaySources(item){
+  return getThumbOnlySources(item);
+}
+
+// Matchups should only load full-size images when explicitly requested.
+function getMatchupSources(item){
+  return getFullOnlySources(item);
+}
+
 // Pick the best image source for matchups / small thumbs
 function getDisplaySrc(item){
   const sources = getDisplaySources(item);
@@ -2402,6 +2379,7 @@ function preloadImage(src){
 }
 
 // Image component with automatic fallbacks + hydration
+const BLANK_IMG = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEAAAAALAAAAAABAAEAAAI=';
 const SafeImage = ({
   src,
   fallbackSrcs = [],
@@ -2412,34 +2390,42 @@ const SafeImage = ({
   onClick,
   onResolved,
   preferRemote = false,
-  eagerHydrate = false
+  eagerHydrate = false,
+  allowFull = false
 }) => {
   const queueRef = useRef([]);
   const hydratedRef = useRef(false);
   const [currentSrc, setCurrentSrc] = useState('');
 
-  const rebuildQueue = useCallback((primary, fallbacks, targetItem) => {
-    const ordered = dedupeSources([primary, ...(fallbacks || []), ...getDisplaySources(targetItem)]);
+  const rebuildQueue = useCallback(() => {
+    const targetItem = item || {};
+    const primary = isNonEmptySrc(src) ? src : '';
+    const thumbs = getThumbOnlySources(targetItem);
+    const fulls = allowFull ? getFullOnlySources(targetItem) : [];
+    const ordered = allowFull
+      ? dedupeSources([primary, ...fallbackSrcs, ...fulls, ...thumbs])
+      : dedupeSources([primary, ...fallbackSrcs, ...thumbs]);
     queueRef.current = ordered;
     setCurrentSrc(ordered[0] || '');
     hydratedRef.current = false;
-  }, []);
+  }, [item, src, fallbackSrcs, allowFull]);
 
   useEffect(()=>{
-    rebuildQueue(src, fallbackSrcs, item);
-  },[src, fallbackSrcs, item?.id, item?.thumbnail, item?.thumbDataUrl, item?.fullUrl, item?.dataUrl, rebuildQueue]);
+    rebuildQueue();
+  },[rebuildQueue]);
 
   useEffect(()=>{
-    if(currentSrc || !item?.id) return;
+    if(currentSrc || !item?.id || !allowFull) return;
     tryHydrate();
-  },[currentSrc, item?.id, tryHydrate]);
+  },[currentSrc, item?.id, allowFull, tryHydrate]);
 
   useEffect(()=>{
-    if(!eagerHydrate || !item?.id) return;
+    if(!eagerHydrate || !item?.id || !allowFull) return;
     tryHydrate();
-  },[eagerHydrate, item?.id, tryHydrate]);
+  },[eagerHydrate, item?.id, allowFull, tryHydrate]);
 
   const tryHydrate = useCallback(async ()=>{
+    if(!allowFull) return false;
     if(!item || !item.id || hydratedRef.current) return null;
     hydratedRef.current = true;
     try{
@@ -2448,12 +2434,14 @@ const SafeImage = ({
       const merged = preferRemote
         ? dedupeSources([
             remote,
-            ...queueRef.current,
-            ...getDisplaySources(full)
+            ...getFullOnlySources(full),
+            ...getThumbOnlySources(full),
+            ...queueRef.current
           ])
         : dedupeSources([
+            ...getFullOnlySources(full),
+            ...getThumbOnlySources(full),
             ...queueRef.current,
-            ...getDisplaySources(full),
             remote
           ]);
       queueRef.current = merged;
@@ -2469,7 +2457,7 @@ const SafeImage = ({
       console.warn('SafeImage hydration failed', err);
     }
     return null;
-  },[item, currentSrc, onResolved, preferRemote]);
+  },[allowFull, item, currentSrc, onResolved, preferRemote]);
 
   const handleError = useCallback(async ()=>{
     const next = queueRef.current.find(url => url && url !== currentSrc);
@@ -2477,14 +2465,18 @@ const SafeImage = ({
       setCurrentSrc(next);
       return;
     }
+    if(queueRef.current.length===0){
+      if(allowFull) tryHydrate();
+      return;
+    }
     const hydrated = await tryHydrate();
     if(hydrated) return;
     setCurrentSrc('');
-  },[currentSrc, tryHydrate]);
+  },[currentSrc, allowFull, tryHydrate]);
 
   return (
     <img
-      src={currentSrc || undefined}
+      src={currentSrc || BLANK_IMG}
       alt={alt}
       className={className}
       style={{...style, visibility: currentSrc ? 'visible' : 'hidden'}}
@@ -2515,8 +2507,11 @@ const SafeImage = ({
       const [items,setItems] = useState([]);
       const [matchIds,setMatchIds] = useState([null,null]);
       const [lastMatch,setLastMatch] = useState(null); // {winnerId, loserId, leftId, rightId}
+      const [matchupLeftHd, setMatchupLeftHd] = useState(false);
+      const [matchupRightHd, setMatchupRightHd] = useState(false);
       const [previewId,setPreviewId] = useState(null);
       const [previewSrc, setPreviewSrc] = useState(null);
+      const [previewWantHd, setPreviewWantHd] = useState(false);
       const [collectionTabView, setCollectionTabView] = useState('collections'); // collections | generators
       const [activeCollection,setActiveCollection] = useState(null); // name string
       const [activeCollectionType,setActiveCollectionType] = useState('collection'); // collection | generator
@@ -2826,35 +2821,17 @@ useEffect(() => {
         setPreviewAddedAt(it ? toDateTimeLocalValue(it.addedAt) : '');
       },[previewId,items]);
 
-// lazy-load full-res image for preview modal
+// initialize preview modal with thumbnail-only sources
 useEffect(()=>{
-  if (!previewId) {
+  if(!previewId){
     setPreviewSrc(null);
+    setPreviewWantHd(false);
     return;
   }
-
-  // start with whatever we already have (thumbnail or dataUrl stored in state)
   const current = items.find(x => x.id === previewId);
-  const base =
-    (current && (current.dataUrl || current.thumbnail)) || null;
+  const base = current ? getDisplaySrc(current) : null;
   setPreviewSrc(base);
-
-  let cancelled = false;
-
-  (async () => {
-    try {
-      const full = await idbGet(previewId);
-      if (!cancelled && full && full.dataUrl) {
-        setPreviewSrc(full.dataUrl);   // swap in the big image
-      }
-    } catch (e) {
-      console.error('Failed to load full preview', e);
-    }
-  })();
-
-  return () => {
-    cancelled = true;
-  };
+  setPreviewWantHd(false);
 }, [previewId, items]);
 
       // reset pages when filters/sorts change
@@ -2954,6 +2931,11 @@ useEffect(()=>{
         setSelectedIds(prev=>prev.filter(x=>x!==id));
       }
 
+useEffect(() => {
+  setMatchupLeftHd(false);
+  setMatchupRightHd(false);
+}, [matchIds[0], matchIds[1]]);
+
 // Preload the current matchup images so flipping feels snappier
 useEffect(() => {
   if (!matchIds || !matchIds[0] || !matchIds[1]) return;
@@ -2962,8 +2944,8 @@ useEffect(() => {
   const left  = items.find(it => it.id === matchIds[0]);
   const right = items.find(it => it.id === matchIds[1]);
 
-  const leftSrc  = getMatchupSources(left)[0] || '';
-  const rightSrc = getMatchupSources(right)[0] || '';
+  const leftSrc  = getDisplaySources(left)[0] || '';
+  const rightSrc = getDisplaySources(right)[0] || '';
 
   preloadImage(leftSrc);
   preloadImage(rightSrc);
@@ -4840,12 +4822,12 @@ const statsRows = useMemo(()=>{
       const right = items.find(it=>it.id===matchIds[1]) || null;
       const isMobile = viewportMode !== 'desktop';
       const leftSources = useMemo(
-        () => (isMobile ? getDisplaySources(left) : getMatchupSources(left)),
-        [left, isMobile]
+        () => getDisplaySources(left),
+        [left]
       );
       const rightSources = useMemo(
-        () => (isMobile ? getDisplaySources(right) : getMatchupSources(right)),
-        [right, isMobile]
+        () => getDisplaySources(right),
+        [right]
       );
       const lockedMatchItem = matchMode.type === 'locked'
         ? items.find(it=>it.id===matchMode.lockedId) || null
@@ -5854,6 +5836,7 @@ if (dt && dt.files && dt.files.length) {
       preferRemote={!isMobile}
       eagerHydrate={!isMobile}
       onResolved={(url)=>patchItem(left.id,{fullUrl:url})}
+      allowFull={matchupLeftHd}
     />
     {renderBadges(left.id,'badgeRow-top-right')}
   </button>
@@ -5867,6 +5850,7 @@ if (dt && dt.files && dt.files.length) {
       preferRemote={!isMobile}
       eagerHydrate={!isMobile}
       onResolved={(url)=>patchItem(right.id,{fullUrl:url})}
+      allowFull={matchupRightHd}
     />
     {renderBadges(right.id,'badgeRow-top-right')}
   </button>
@@ -5883,6 +5867,13 @@ if (dt && dt.files && dt.files.length) {
                         Collections: {collectionsToString(left.collections)}
                       </div>
                       <div className="toolbar" style={{marginTop:4,gap:6}}>
+                        <button
+                          className="btn ghost sm"
+                          onClick={()=>setMatchupLeftHd(true)}
+                          disabled={matchupLeftHd}
+                        >
+                          {matchupLeftHd ? 'HD loaded' : 'Load HD'}
+                        </button>
                         <button className="btn ghost sm" onClick={()=>openPreviewFor(left)}>View</button>
                         <button className="btn ghost sm" onClick={()=>startCropFor(left)}>Crop</button>
                         <button className="btn ghost sm" onClick={()=>startLockedMatchup(left)}>Lock matchup</button>
@@ -5899,6 +5890,13 @@ if (dt && dt.files && dt.files.length) {
                         Collections: {collectionsToString(right.collections)}
                       </div>
                       <div className="toolbar" style={{marginTop:4,gap:6}}>
+                        <button
+                          className="btn ghost sm"
+                          onClick={()=>setMatchupRightHd(true)}
+                          disabled={matchupRightHd}
+                        >
+                          {matchupRightHd ? 'HD loaded' : 'Load HD'}
+                        </button>
                         <button className="btn ghost sm" onClick={()=>openPreviewFor(right)}>View</button>
                         <button className="btn ghost sm" onClick={()=>startCropFor(right)}>Crop</button>
                         <button className="btn ghost sm" onClick={()=>startLockedMatchup(right)}>Lock matchup</button>
@@ -6765,15 +6763,22 @@ if (dt && dt.files && dt.files.length) {
             <div className="modal" onClick={()=>setPreviewId(null)}>
               <div className="modalInner" onClick={e=>e.stopPropagation()}>
                 <div className="previewImgWrap">
-<img
-  src={
-    previewSrc ||
-    previewItem.thumbnail ||
-    previewItem.fullUrl ||
-    previewItem.dataUrl
-  }
-  alt={previewItem.title || 'Image'}
-/>
+                  <SafeImage
+                    item={previewItem}
+                    src={previewSrc}
+                    fallbackSrcs={getDisplaySources(previewItem)}
+                    alt={previewItem.title || 'Image'}
+                    allowFull={previewWantHd}
+                  />
+                  <div className="toolbar" style={{marginTop:8, justifyContent:'center'}}>
+                    <button
+                      className="btn ghost sm"
+                      onClick={()=>setPreviewWantHd(true)}
+                      disabled={previewWantHd}
+                    >
+                      {previewWantHd ? 'HD loaded' : 'Load HD'}
+                    </button>
+                  </div>
 
                   {renderBadges(previewItem.id,'badgeRow-top-right')}
                 </div>
