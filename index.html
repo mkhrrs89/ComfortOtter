@@ -2562,6 +2562,7 @@ const SafeImage = ({
       });
       const [customGenerators, setCustomGenerators] = useState(()=>loadGeneratorCatalog());
       const [libraryHydrated, setLibraryHydrated] = useState(false);
+      const [libraryFullyLoaded, setLibraryFullyLoaded] = useState(false);
       const [statsSort,setStatsSort] = useState({field:'points',dir:'asc'});
       const [statsView,setStatsView] = useState('images');
       const [genStatsSort,setGenStatsSort] = useState({field:'pct',dir:'desc'});
@@ -2676,6 +2677,8 @@ function commitLibraryCollections(id){
 
 // load from IDB (thumbnail-first)
 useEffect(()=>{
+  setLibraryFullyLoaded(false);
+
   (async()=>{
     const normalizeItem = (it) => {
       const normalizedCollections = normalizeCollections(it.collections || it.collectionsRaw || '');
@@ -2763,7 +2766,8 @@ useEffect(()=>{
     setItems(updated);
     setMatchIds(prev => (prev && prev[0] && prev[1]) ? prev : pickTwoFromPool(updated));
   })()
-  .catch(e => console.error('Failed to hydrate library on startup', e));
+  .catch(e => console.error('Failed to hydrate library on startup', e))
+  .finally(() => setLibraryFullyLoaded(true));
 },[]);
 
 // Auto-open an image when arriving from duplicates.html with ?openId=<id>
@@ -3220,6 +3224,12 @@ async function handleFiles(fileList, forcedCollections = null, forcedGenerator =
           topPointsPrevRef.current = topPointsRanking;
           return;
         }
+        if(!libraryFullyLoaded){
+          // Keep the "previous ranking" in sync while loading,
+          // but don't spam notifications.
+          topPointsPrevRef.current = topPointsRanking;
+          return;
+        }
         const prev = topPointsPrevRef.current;
         const prevById = new Map(prev.map(entry=>[entry.id, entry]));
         const nextById = new Map(topPointsRanking.map(entry=>[entry.id, entry]));
@@ -3276,7 +3286,7 @@ async function handleFiles(fileList, forcedCollections = null, forcedGenerator =
           showRankNotice(affected);
         }
         topPointsPrevRef.current = topPointsRanking;
-      },[topPointsRanking]);
+      },[topPointsRanking, libraryFullyLoaded]);
 
 // ---------- BADGE COUNTS SUMMARY ----------
 const totalUndefeated = Array.from(badgeMap.values())
