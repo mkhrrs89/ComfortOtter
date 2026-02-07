@@ -1361,52 +1361,55 @@ async function generateMissingThumbnails_Safe(updateStatusCallback){
 
   console.log('Starting thumbnail batch. Total keys:', keys.length);
 
-  // 🔹 MUCH smaller batch size so we don’t blow up memory
-  const MAX_PER_RUN = 5;
-  let processed = 0;
+  // Create only a few thumbs per click (safe), but SCAN past already-thumbed items.
+  const MAX_GENERATED_PER_RUN = 5;   // thumbs to create per click
+  const MAX_SCANNED_PER_RUN   = 250; // records to inspect per click (keeps it quick)
+
+  let startIndex = Number(localStorage.getItem('thumbGenCursor') || '0');
+  if (!Number.isFinite(startIndex) || startIndex < 0) startIndex = 0;
+
+  let scanned = 0;
   let generated = 0;
 
-  for (let i = 0; i < keys.length && processed < MAX_PER_RUN; i++) {
+  // start where we left off last time
+  let i = startIndex;
+
+  for (; i < keys.length && scanned < MAX_SCANNED_PER_RUN && generated < MAX_GENERATED_PER_RUN; i++) {
     const id = keys[i];
-    processed++;
+    scanned++;
 
     let item;
     try {
-      item = await idbGet(id);    // own read tx
+      item = await idbGet(id);
     } catch (e) {
       console.error('Failed to read item while generating thumbnail', id, e);
       continue;
     }
 
-// skip if no image source or already has new-style thumb
-const src =
-  item.dataUrl ||
-  item.fullUrl ||
-  item.thumbnail ||
-  item.thumbDataUrl;
+    // skip if it already has ANY thumbnail
+    const hasThumb = !!(item?.thumbnail || item?.thumbDataUrl);
+    if (!item || hasThumb) continue;
 
-if (!item || !src || item.thumbDataUrl) {
-  continue;
-}
+    // Need a real source to create a thumb
+    const src = item.dataUrl || item.fullUrl;
+    if (!src) continue;
 
-let thumb;
-try {
-  thumb = await dataUrlToThumbDataUrl(src, 480, 0.8);
-} catch (e) {
-  console.error('Failed to create thumbnail for', id, e);
-  continue;
-}
+    let thumb;
+    try {
+      thumb = await srcToThumbDataUrl(src, 480, 0.80);
+    } catch (e) {
+      console.error('Failed to create thumbnail for', id, e);
+      continue;
+    }
 
-
-    // ✅ Write to BOTH fields so old + new paths can use it
-    item.thumbnail    = thumb;
+    item.thumbnail = thumb;
     item.thumbDataUrl = thumb;
 
     try {
-      await idbPut(item);    // own write tx
+      await idbPut(item);
       generated++;
 
-      if (updateStatusCallback && generated % 5 === 0) {
+      if (updateStatusCallback) {
         updateStatusCallback(`Generated ${generated} thumbnails this run...`);
       }
     } catch (e) {
@@ -1414,11 +1417,14 @@ try {
       continue;
     }
 
-    // 🔹 Yield EVERY item so GC can breathe
-    await new Promise(r => setTimeout(r, 0));
+    await new Promise(r => setTimeout(r, 0)); // yield to GC
   }
 
-  console.log(`Thumbnail batch finished. Generated: ${generated}, processed: ${processed}`);
+  // Advance cursor so the NEXT click continues where this left off
+  if (i >= keys.length) i = 0;
+  localStorage.setItem('thumbGenCursor', String(i));
+
+  console.log(`Thumbnail batch finished. Generated: ${generated}, scanned: ${scanned}, nextIndex: ${i}`);
   return generated;
 }
 
@@ -1849,6 +1855,26 @@ async function dataUrlToThumbDataUrl(src, maxSide = 320, quality = 0.80){
     return c.toDataURL(CANVAS_FORMAT, quality);
   });
   return dataUrl;
+}
+
+async function srcToThumbDataUrl(src, maxSide = 320, quality = 0.80){
+  if(!src) throw new Error('No src');
+
+  // If it's a remote URL, fetch it and convert to a same-origin blob URL for canvas safety
+  if (isHttpUrl(src)) {
+    const res = await fetch(src, { mode: 'cors' });
+    if (!res.ok) throw new Error(`Fetch failed (${res.status})`);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    try {
+      return await dataUrlToThumbDataUrl(blobUrl, maxSide, quality);
+    } finally {
+      URL.revokeObjectURL(blobUrl);
+    }
+  }
+
+  // data: / blob: / same-origin URLs
+  return await dataUrlToThumbDataUrl(src, maxSide, quality);
 }
 
 
