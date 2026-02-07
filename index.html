@@ -281,6 +281,15 @@
       gap:12px;
       margin:10px 0 6px;
     }
+    .imageStack{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .imgUnderRow{
+      display:flex;
+      justify-content:center;
+    }
     .imageCard{
       position:relative;
       border:1px solid var(--ring);
@@ -5853,33 +5862,55 @@ if (dt && dt.files && dt.files.length) {
               ) : (
                 <>
 <div className="arena">
-  <button className={`imageCard ${matchupMedalClass(left.id)}`} onClick={()=>recordWin(left.id)}>
-    <SafeImage
-      item={left}
-      src={leftSources[0]}
-      fallbackSrcs={leftSources}
-      alt="left"
-      preferRemote={!isMobile}
-      eagerHydrate={!isMobile}
-      onResolved={(url)=>patchItem(left.id,{fullUrl:url})}
-      allowFull={matchupLeftHd}
-    />
-    {renderBadges(left.id,'badgeRow-top-right')}
-  </button>
+  <div className="imageStack">
+    <button className={`imageCard ${matchupMedalClass(left.id)}`} onClick={()=>recordWin(left.id)}>
+      <SafeImage
+        item={left}
+        src={leftSources[0]}
+        fallbackSrcs={leftSources}
+        alt="left"
+        preferRemote={!isMobile}
+        eagerHydrate={!isMobile}
+        onResolved={(url)=>patchItem(left.id,{fullUrl:url})}
+        allowFull={matchupLeftHd}
+      />
+      {renderBadges(left.id,'badgeRow-top-right')}
+    </button>
+    <div className="imgUnderRow">
+      <button
+        className="btn ghost sm"
+        onClick={(e)=>{ e.preventDefault(); e.stopPropagation(); setMatchupLeftHd(true); }}
+        disabled={matchupLeftHd}
+      >
+        {matchupLeftHd ? 'HD loaded' : 'Load HD'}
+      </button>
+    </div>
+  </div>
   <div className="vs">VS</div>
-  <button className={`imageCard ${matchupMedalClass(right.id)}`} onClick={()=>recordWin(right.id)}>
-    <SafeImage
-      item={right}
-      src={rightSources[0]}
-      fallbackSrcs={rightSources}
-      alt="right"
-      preferRemote={!isMobile}
-      eagerHydrate={!isMobile}
-      onResolved={(url)=>patchItem(right.id,{fullUrl:url})}
-      allowFull={matchupRightHd}
-    />
-    {renderBadges(right.id,'badgeRow-top-right')}
-  </button>
+  <div className="imageStack">
+    <button className={`imageCard ${matchupMedalClass(right.id)}`} onClick={()=>recordWin(right.id)}>
+      <SafeImage
+        item={right}
+        src={rightSources[0]}
+        fallbackSrcs={rightSources}
+        alt="right"
+        preferRemote={!isMobile}
+        eagerHydrate={!isMobile}
+        onResolved={(url)=>patchItem(right.id,{fullUrl:url})}
+        allowFull={matchupRightHd}
+      />
+      {renderBadges(right.id,'badgeRow-top-right')}
+    </button>
+    <div className="imgUnderRow">
+      <button
+        className="btn ghost sm"
+        onClick={(e)=>{ e.preventDefault(); e.stopPropagation(); setMatchupRightHd(true); }}
+        disabled={matchupRightHd}
+      >
+        {matchupRightHd ? 'HD loaded' : 'Load HD'}
+      </button>
+    </div>
+  </div>
 </div>
 
                   <div className="matchMetaRow">
@@ -5893,13 +5924,6 @@ if (dt && dt.files && dt.files.length) {
                         Collections: {collectionsToString(left.collections)}
                       </div>
                       <div className="toolbar" style={{marginTop:4,gap:6}}>
-                        <button
-                          className="btn ghost sm"
-                          onClick={()=>setMatchupLeftHd(true)}
-                          disabled={matchupLeftHd}
-                        >
-                          {matchupLeftHd ? 'HD loaded' : 'Load HD'}
-                        </button>
                         <button className="btn ghost sm" onClick={()=>openPreviewFor(left)}>View</button>
                         <button className="btn ghost sm" onClick={()=>startCropFor(left)}>Crop</button>
                         <button className="btn ghost sm" onClick={()=>startLockedMatchup(left)}>Lock matchup</button>
@@ -5916,13 +5940,6 @@ if (dt && dt.files && dt.files.length) {
                         Collections: {collectionsToString(right.collections)}
                       </div>
                       <div className="toolbar" style={{marginTop:4,gap:6}}>
-                        <button
-                          className="btn ghost sm"
-                          onClick={()=>setMatchupRightHd(true)}
-                          disabled={matchupRightHd}
-                        >
-                          {matchupRightHd ? 'HD loaded' : 'Load HD'}
-                        </button>
                         <button className="btn ghost sm" onClick={()=>openPreviewFor(right)}>View</button>
                         <button className="btn ghost sm" onClick={()=>startCropFor(right)}>Crop</button>
                         <button className="btn ghost sm" onClick={()=>startLockedMatchup(right)}>Lock matchup</button>
