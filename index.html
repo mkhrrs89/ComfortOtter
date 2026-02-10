@@ -1563,7 +1563,7 @@ const normalizeCollectionGroupsInput = (groups)=>{
   if(!Array.isArray(groups)) return [];
   return groups.map((g,idx)=>{
     const members = normalizeCollectionMembers(g && g.members);
-    const id = (g && g.id) || createId();
+    const id = String((g && g.id) || createId());
     const nameRaw = g && g.name ? String(g.name).trim() : '';
     const name = nameRaw || 'Group';
     const open = g && g.open === false ? false : true;
@@ -3963,7 +3963,7 @@ for (let idx = 1; idx < files.length; idx++) {
         for(const group of collectionGroups){
           (group.members||[]).forEach(name=>{
             if(name){
-              map[name] = group.id;
+              map[name] = String(group.id);
             }
           });
         }
@@ -3974,7 +3974,7 @@ for (let idx = 1; idx < files.length; idx++) {
         for(const group of generatorGroups){
           (group.members||[]).forEach(name=>{
             if(name){
-              map[name] = group.id;
+              map[name] = String(group.id);
             }
           });
         }
@@ -3984,14 +3984,14 @@ for (let idx = 1; idx < files.length; idx++) {
       const collectionGroupMembersMap = useMemo(()=>{
         const map = {};
         for(const group of collectionGroups){
-          map[group.id] = (group.members || []).filter(Boolean);
+          map[String(group.id)] = (group.members || []).filter(Boolean);
         }
         return map;
       },[collectionGroups]);
       const generatorGroupMembersMap = useMemo(()=>{
         const map = {};
         for(const group of generatorGroups){
-          map[group.id] = (group.members || []).filter(Boolean);
+          map[String(group.id)] = (group.members || []).filter(Boolean);
         }
         return map;
       },[generatorGroups]);
@@ -4061,10 +4061,10 @@ for (let idx = 1; idx < files.length; idx++) {
       },[allGeneratorNames, libraryHydrated]);
 
       useEffect(()=>{
-        const validIds = new Set(collectionGroups.map(g=>g.id));
+        const validIds = new Set(collectionGroups.map(g=>String(g.id)));
         setLibraryCollectionFilter(prev=>{
-          const includeGroups = (prev.includeGroups || []).filter(id=>validIds.has(id));
-          const excludeGroups = (prev.excludeGroups || []).filter(id=>validIds.has(id));
+          const includeGroups = (prev.includeGroups || []).filter(id=>validIds.has(String(id)));
+          const excludeGroups = (prev.excludeGroups || []).filter(id=>validIds.has(String(id)));
           if(includeGroups.length===(prev.includeGroups||[]).length && excludeGroups.length===(prev.excludeGroups||[]).length){
             return prev;
           }
@@ -4072,10 +4072,10 @@ for (let idx = 1; idx < files.length; idx++) {
         });
       },[collectionGroups]);
       useEffect(()=>{
-        const validIds = new Set(collectionGroups.map(g=>g.id));
+        const validIds = new Set(collectionGroups.map(g=>String(g.id)));
         setCollectionStatsFilter(prev=>{
-          const includeGroups = (prev.includeGroups || []).filter(id=>validIds.has(id));
-          const excludeGroups = (prev.excludeGroups || []).filter(id=>validIds.has(id));
+          const includeGroups = (prev.includeGroups || []).filter(id=>validIds.has(String(id)));
+          const excludeGroups = (prev.excludeGroups || []).filter(id=>validIds.has(String(id)));
           if(includeGroups.length===(prev.includeGroups||[]).length && excludeGroups.length===(prev.excludeGroups||[]).length){
             return prev;
           }
@@ -4083,10 +4083,10 @@ for (let idx = 1; idx < files.length; idx++) {
         });
       },[collectionGroups]);
       useEffect(()=>{
-        const validIds = new Set(generatorGroups.map(g=>g.id));
+        const validIds = new Set(generatorGroups.map(g=>String(g.id)));
         setLibraryGeneratorFilter(prev=>{
-          const includeGroups = (prev.includeGroups || []).filter(id=>validIds.has(id));
-          const excludeGroups = (prev.excludeGroups || []).filter(id=>validIds.has(id));
+          const includeGroups = (prev.includeGroups || []).filter(id=>validIds.has(String(id)));
+          const excludeGroups = (prev.excludeGroups || []).filter(id=>validIds.has(String(id)));
           if(includeGroups.length===(prev.includeGroups||[]).length && excludeGroups.length===(prev.excludeGroups||[]).length){
             return prev;
           }
@@ -4123,7 +4123,7 @@ for (let idx = 1; idx < files.length; idx++) {
           const next = prev.map(g=>{
             const original = g.members || [];
             let members = original.filter(m=>m!==name);
-            if(targetGroupId && g.id===targetGroupId && !members.includes(name)){
+            if(targetGroupId && String(g.id)===String(targetGroupId) && !members.includes(name)){
               members = [...members, name].sort((a,b)=>a.localeCompare(b));
             }
             const same = members.length===original.length && members.every((m,idx)=>m===original[idx]);
@@ -4160,19 +4160,20 @@ for (let idx = 1; idx < files.length; idx++) {
       }
 
       function cycleCollectionGroupFilter(groupId){
+        const gid = String(groupId);
         setLibraryCollectionFilter(prev=>{
-          const inc = new Set(prev.includeGroups || []);
-          const exc = new Set(prev.excludeGroups || []);
+          const inc = new Set((prev.includeGroups || []).map(String));
+          const exc = new Set((prev.excludeGroups || []).map(String));
           const include = prev.include || [];
           const exclude = prev.exclude || [];
           const mode = prev.mode || 'all';
-          if(!inc.has(groupId) && !exc.has(groupId)){
-            inc.add(groupId);
-          }else if(inc.has(groupId)){
-            inc.delete(groupId);
-            exc.add(groupId);
-          }else if(exc.has(groupId)){
-            exc.delete(groupId);
+          if(!inc.has(gid) && !exc.has(gid)){
+            inc.add(gid);
+          }else if(inc.has(gid)){
+            inc.delete(gid);
+            exc.add(gid);
+          }else if(exc.has(gid)){
+            exc.delete(gid);
           }
           return {
             include,
@@ -4208,18 +4209,19 @@ for (let idx = 1; idx < files.length; idx++) {
       }
 
       function cycleCollectionStatsGroupFilter(groupId){
+        const gid = String(groupId);
         setCollectionStatsFilter(prev=>{
-          const inc = new Set(prev.includeGroups || []);
-          const exc = new Set(prev.excludeGroups || []);
+          const inc = new Set((prev.includeGroups || []).map(String));
+          const exc = new Set((prev.excludeGroups || []).map(String));
           const include = prev.include || [];
           const exclude = prev.exclude || [];
-          if(!inc.has(groupId) && !exc.has(groupId)){
-            inc.add(groupId);
-          }else if(inc.has(groupId)){
-            inc.delete(groupId);
-            exc.add(groupId);
-          }else if(exc.has(groupId)){
-            exc.delete(groupId);
+          if(!inc.has(gid) && !exc.has(gid)){
+            inc.add(gid);
+          }else if(inc.has(gid)){
+            inc.delete(gid);
+            exc.add(gid);
+          }else if(exc.has(gid)){
+            exc.delete(gid);
           }
           return {
             include,
@@ -4256,19 +4258,20 @@ for (let idx = 1; idx < files.length; idx++) {
       }
 
       function cycleStatsCollectionGroupFilter(groupId){
+        const gid = String(groupId);
         setStatsCollectionFilter(prev=>{
-          const inc = new Set(prev.includeGroups || []);
-          const exc = new Set(prev.excludeGroups || []);
+          const inc = new Set((prev.includeGroups || []).map(String));
+          const exc = new Set((prev.excludeGroups || []).map(String));
           const include = prev.include || [];
           const exclude = prev.exclude || [];
           const mode = prev.mode || 'all';
-          if(!inc.has(groupId) && !exc.has(groupId)){
-            inc.add(groupId);
-          }else if(inc.has(groupId)){
-            inc.delete(groupId);
-            exc.add(groupId);
-          }else if(exc.has(groupId)){
-            exc.delete(groupId);
+          if(!inc.has(gid) && !exc.has(gid)){
+            inc.add(gid);
+          }else if(inc.has(gid)){
+            inc.delete(gid);
+            exc.add(gid);
+          }else if(exc.has(gid)){
+            exc.delete(gid);
           }
           return {
             include,
@@ -4309,7 +4312,7 @@ for (let idx = 1; idx < files.length; idx++) {
           const next = prev.map(g=>{
             const original = g.members || [];
             let members = original.filter(m=>m!==name);
-            if(targetGroupId && g.id===targetGroupId && !members.includes(name)){
+            if(targetGroupId && String(g.id)===String(targetGroupId) && !members.includes(name)){
               members = [...members, name].sort((a,b)=>a.localeCompare(b));
             }
             const same = members.length===original.length && members.every((m,idx)=>m===original[idx]);
@@ -4346,19 +4349,20 @@ for (let idx = 1; idx < files.length; idx++) {
       }
 
       function cycleGeneratorGroupFilter(groupId){
+        const gid = String(groupId);
         setLibraryGeneratorFilter(prev=>{
-          const inc = new Set(prev.includeGroups || []);
-          const exc = new Set(prev.excludeGroups || []);
+          const inc = new Set((prev.includeGroups || []).map(String));
+          const exc = new Set((prev.excludeGroups || []).map(String));
           const include = prev.include || [];
           const exclude = prev.exclude || [];
           const mode = prev.mode || 'all';
-          if(!inc.has(groupId) && !exc.has(groupId)){
-            inc.add(groupId);
-          }else if(inc.has(groupId)){
-            inc.delete(groupId);
-            exc.add(groupId);
-          }else if(exc.has(groupId)){
-            exc.delete(groupId);
+          if(!inc.has(gid) && !exc.has(gid)){
+            inc.add(gid);
+          }else if(inc.has(gid)){
+            inc.delete(gid);
+            exc.add(gid);
+          }else if(exc.has(gid)){
+            exc.delete(gid);
           }
           return {
             include,
@@ -4387,13 +4391,13 @@ for (let idx = 1; idx < files.length; idx++) {
             {collectionGroups.length>0 && (
               <select
                 className="select sm collectionGroupSelect"
-                value={collectionGroupLookup[name] || ''}
+                value={collectionGroupLookup[name] ? String(collectionGroupLookup[name]) : ''}
                 onChange={e=>moveCollectionToGroup(name, e.target.value || null)}
               >
                 <option value="">Ungrouped</option>
                 {collectionGroups.map(g=>(
-                  <option key={g.id} value={g.id}>
-                    {collectionGroupLookup[name]===g.id ? `In ${g.name}` : `Move to ${g.name}`}
+                  <option key={String(g.id)} value={String(g.id)}>
+                    {String(collectionGroupLookup[name] || '')===String(g.id) ? `In ${g.name}` : `Move to ${g.name}`}
                   </option>
                 ))}
               </select>
@@ -4419,13 +4423,13 @@ for (let idx = 1; idx < files.length; idx++) {
             {collectionGroups.length>0 && (
               <select
                 className="select sm collectionGroupSelect"
-                value={collectionGroupLookup[name] || ''}
+                value={collectionGroupLookup[name] ? String(collectionGroupLookup[name]) : ''}
                 onChange={e=>moveCollectionToGroup(name, e.target.value || null)}
               >
                 <option value="">Ungrouped</option>
                 {collectionGroups.map(g=>(
-                  <option key={g.id} value={g.id}>
-                    {collectionGroupLookup[name]===g.id ? `In ${g.name}` : `Move to ${g.name}`}
+                  <option key={String(g.id)} value={String(g.id)}>
+                    {String(collectionGroupLookup[name] || '')===String(g.id) ? `In ${g.name}` : `Move to ${g.name}`}
                   </option>
                 ))}
               </select>
@@ -4451,13 +4455,13 @@ for (let idx = 1; idx < files.length; idx++) {
             {collectionGroups.length>0 && (
               <select
                 className="select sm collectionGroupSelect"
-                value={collectionGroupLookup[name] || ''}
+                value={collectionGroupLookup[name] ? String(collectionGroupLookup[name]) : ''}
                 onChange={e=>moveCollectionToGroup(name, e.target.value || null)}
               >
                 <option value="">Ungrouped</option>
                 {collectionGroups.map(g=>(
-                  <option key={g.id} value={g.id}>
-                    {collectionGroupLookup[name]===g.id ? `In ${g.name}` : `Move to ${g.name}`}
+                  <option key={String(g.id)} value={String(g.id)}>
+                    {String(collectionGroupLookup[name] || '')===String(g.id) ? `In ${g.name}` : `Move to ${g.name}`}
                   </option>
                 ))}
               </select>
@@ -4483,13 +4487,13 @@ for (let idx = 1; idx < files.length; idx++) {
             {generatorGroups.length>0 && (
               <select
                 className="select sm collectionGroupSelect"
-                value={generatorGroupLookup[name] || ''}
+                value={generatorGroupLookup[name] ? String(generatorGroupLookup[name]) : ''}
                 onChange={e=>moveGeneratorToGroup(name, e.target.value || null)}
               >
                 <option value="">Ungrouped</option>
                 {generatorGroups.map(g=>(
-                  <option key={g.id} value={g.id}>
-                    {generatorGroupLookup[name]===g.id ? `In ${g.name}` : `Move to ${g.name}`}
+                  <option key={String(g.id)} value={String(g.id)}>
+                    {String(generatorGroupLookup[name] || '')===String(g.id) ? `In ${g.name}` : `Move to ${g.name}`}
                   </option>
                 ))}
               </select>
@@ -4557,11 +4561,11 @@ for (let idx = 1; idx < files.length; idx++) {
         const excludeNames = new Set(exclude);
         const includeGroupMembers = new Set();
         includeGroups.forEach(id => {
-          (collectionGroupMembersMap[id] || []).forEach(name=>includeGroupMembers.add(name));
+          (collectionGroupMembersMap[String(id)] || []).forEach(name=>includeGroupMembers.add(name));
         });
         const excludeGroupMembers = new Set();
         excludeGroups.forEach(id => {
-          (collectionGroupMembersMap[id] || []).forEach(name=>excludeGroupMembers.add(name));
+          (collectionGroupMembersMap[String(id)] || []).forEach(name=>excludeGroupMembers.add(name));
         });
         if(includeNames.size || includeGroupMembers.size){
           list = list.filter(row => includeNames.has(row.name) || includeGroupMembers.has(row.name));
@@ -4655,7 +4659,7 @@ for (let idx = 1; idx < files.length; idx++) {
         const includePredicates = [
           ...include.map(name => (cols)=>cols.includes(name)),
           ...includeGroups.map(id => {
-            const members = collectionGroupMembersMap[id] || [];
+            const members = collectionGroupMembersMap[String(id)] || [];
             return (cols)=>members.some(name=>cols.includes(name));
           })
         ];
@@ -4671,7 +4675,7 @@ for (let idx = 1; idx < files.length; idx++) {
         const excludePredicates = [
           ...exclude.map(name => (cols)=>cols.includes(name)),
           ...excludeGroups.map(id => {
-            const members = collectionGroupMembersMap[id] || [];
+            const members = collectionGroupMembersMap[String(id)] || [];
             return (cols)=>members.some(name=>cols.includes(name));
           })
         ];
@@ -4684,7 +4688,7 @@ for (let idx = 1; idx < files.length; idx++) {
         const genIncludePredicates = [
           ...genInclude.map(name => (gen)=>gen === name),
           ...genIncludeGroups.map(id => {
-            const members = generatorGroupMembersMap[id] || [];
+            const members = generatorGroupMembersMap[String(id)] || [];
             return (gen)=>members.includes(gen);
           })
         ];
@@ -4700,7 +4704,7 @@ for (let idx = 1; idx < files.length; idx++) {
         const genExcludePredicates = [
           ...genExclude.map(name => (gen)=>gen === name),
           ...genExcludeGroups.map(id => {
-            const members = generatorGroupMembersMap[id] || [];
+            const members = generatorGroupMembersMap[String(id)] || [];
             return (gen)=>members.includes(gen);
           })
         ];
@@ -4741,7 +4745,7 @@ const statsRows = useMemo(()=>{
   const includePredicates = [
     ...include.map(name => (cols)=>cols.includes(name)),
     ...includeGroups.map(id => {
-      const members = collectionGroupMembersMap[id] || [];
+      const members = collectionGroupMembersMap[String(id)] || [];
       return (cols)=>members.some(name=>cols.includes(name));
     })
   ];
@@ -4757,7 +4761,7 @@ const statsRows = useMemo(()=>{
   const excludePredicates = [
     ...exclude.map(name => (cols)=>cols.includes(name)),
     ...excludeGroups.map(id => {
-      const members = collectionGroupMembersMap[id] || [];
+      const members = collectionGroupMembersMap[String(id)] || [];
       return (cols)=>members.some(name=>cols.includes(name));
     })
   ];
@@ -5353,8 +5357,9 @@ if (dt && dt.files && dt.files.length) {
                     <div className="collectionGroupsGrid">
                       {collectionGroups.map(group=>{
                         const visibleMembers = (group.members || []).filter(name=>allCollectionNames.includes(name));
-                        const isIncludeGroup = (libraryCollectionFilter.includeGroups || []).includes(group.id);
-                        const isExcludeGroup = (libraryCollectionFilter.excludeGroups || []).includes(group.id);
+                        const gid = String(group.id);
+                        const isIncludeGroup = (libraryCollectionFilter.includeGroups || []).map(String).includes(gid);
+                        const isExcludeGroup = (libraryCollectionFilter.excludeGroups || []).map(String).includes(gid);
                         let groupClass = 'ghost';
                         if(isIncludeGroup) groupClass = 'secondary';
                         if(isExcludeGroup) groupClass = 'danger';
@@ -5443,8 +5448,9 @@ if (dt && dt.files && dt.files.length) {
                     <div className="collectionGroupsGrid">
                       {generatorGroups.map(group=>{
                         const visibleMembers = (group.members || []).filter(name=>allGeneratorNames.includes(name));
-                        const isIncludeGroup = (libraryGeneratorFilter.includeGroups || []).includes(group.id);
-                        const isExcludeGroup = (libraryGeneratorFilter.excludeGroups || []).includes(group.id);
+                        const gid = String(group.id);
+                        const isIncludeGroup = (libraryGeneratorFilter.includeGroups || []).map(String).includes(gid);
+                        const isExcludeGroup = (libraryGeneratorFilter.excludeGroups || []).map(String).includes(gid);
                         let groupClass = 'ghost';
                         if(isIncludeGroup) groupClass = 'secondary';
                         if(isExcludeGroup) groupClass = 'danger';
@@ -6025,8 +6031,9 @@ if (dt && dt.files && dt.files.length) {
                         <div className="collectionGroupsGrid">
                           {collectionGroups.map(group=>{
                             const visibleMembers = (group.members || []).filter(name=>allCollectionNames.includes(name));
-                            const isIncludeGroup = (statsCollectionFilter.includeGroups || []).includes(group.id);
-                            const isExcludeGroup = (statsCollectionFilter.excludeGroups || []).includes(group.id);
+                            const gid = String(group.id);
+                            const isIncludeGroup = (statsCollectionFilter.includeGroups || []).map(String).includes(gid);
+                            const isExcludeGroup = (statsCollectionFilter.excludeGroups || []).map(String).includes(gid);
                             let groupClass = 'ghost';
                             if(isIncludeGroup) groupClass = 'secondary';
                             if(isExcludeGroup) groupClass = 'danger';
@@ -6293,8 +6300,9 @@ if (dt && dt.files && dt.files.length) {
                           <div className="collectionGroupsGrid">
                             {collectionGroups.map(group=>{
                               const visibleMembers = (group.members || []).filter(name=>allCollectionNames.includes(name));
-                              const isIncludeGroup = (collectionStatsFilter.includeGroups || []).includes(group.id);
-                              const isExcludeGroup = (collectionStatsFilter.excludeGroups || []).includes(group.id);
+                              const gid = String(group.id);
+                              const isIncludeGroup = (collectionStatsFilter.includeGroups || []).map(String).includes(gid);
+                              const isExcludeGroup = (collectionStatsFilter.excludeGroups || []).map(String).includes(gid);
                               let groupClass = 'ghost';
                               if(isIncludeGroup) groupClass = 'secondary';
                               if(isExcludeGroup) groupClass = 'danger';
