@@ -297,7 +297,7 @@
       }
     }
   </style>
-  <script type="module">
+  <script type="module" async>
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { getStorage, ref, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
@@ -553,7 +553,7 @@ function attachHdButtons(rootEl){
 
     function openTourneyDB(){
       return new Promise((resolve,reject)=>{
-        const req = indexedDB.open(TOURNEY_DB_NAME,1);
+        const req = indexedDB.open(TOURNEY_DB_NAME);
         req.onupgradeneeded = () => {
           const db = req.result;
           if(!db.objectStoreNames.contains(TOURNEY_STORE)){
@@ -795,6 +795,7 @@ let currentPool = '__ALL__'; // "__ALL__" means use all images
 let currentTagPool = '__ALL_TAGS__';
 let currentOtherPool = '__ALL__';
 let currentMaxFieldSize = 256;
+let initErrorMessage = '';
 const hydratingFullUrls = new Set();
 const DISPLAY_TITLE_MAX_LENGTH = 20;
 
@@ -842,12 +843,19 @@ function formatDisplayTitle(value){
     }
 
     async function initTournamentPage(){
+      statusEl.textContent = 'Loading tournament…';
+      hintEl.textContent = '';
       try{
+        initErrorMessage = '';
         items = await idbGetAllItems();
         itemsById = new Map(items.map(it=>[it.id, it]));
         tourneyState = await loadTourneyState();
       }catch(e){
         console.error(e);
+        statusEl.textContent = 'Tournament failed to load.';
+        hintEl.textContent = (e && (e.message || String(e))) ? `Error: ${e.message || String(e)}` : 'Unknown error.';
+        initErrorMessage = (e && (e.message || String(e))) ? (e.message || String(e)) : 'Unknown error.';
+        controlsEl.innerHTML = '<a class="tab" href="index.html?tab=Library">Back to Library</a>';
       }
       renderAll();
     }
@@ -863,6 +871,14 @@ function formatDisplayTitle(value){
 
     function renderAll(){
       controlsEl.innerHTML = '';
+      if(initErrorMessage){
+        statusEl.textContent = 'Tournament failed to load.';
+        hintEl.textContent = `Error: ${initErrorMessage}`;
+        matchEl.innerHTML = '';
+        bracketEl.innerHTML = '';
+        controlsEl.innerHTML = '<a class="tab" href="index.html?tab=Library">Back to Library</a>';
+        return;
+      }
       matchEl.innerHTML = '';
       bracketEl.innerHTML = '';
       hintEl.textContent = '';
@@ -1703,7 +1719,17 @@ async function incrementTourneyCountsForParticipants(participantIds){
       }
     }
 
-    window.addEventListener('load', initTournamentPage);
+    let __didInitTournament = false;
+    function safeInitTournament(){
+      if(__didInitTournament) return;
+      __didInitTournament = true;
+      initTournamentPage();
+    }
+
+    document.addEventListener('DOMContentLoaded', safeInitTournament);
+    if (document.readyState === 'interactive' || document.readyState === 'complete'){
+      safeInitTournament();
+    }
   </script>
 </body>
 </html>
