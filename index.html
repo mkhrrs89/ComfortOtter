@@ -324,8 +324,8 @@
     }
     @media (max-width: 768px) and (orientation: portrait) {
       .imageCard img {
-        height:48vh;
-        max-height:360px;
+        height:clamp(220px, 32vh, 300px);
+        max-height:none;
       }
     }
     .vs{
