@@ -3420,49 +3420,66 @@ async function exportMetadata(){
     return;
   }
 
-  const fullItems = await Promise.all(exportItems.map(async (it) => {
-    if(!it || !it.id) return it;
+  // iOS download workaround: open a tab immediately so we keep the user gesture
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const preOpened = isIOS ? window.open('about:blank', '_blank') : null;
+
+  const metaItems = [];
+  const total = exportItems.length;
+
+  for(let i=0; i<total; i++){
+    const it = exportItems[i];
+    if(!it || !it.id) continue;
+
+    // Prefer the lightweight in-memory item to avoid heavy DB reads.
+    // Only hit IDB if we need more fields for fingerprint.
+    let sourceItem = it;
     try{
-      const full = await idbGet(it.id);
-      return full || it;
+      if(!sourceItem.fullUrl && !sourceItem.thumbnail){
+        const full = await idbGet(it.id);
+        if(full) sourceItem = full;
+      }
     }catch(err){
       console.warn('Failed to hydrate metadata item', it.id, err);
-      return it;
     }
-  }));
 
-  const metaItems = exportItems.map((it, index) => {
-    const sourceItem = fullItems[index] || it;
     const badges = badgeMap.get(it.id) || {};
     const badgeNames = Object.keys(badges).filter(k => badges[k]);
 
-    // fingerprint ties this metadata entry to the actual image pixels
+    // fingerprint ties metadata entry to the image pixels; prefer fullUrl/thumbnail, only fall back to dataUrl
     const fingerprintSource =
+      (sourceItem && typeof sourceItem.fullUrl === 'string' && sourceItem.fullUrl) ||
+      (sourceItem && typeof sourceItem.thumbnail === 'string' && sourceItem.thumbnail) ||
+      (sourceItem && typeof sourceItem.thumbDataUrl === 'string' && sourceItem.thumbDataUrl) ||
       (sourceItem && typeof sourceItem.dataUrl === 'string' && sourceItem.dataUrl) ||
-      sourceItem?.fullUrl ||
-      sourceItem?.thumbnail;
-    const fingerprint = (fingerprintSource && typeof fingerprintSource === 'string')
-      ? fingerprintSource.slice(0, 120)     // short prefix is enough, keeps file small
+      null;
+
+    const fingerprint = fingerprintSource
+      ? String(fingerprintSource).slice(0,120)
       : null;
 
-return {
-  id: it.id,
-  title: it.title || '',
-  imageNumber: it.imageNumber || null,
-  generator: it.generator || '',
-  collections: it.collections || [],
-  wins: it.wins || 0,
-  losses: it.losses || 0,
-  tourneyBonus: it.tourneyBonus || 0,
-  tourneyCount: it.tourneyCount || 0,         // 👈 NEW
-  points: computePoints(it.wins,it.losses,it.tourneyBonus||0),
-  matchups: matchupsCount(it),
-  addedAt: it.addedAt || null,
-  badges: badgeNames,
-  fingerprint
-};
+    metaItems.push({
+      id: it.id,
+      title: it.title || '',
+      imageNumber: it.imageNumber || null,
+      generator: it.generator || '',
+      collections: it.collections || [],
+      wins: it.wins || 0,
+      losses: it.losses || 0,
+      tourneyBonus: it.tourneyBonus || 0,
+      tourneyCount: it.tourneyCount || 0,
+      points: computePoints(it.wins,it.losses,it.tourneyBonus||0),
+      matchups: matchupsCount(it),
+      addedAt: it.addedAt || null,
+      badges: badgeNames,
+      fingerprint
+    });
 
-  });
+    // yield periodically so iOS UI doesn't watchdog-kill the tab
+    if(i % 50 === 0){
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
 
   const payload = {
     version: 6,
@@ -3473,16 +3490,32 @@ return {
     generatorGroups: normalizeGeneratorGroupsForExport(generatorGroups, allGeneratorNames),
     generatorCatalog: customGenerators
   };
+
   const blob = new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
-  const a = document.createElement('a');
+  const url = URL.createObjectURL(blob);
   const ts = new Date().toISOString().replace(/[:.]/g,'-');
-  a.href = URL.createObjectURL(blob);
-  a.download = `modelmatchup-metadata-${ts}.json`;
-  a.click();
-  URL.revokeObjectURL(a.href);
-  // After metadata export: clear the selection too
+  const filename = `modelmatchup-metadata-${ts}.json`;
+
+  // If we pre-opened a tab (iOS), navigate it to the blob URL
+  if(preOpened){
+    preOpened.location.href = url;
+  }else{
+    // Desktop/Android: normal download
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  // revoke later so iOS has time to load it
+  setTimeout(()=>URL.revokeObjectURL(url), 30000);
+
   setSelectedIds([]);
 }
+
 
 
       function selectUnexported(){
