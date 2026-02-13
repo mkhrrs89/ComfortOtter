@@ -2600,6 +2600,10 @@ const SafeImage = ({
       const [collectionSort, setCollectionSort] = useState({field:'points', dir:'asc'});
       const [matchMode,setMatchMode] = useState({type:'all', collection:null, generator:null, lockedId:null}); // all | bottom | collection | generator | generated | locked
       const [selectedIds,setSelectedIds] = useState([]); // for gallery batch + export
+      const [exportBusy, setExportBusy] = useState(false);
+      const [exportPct, setExportPct] = useState(0);
+      const [exportUrl, setExportUrl] = useState(null);
+      const [exportFilename, setExportFilename] = useState(null);
       const [batchOpen,setBatchOpen] = useState(false);
       const [batchCollectionsText,setBatchCollectionsText] = useState('');
       const [batchRemoveCollectionsText,setBatchRemoveCollectionsText] = useState('');
@@ -2639,6 +2643,10 @@ const [pendingOpenId, setPendingOpenId] = useState(() => {
       const [cleanupModalOpen, setCleanupModalOpen] = useState(false);
       const [orphans, setOrphans] = useState(null); // null = waiting for file, [] = clean, [items] = orphans found
       const cleanupFileRef = useRef(null);
+
+      useEffect(()=>{
+        return ()=>{ if(exportUrl) URL.revokeObjectURL(exportUrl); };
+      },[exportUrl]);
 
       async function analyzeForOrphans(file){
         try {
@@ -3411,52 +3419,55 @@ async function exportLibrary(){
 
 // NEW: export metadata ONLY (no dataUrl) for selected or all images
 async function exportMetadata(){
+  // If an export is already prepared, DO NOT rebuild; just trigger download from user gesture.
+  if(exportUrl){
+    try{
+      const a = document.createElement('a');
+      a.href = exportUrl;
+      a.download = exportFilename || 'modelmatchup-metadata.json';
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      return;
+    } catch(e){
+      // fallback: open in a new tab (still user gesture)
+      window.open(exportUrl, '_blank');
+      return;
+    }
+  }
+
   const exportItems = selectedIds.length
     ? items.filter(it => selectedIds.includes(it.id))
     : items;
 
   if(!exportItems.length){
-    alert('No images to export metadata for. Select some images in the gallery first.');
+    alert('No images to export metadata for.');
     return;
   }
 
-  // iOS download workaround: open a tab immediately so we keep the user gesture
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  const preOpened = isIOS ? window.open('about:blank', '_blank') : null;
+  setExportBusy(true);
+  setExportPct(0);
 
+  // Build metadata incrementally (NO Promise.all)
   const metaItems = [];
   const total = exportItems.length;
 
   for(let i=0; i<total; i++){
     const it = exportItems[i];
-    if(!it || !it.id) continue;
+    if(!it?.id) continue;
 
-    // Prefer the lightweight in-memory item to avoid heavy DB reads.
-    // Only hit IDB if we need more fields for fingerprint.
+    // Only pull from IDB if needed
     let sourceItem = it;
     try{
-      if(!sourceItem.fullUrl && !sourceItem.thumbnail){
+      if(!sourceItem.fullUrl && !sourceItem.thumbnail && !sourceItem.thumbDataUrl){
         const full = await idbGet(it.id);
         if(full) sourceItem = full;
       }
-    }catch(err){
-      console.warn('Failed to hydrate metadata item', it.id, err);
-    }
+    }catch(err){}
 
     const badges = badgeMap.get(it.id) || {};
     const badgeNames = Object.keys(badges).filter(k => badges[k]);
-
-    // fingerprint ties metadata entry to the image pixels; prefer fullUrl/thumbnail, only fall back to dataUrl
-    const fingerprintSource =
-      (sourceItem && typeof sourceItem.fullUrl === 'string' && sourceItem.fullUrl) ||
-      (sourceItem && typeof sourceItem.thumbnail === 'string' && sourceItem.thumbnail) ||
-      (sourceItem && typeof sourceItem.thumbDataUrl === 'string' && sourceItem.thumbDataUrl) ||
-      (sourceItem && typeof sourceItem.dataUrl === 'string' && sourceItem.dataUrl) ||
-      null;
-
-    const fingerprint = fingerprintSource
-      ? String(fingerprintSource).slice(0,120)
-      : null;
 
     metaItems.push({
       id: it.id,
@@ -3471,13 +3482,12 @@ async function exportMetadata(){
       points: computePoints(it.wins,it.losses,it.tourneyBonus||0),
       matchups: matchupsCount(it),
       addedAt: it.addedAt || null,
-      badges: badgeNames,
-      fingerprint
+      badges: badgeNames
     });
 
-    // yield periodically so iOS UI doesn't watchdog-kill the tab
     if(i % 50 === 0){
-      await new Promise(r => setTimeout(r, 0));
+      setExportPct(Math.round((i/total)*100));
+      await new Promise(r=>setTimeout(r,0)); // yield for iOS
     }
   }
 
@@ -3491,29 +3501,21 @@ async function exportMetadata(){
     generatorCatalog: customGenerators
   };
 
-  const blob = new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  // IMPORTANT: no pretty-print on mobile (much smaller, less memory)
+  const json = JSON.stringify(payload);
+
+  const blob = new Blob([json], { type:'application/json' });
   const url = URL.createObjectURL(blob);
   const ts = new Date().toISOString().replace(/[:.]/g,'-');
   const filename = `modelmatchup-metadata-${ts}.json`;
 
-  // If we pre-opened a tab (iOS), navigate it to the blob URL
-  if(preOpened){
-    preOpened.location.href = url;
-  }else{
-    // Desktop/Android: normal download
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.rel = 'noopener';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  }
+  setExportUrl(url);
+  setExportFilename(filename);
+  setExportPct(100);
+  setExportBusy(false);
 
-  // revoke later so iOS has time to load it
-  setTimeout(()=>URL.revokeObjectURL(url), 30000);
-
-  setSelectedIds([]);
+  // Tell user the export is ready and they must tap again to download
+  toast(`Export ready. Tap Export again to download.`);
 }
 
 
@@ -5227,7 +5229,19 @@ if (dt && dt.files && dt.files.length) {
   {/* EXPORTS */}
   <button className="btn secondary" onClick={exportLibrary}>Export</button>
   <button className="btn ghost" onClick={selectUnexported}>Select unexported</button>
-  <button className="btn ghost" onClick={exportMetadata}>Export metadata</button>
+  <button className="btn ghost" onClick={exportMetadata} disabled={exportBusy}>
+    {exportBusy ? `Preparing export… ${exportPct}%` : (exportUrl ? 'Download metadata export' : 'Export metadata')}
+  </button>
+  {exportUrl && !exportBusy && (
+    <button className="btn ghost sm" onClick={()=>{
+      try{ URL.revokeObjectURL(exportUrl); }catch(e){}
+      setExportUrl(null);
+      setExportFilename(null);
+      setExportPct(0);
+    }}>
+      Clear
+    </button>
+  )}
 <button className="btn ghost" onClick={generateMissingThumbnails}>
   Generate thumbnails
 </button>
