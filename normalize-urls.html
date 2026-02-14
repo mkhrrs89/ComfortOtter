@@ -148,18 +148,32 @@
 async function normalizeAll() {
   runBtn.disabled = true;
   logEl.textContent = '';
-  setStatus('Loading all records…');
+
+  const isRemoteUrl = (u) => typeof u === 'string' && /^https?:\/\//i.test(u);
 
   try {
-    const items = await idbGetAll();
-    log(`Found ${items.length} items.`);
+    setStatus('Counting records…');
 
+    const db = await openDB();
+
+    // Count records without loading them
+    const total = await new Promise((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, 'readonly');
+      const store = tx.objectStore(DB_STORE);
+      const req = store.count();
+      req.onsuccess = () => resolve(req.result || 0);
+      req.onerror = () => reject(req.error);
+    });
+
+    log(`Found ${total} items.`);
+
+    let processed = 0;
     let changed = 0;
     let thumbFixes = 0;
     let thumbDrops = 0;
     let dataDrops  = 0;
 
-    // NEW: basic stats so we can see what fields actually exist
+    // stats
     let withThumb = 0;
     let withThumbData = 0;
     let withDataUrl = 0;
@@ -167,48 +181,89 @@ async function normalizeAll() {
 
     const dropDataWhenFull = dropDataCheckbox.checked;
 
-    for (const item of items) {
-      if (!item || !item.id) continue;
+    setStatus(`Normalizing… 0 / ${total}`);
 
-      let dirty = false;
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, 'readwrite');
+      const store = tx.objectStore(DB_STORE);
+      const req = store.openCursor();
 
-      const origThumb      = item.thumbnail || null;
-      const origThumbData  = item.thumbDataUrl || null;
-      const origDataUrl    = item.dataUrl || null;
-      const origFullUrl    = item.fullUrl || null;
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
 
-      if (origThumb)     withThumb++;
-      if (origThumbData) withThumbData++;
-      if (origDataUrl)   withDataUrl++;
-      if (origFullUrl)   withFullUrl++;
+      const updateStatus = () => {
+        if (processed % 250 === 0 || processed === total) {
+          setStatus(`Normalizing… ${processed} / ${total}`);
+        }
+      };
 
-      // --- 1) Normalize thumbnail field ---
-      const preferredThumb = origThumb || origThumbData || null;
+      req.onerror = () => reject(req.error);
 
-      if (preferredThumb && preferredThumb !== origThumb) {
-        item.thumbnail = preferredThumb;
-        thumbFixes++;
-        dirty = true;
-      }
+      req.onsuccess = (e) => {
+        const cursor = e.target.result;
+        if (!cursor) return; // done
 
-      if (item.thumbDataUrl && item.thumbDataUrl === item.thumbnail) {
-        delete item.thumbDataUrl;
-        thumbDrops++;
-        dirty = true;
-      }
+        const item = cursor.value;
 
-      // --- 2) Optionally drop dataUrl when a fullUrl exists ---
-      if (dropDataWhenFull && origFullUrl && origDataUrl) {
-        delete item.dataUrl;
-        dataDrops++;
-        dirty = true;
-      }
+        if (!item || !item.id) {
+          processed++;
+          updateStatus();
+          cursor.continue();
+          return;
+        }
 
-      if (dirty) {
-        await idbPut(item);
-        changed++;
-      }
-    }
+        let dirty = false;
+
+        const origThumb     = item.thumbnail || null;
+        const origThumbData = item.thumbDataUrl || null;
+        const origDataUrl   = item.dataUrl || null;
+        const origFullUrl   = item.fullUrl || null;
+
+        if (origThumb)     withThumb++;
+        if (origThumbData) withThumbData++;
+        if (origDataUrl)   withDataUrl++;
+        if (origFullUrl)   withFullUrl++;
+
+        // 1) Normalize thumbnail field
+        const preferredThumb = origThumb || origThumbData || null;
+        if (preferredThumb && preferredThumb !== origThumb) {
+          item.thumbnail = preferredThumb;
+          thumbFixes++;
+          dirty = true;
+        }
+
+        if (item.thumbDataUrl && item.thumbDataUrl === item.thumbnail) {
+          delete item.thumbDataUrl;
+          thumbDrops++;
+          dirty = true;
+        }
+
+        // 2) Optionally drop dataUrl when fullUrl is a real remote URL
+        if (dropDataWhenFull && isRemoteUrl(origFullUrl) && origDataUrl) {
+          delete item.dataUrl;
+          dataDrops++;
+          dirty = true;
+        }
+
+        const goNext = () => {
+          processed++;
+          updateStatus();
+          cursor.continue();
+        };
+
+        if (!dirty) {
+          goNext();
+          return;
+        }
+
+        const ureq = cursor.update(item);
+        ureq.onsuccess = () => {
+          changed++;
+          goNext();
+        };
+        ureq.onerror = () => reject(ureq.error);
+      };
+    });
 
     setStatus(`Done. Updated ${changed} items.`);
     log(`Records with thumbnail:      ${withThumb}`);
@@ -223,7 +278,7 @@ async function normalizeAll() {
   } catch (err) {
     console.error(err);
     setStatus('Error during normalization.');
-    log('ERROR: ' + (err.message || err));
+    log('ERROR: ' + (err?.message || err));
   } finally {
     runBtn.disabled = false;
   }
