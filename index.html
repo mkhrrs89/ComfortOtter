@@ -1169,6 +1169,19 @@
 
 // --- NEW HELPERS FOR MEMORY MANAGEMENT ---
 
+function slimItemForState(it){
+  if(!it) return it;
+  const hasThumb = !!(it.thumbnail || it.thumbDataUrl);
+  // IMPORTANT: keep only lightweight fields in React state
+  return {
+    ...it,
+    hasThumb,
+    thumbnail: null,
+    thumbDataUrl: null,
+    dataUrl: null
+  };
+}
+
 // 1. Fetch a SINGLE full item (High Res) from DB (you already have this)
 async function idbGet(id){
   let db;
@@ -1214,13 +1227,13 @@ function mapDbRecordToUiItem(v){
       v.hasBeenExported === undefined ? true : !!v.hasBeenExported,
     lastExportedAt: v.lastExportedAt || null,
 
-    // cloud image reference (what the migration + cleanup left behind)
+    // cloud reference
     fullUrl: v.fullUrl || null,
 
-    // UI image fields – SMALL ONLY
-    thumbnail: thumb,
-
-    // avoid loading full dataUrl into state (saves memory on mobile)
+    // IMPORTANT: do NOT load base64 into React state
+    hasThumb: !!thumb,
+    thumbnail: null,
+    thumbDataUrl: null,
     dataUrl: null
   };
 }
@@ -2426,10 +2439,12 @@ const SafeImage = ({
   onResolved,
   preferRemote = false,
   eagerHydrate = false,
-  allowFull = false
+  allowFull = false,
+  hydrateThumb = true
 }) => {
   const queueRef = useRef([]);
   const hydratedRef = useRef(false);
+  const hydratedThumbRef = useRef(false);
   const [currentSrc, setCurrentSrc] = useState('');
 
   const rebuildQueue = useCallback(() => {
@@ -2448,6 +2463,11 @@ const SafeImage = ({
   useEffect(()=>{
     rebuildQueue();
   },[rebuildQueue]);
+
+  useEffect(()=>{
+    hydratedRef.current = false;
+    hydratedThumbRef.current = false;
+  }, [item && item.id]);
 
   useEffect(()=>{
     if(currentSrc || !item?.id || !allowFull) return;
@@ -2494,6 +2514,46 @@ const SafeImage = ({
     return null;
   },[allowFull, item, currentSrc, onResolved, preferRemote]);
 
+  const tryHydrateThumb = useCallback(async ()=>{
+    if(!hydrateThumb) return null;
+    if(!item || !item.id) return null;
+    try{
+      const full = await idbGet(item.id);
+      if(!full) return null;
+
+      // thumb-first, then dataUrl, then fullUrl as last resort
+      const candidates = [];
+      for(const s of getThumbOnlySources(full)){
+        if(isNonEmptySrc(s)) candidates.push(s);
+      }
+      if(!candidates.length && isNonEmptySrc(full.dataUrl)) candidates.push(full.dataUrl);
+      if(!candidates.length && isNonEmptySrc(full.fullUrl)) candidates.push(full.fullUrl);
+
+      if(!candidates.length) return null;
+
+      queueRef.current = dedupeSources([...(queueRef.current||[]), ...candidates]);
+      const next = queueRef.current.find(u => isNonEmptySrc(u));
+      if(next && next !== currentSrc){
+        setCurrentSrc(next);
+        return next;
+      }
+      return null;
+    }catch(err){
+      console.error('SafeImage thumb hydrate failed', err);
+      return null;
+    }
+  }, [hydrateThumb, item && item.id, currentSrc]);
+
+  useEffect(()=>{
+    if(!hydrateThumb) return;
+    if(!item || !item.id) return;
+    if(isNonEmptySrc(currentSrc)) return;
+    if(hydratedThumbRef.current) return;
+    // only do thumb hydrate when we have nothing to show yet
+    hydratedThumbRef.current = true;
+    tryHydrateThumb();
+  }, [hydrateThumb, item && item.id, currentSrc, tryHydrateThumb]);
+
   const handleError = useCallback(async ()=>{
     const next = queueRef.current.find(url => url && url !== currentSrc);
     if(next){
@@ -2501,13 +2561,24 @@ const SafeImage = ({
       return;
     }
     if(queueRef.current.length===0){
-      if(allowFull) tryHydrate();
+      if(allowFull){
+        tryHydrate();
+      }
+      if(!allowFull && hydrateThumb){
+        hydratedThumbRef.current = false; // allow one retry on error
+        tryHydrateThumb();
+      }
       return;
     }
     const hydrated = await tryHydrate();
     if(hydrated) return;
+    if(!allowFull && hydrateThumb){
+      hydratedThumbRef.current = false; // allow one retry on error
+      const thumbHydrated = await tryHydrateThumb();
+      if(thumbHydrated) return;
+    }
     setCurrentSrc('');
-  },[currentSrc, allowFull, tryHydrate]);
+  },[currentSrc, allowFull, hydrateThumb, tryHydrate, tryHydrateThumb]);
 
   return (
     <img
@@ -2517,6 +2588,69 @@ const SafeImage = ({
       style={{...style, visibility: currentSrc ? 'visible' : 'hidden'}}
       onError={handleError}
       onClick={onClick}
+    />
+  );
+};
+
+const LazySafeImage = ({
+  item,
+  alt = '',
+  className = '',
+  style,
+  onResolved,
+  onClick,
+  allowFull = false,
+  preferRemote = false,
+  fallbackSrcs = [],
+  rootMargin = '400px'
+})=>{
+  const ref = useRef(null);
+  const [active, setActive] = useState(false);
+
+  useEffect(()=>{
+    if(active) return;
+    const el = ref.current;
+    if(!el) { setActive(true); return; }
+    if(!('IntersectionObserver' in window)) { setActive(true); return; }
+
+    const io = new IntersectionObserver((entries)=>{
+      if(entries.some(e=>e.isIntersecting)){
+        setActive(true);
+        io.disconnect();
+      }
+    }, { rootMargin });
+
+    io.observe(el);
+    return ()=>io.disconnect();
+  }, [active, rootMargin]);
+
+  if(!active){
+    return (
+      <img
+        ref={ref}
+        src={BLANK_IMG}
+        alt={alt}
+        className={className}
+        style={style}
+        loading="lazy"
+        onClick={onClick}
+      />
+    );
+  }
+
+  return (
+    <SafeImage
+      item={item}
+      src={''}
+      fallbackSrcs={fallbackSrcs}
+      alt={alt}
+      className={className}
+      style={style}
+      onClick={onClick}
+      onResolved={onResolved}
+      allowFull={allowFull}
+      preferRemote={preferRemote}
+      hydrateThumb={true}
     />
   );
 };
@@ -2718,29 +2852,21 @@ useEffect(()=>{
   setLibraryFullyLoaded(false);
 
   (async()=>{
-    const normalizeItem = (it) => {
-      const normalizedCollections = normalizeCollections(it.collections || it.collectionsRaw || '');
-      const collectionsChanged = !Array.isArray(it.collections)
-        || it.collections.length !== normalizedCollections.length
-        || it.collections.some((c,idx)=>c !== normalizedCollections[idx]);
-      return {
-        normalizedCollections,
-        collectionsChanged,
-        item: {
-          ...it,
-          // (normalization fields, but DON'T re-add full dataUrl here)
-          collections: normalizedCollections,
-          wins: Number(it.wins || 0),
-          losses: Number(it.losses || 0),
-          tourneyBonus: Number(it.tourneyBonus || 0),
-          tourneyCount: Number(it.tourneyCount || 0),
-          addedAt: it.addedAt || nowStamp(),
-          hasBeenExported: !!it.hasBeenExported,
-          lastExportedAt: it.lastExportedAt || null,
-          imageNumber: Number.isFinite(it.imageNumber) ? it.imageNumber : null
-        }
-      };
-    };
+    const normalizeItem = (it)=>({
+      item: slimItemForState({
+        ...it,
+        title: it.title || '',
+        generator: it.generator || '',
+        collections: normalizeCollections(it.collections || it.collectionsRaw || ''),
+        wins: Number(it.wins || 0),
+        losses: Number(it.losses || 0),
+        tourneyBonus: Number(it.tourneyBonus || 0),
+        tourneyCount: Number(it.tourneyCount || 0),
+        hasBeenExported: it.hasBeenExported === undefined ? true : !!it.hasBeenExported,
+        lastExportedAt: it.lastExportedAt || null,
+        fullUrl: it.fullUrl || null
+      })
+    });
 
     let collectionsUpdated = false;
     let initial = [];
@@ -2760,7 +2886,6 @@ useEffect(()=>{
     const loadedIds = new Set();
     const initialNorm = initial.map(it => {
       const normalized = normalizeItem(it);
-      if (normalized.collectionsChanged) collectionsUpdated = true;
       loadedIds.add(normalized.item.id);
       return normalized.item;
     });
@@ -2783,7 +2908,6 @@ useEffect(()=>{
           const newItems = [];
           for (const it of batch) {
             const normalized = normalizeItem(it);
-            if (normalized.collectionsChanged) collectionsUpdated = true;
             if (!loadedIds.has(normalized.item.id)) {
               loadedIds.add(normalized.item.id);
               newItems.push(normalized.item);
@@ -2896,7 +3020,7 @@ useEffect(()=>{
             if(it.id!==id) return it;
             const updated = {...it,...patch};
             idbPutMerged(updated);
-            return updated;
+            return slimItemForState(updated);
           });
           return next;
         });
@@ -2908,7 +3032,7 @@ useEffect(()=>{
           title: trimTitle(item.title || ''),
           imageNumber: nextNumber + index
         }));
-        const merged = [...items, ...numberedItems];
+        const merged = [...items, ...numberedItems.map(slimItemForState)];
         setItems(merged);
         await idbBulkPut(numberedItems);
         if(merged.length>=2 && (!matchIds[0]||!matchIds[1])){
@@ -3549,31 +3673,8 @@ async function generateMissingThumbnails(){
       console.log(status);
     });
 
-    let fresh = [];
-    try {
-      fresh = await loadOptimizedLibrary();
-    } catch (e) {
-      console.error('loadOptimizedLibrary failed after thumbnail generation, falling back to idbGetAll', e);
-      fresh = await idbGetAll();
-    }
-
-    const norm = fresh.map(it => ({
-      ...it,
-      title: it.title || '',
-      generator: it.generator || '',
-      collections: normalizeCollections(it.collections || it.collectionsRaw || ''),
-      wins: Number(it.wins || 0),
-      losses: Number(it.losses || 0),
-      tourneyBonus: Number(it.tourneyBonus || 0),
-      tourneyCount: Number(it.tourneyCount || 0),
-      addedAt: it.addedAt || nowStamp(),
-      hasBeenExported: !!it.hasBeenExported,
-      lastExportedAt: it.lastExportedAt || null,
-      thumbnail: it.thumbnail || it.thumbDataUrl || null,
-      dataUrl: it.dataUrl || null
-    }));
-
-    setItems(norm);
+    const fresh = await loadOptimizedLibrary();
+    setItems(fresh.map(slimItemForState));
     alert(`Generated thumbnails for ${count} images in this batch.`);
   } catch (e) {
     console.error('generateMissingThumbnails failed', e);
@@ -5598,10 +5699,7 @@ if (dt && dt.files && dt.files.length) {
                   {libraryPageItems.map(it=>(
                     <li key={it.id} className="card">
 <div className="cardThumb" onClick={()=>openPreviewFor(it)}>
-  <img
-  src={it.thumbnail || it.fullUrl || it.dataUrl}
-  alt={it.title || 'Image'}
-/>
+  <LazySafeImage item={it} alt={it.title || 'Image'} />
 
   {renderBadges(it.id,'badgeRow-top-right')}
 </div>
@@ -5731,13 +5829,15 @@ if (dt && dt.files && dt.files.length) {
                             }
                           }}
                         >
-<SafeImage
+<LazySafeImage
   item={it}
   className="galleryImg"
-  src={getDisplaySrc(it)}
-  fallbackSrcs={getDisplaySources(it)}
   alt={it.title || 'Image'}
+  onClick={() => openPreviewFor(it)}
   onResolved={(url)=>patchItem(it.id,{fullUrl:url})}
+  fallbackSrcs={getDisplaySources(it)}
+  preferRemote={true}
+  allowFull={false}
 />
 
                           <div className="galleryOverlay" />
@@ -6776,9 +6876,9 @@ if (dt && dt.files && dt.files.length) {
                           }
                         }}
                       >
-<img
+<LazySafeImage
+  item={it}
   className="galleryImg"
-  src={it.thumbnail || it.fullUrl || it.dataUrl}
   alt={it.title || 'Image'}
 />
 
@@ -6803,10 +6903,7 @@ if (dt && dt.files && dt.files.length) {
                   {collectionPageItems.map(it=>(
                     <li key={it.id} className="card">
                       <div className="cardThumb" onClick={()=>openPreviewFor(it)}>
-                        <img
-  src={it.thumbnail || it.fullUrl || it.dataUrl}
-  alt={it.title || 'Image'}
-/>
+                        <LazySafeImage item={it} alt={it.title || 'Image'} />
 
                         {renderBadges(it.id,'badgeRow-top-right')}
                       </div>
@@ -7148,7 +7245,7 @@ if (dt && dt.files && dt.files.length) {
                           if(genChoice !== '__keep__'){
                             updated.generator = genChoice;
                           }
-                          idbPut(updated);
+                          idbPutMerged(updated);
                           return updated;
                         });
                         return next;
