@@ -5833,7 +5833,6 @@ if (dt && dt.files && dt.files.length) {
   item={it}
   className="galleryImg"
   alt={it.title || 'Image'}
-  onClick={() => openPreviewFor(it)}
   onResolved={(url)=>patchItem(it.id,{fullUrl:url})}
   fallbackSrcs={getDisplaySources(it)}
   preferRemote={true}
