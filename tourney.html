@@ -565,6 +565,26 @@ function attachHdButtons(rootEl){
       });
     }
 
+    function stripBigFieldsForMemory(item){
+      if(!item) return item;
+      const hasThumb = !!(item.thumbnail || item.thumbDataUrl);
+      const { dataUrl, thumbnail, thumbDataUrl, ...rest } = item;
+      return { ...rest, hasThumb };
+    }
+
+    function mergeLargeFields(existing, incoming){
+      if(!existing) return incoming;
+      if(!incoming) return existing;
+      const merged = { ...existing, ...incoming };
+      const preserve = ['dataUrl','thumbnail','thumbDataUrl','fullUrl'];
+      for(const f of preserve){
+        if(incoming[f] == null && existing[f] != null){
+          merged[f] = existing[f];
+        }
+      }
+      return merged;
+    }
+
     async function idbGetAllItems(){
       const db = await openItemsDB();
       return new Promise((res,rej)=>{
@@ -574,10 +594,24 @@ function attachHdButtons(rootEl){
         const cur = st.openCursor();
         cur.onsuccess = e=>{
           const c = e.target.result;
-          if(c){ out.push(c.value); c.continue(); }
+          if(c){
+            out.push(stripBigFieldsForMemory(c.value));
+            c.continue();
+          }
           else res(out);
         };
         cur.onerror = ()=>rej(cur.error);
+      });
+    }
+
+    async function idbGetItem(id){
+      const db = await openItemsDB();
+      return new Promise((res,rej)=>{
+        const tx = db.transaction(DB_STORE,'readonly');
+        const st = tx.objectStore(DB_STORE);
+        const req = st.get(id);
+        req.onsuccess = ()=>res(req.result || null);
+        req.onerror = ()=>rej(req.error);
       });
     }
 
@@ -585,10 +619,53 @@ function attachHdButtons(rootEl){
       const db = await openItemsDB();
       return new Promise((res,rej)=>{
         const tx = db.transaction(DB_STORE,'readwrite');
-        tx.objectStore(DB_STORE).put(item);
+        const st = tx.objectStore(DB_STORE);
+
+        if(!item || !item.id){
+          tx.oncomplete = ()=>res();
+          return;
+        }
+
+        const getReq = st.get(item.id);
+        getReq.onsuccess = ()=>{
+          const merged = mergeLargeFields(getReq.result, item);
+          st.put(merged);
+        };
+        getReq.onerror = ()=>{
+          st.put(item);
+        };
+
         tx.oncomplete = ()=>res();
         tx.onerror = ()=>rej(tx.error);
       });
+    }
+
+    async function hydrateImgEl(imgEl, itemId){
+      if(!imgEl || !itemId) return;
+      try{
+        const full = await idbGetItem(itemId);
+        if(!full){
+          showImageFailure(imgEl, 'Image unavailable: record missing.');
+          return;
+        }
+
+        const thumbSources = getThumbOnlySources(full);
+        const fullSources  = dedupeSources([...getFullOnlySources(full), ...thumbSources]);
+        const displaySources = thumbSources.length ? thumbSources : getFullOnlySources(full);
+
+        if(!displaySources.length){
+          showImageFailure(imgEl, 'Image unavailable: no source fields (thumb/full).');
+          return;
+        }
+
+        imgEl.dataset.srcs = serializeSources(displaySources);
+        imgEl.dataset.fullSrcs = serializeSources(fullSources);
+        imgEl.dataset.srcIndex = '0';
+        imgEl.style.display = '';
+        imgEl.src = displaySources[0];
+      }catch(err){
+        console.warn('hydrateImgEl failed', itemId, err);
+      }
     }
 
     async function loadTourneyState(){
@@ -848,6 +925,13 @@ function formatDisplayTitle(value){
       try{
         initErrorMessage = '';
         items = await idbGetAllItems();
+        (function(){
+          const total = items.length;
+          const noThumb = items.filter(it=>!it.hasThumb).length;
+          const noFull  = items.filter(it=>!it.fullUrl).length;
+          const noAny   = items.filter(it=>!it.hasThumb && !it.fullUrl).length;
+          console.log('[TOURNEY DIAG]', { total, noThumb, noFull, noAny });
+        })();
         itemsById = new Map(items.map(it=>[it.id, it]));
         tourneyState = await loadTourneyState();
       }catch(e){
@@ -1214,8 +1298,10 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
                 '<div class="champMetaLine">Started: '+formatDate(s.createdAt)+'</div>' +
               '</div>' +
             '</div>';
-          attachImageFallbacks(matchEl);
-          attachHdButtons(matchEl);
+          hydrateImgEl(document.getElementById('tChampImg'), champ.id).then(()=>{
+            attachImageFallbacks(matchEl);
+            attachHdButtons(matchEl);
+          });
         }
 
         renderBracket();
@@ -1308,8 +1394,13 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
           '<button class="btn sm" id="tLeftWinBtn">Left wins</button>' +
           '<button class="btn sm" id="tRightWinBtn">Right wins</button>' +
         '</div>';
-      attachImageFallbacks(matchEl);
-      attachHdButtons(matchEl);
+      Promise.all([
+        hydrateImgEl(document.getElementById('tLeftImg'), idA),
+        hydrateImgEl(document.getElementById('tRightImg'), idB),
+      ]).then(()=>{
+        attachImageFallbacks(matchEl);
+        attachHdButtons(matchEl);
+      });
 
       const leftImgBtn = document.getElementById('tLeftImgBtn');
       const rightImgBtn = document.getElementById('tRightImgBtn');
