@@ -754,6 +754,7 @@ function describePool(value){
   if(value === '__NEVER_TOURNEY__') return 'Never in a tournament';
   if(value === '__FEWEST_TOURNEYS__') return 'Fewest tournaments';
   if(value === '__TOP_WINPCT_25_BOTTOM_MATCHUPS_50__') return 'Top 25% win% & bottom 50% matchups';
+  if(value === '__BOTTOM_5_TOP_5_WINPCT__') return 'Bottom 5% & top 5% by win%';
   const topMatch = /^__TOP_(POINTS|WINS)_(\d+)__$/i.exec(value);
   if(topMatch){
     const metric = topMatch[1].toLowerCase() === 'wins' ? 'wins' : 'points';
@@ -797,6 +798,14 @@ function applyPoolFilter(allItems, poolValue){
     const bottomCount = Math.max(1, Math.floor(matchupsSorted.length * 0.5));
     const bottomIds = new Set(matchupsSorted.slice(0, bottomCount).map(it => it.id));
     return allItems.filter(it => topIds.has(it.id) && bottomIds.has(it.id));
+  }
+
+  if(poolValue === '__BOTTOM_5_TOP_5_WINPCT__'){
+    const winPctSorted = allItems.slice().sort((a,b)=> pct(b.wins, b.losses) - pct(a.wins, a.losses));
+    const edgeCount = Math.max(1, Math.floor(winPctSorted.length * 0.05));
+    const topIds = new Set(winPctSorted.slice(0, edgeCount).map(it => it.id));
+    const bottomIds = new Set(winPctSorted.slice(-edgeCount).map(it => it.id));
+    return allItems.filter(it => topIds.has(it.id) || bottomIds.has(it.id));
   }
 
   // Top X% pools
@@ -1009,6 +1018,8 @@ if(!tourneyState){
   const topPools = buildTopPoolOptions(items);
   const specialPoolValue = '__TOP_WINPCT_25_BOTTOM_MATCHUPS_50__';
   const specialPoolCount = applyPoolFilter(items, specialPoolValue).length;
+  const edgeWinPctPoolValue = '__BOTTOM_5_TOP_5_WINPCT__';
+  const edgeWinPctPoolCount = applyPoolFilter(items, edgeWinPctPoolValue).length;
   const neverTourneyCount = items.filter(it => Number(it.tourneyCount || 0) === 0).length;
   const minTourneyCount = items.reduce((min, it)=> Math.min(min, Number(it.tourneyCount || 0)), Infinity);
   const fewestTourneyCount = Number.isFinite(minTourneyCount)
@@ -1058,6 +1069,7 @@ if(!tourneyState){
 
   poolSelectHtml += '<optgroup label="Targeted pools">';
   poolSelectHtml += '<option value="'+specialPoolValue+'"'+(currentPool===specialPoolValue?' selected':'')+'>Top 25% win% &amp; bottom 50% matchups ('+specialPoolCount+')</option>';
+  poolSelectHtml += '<option value="'+edgeWinPctPoolValue+'"'+(currentPool===edgeWinPctPoolValue?' selected':'')+'>Bottom 5% &amp; top 5% by win% ('+edgeWinPctPoolCount+')</option>';
   poolSelectHtml += '</optgroup>';
 
   // One option per eligible collection
@@ -1104,6 +1116,7 @@ if(!tourneyState){
 
   tagSelectHtml += '<optgroup label="Targeted pools">';
   tagSelectHtml += '<option value="'+specialPoolValue+'"'+(currentOtherPool===specialPoolValue?' selected':'')+'>Top 25% win% &amp; bottom 50% matchups ('+specialPoolCount+')</option>';
+  tagSelectHtml += '<option value="'+edgeWinPctPoolValue+'"'+(currentOtherPool===edgeWinPctPoolValue?' selected':'')+'>Bottom 5% &amp; top 5% by win% ('+edgeWinPctPoolCount+')</option>';
   tagSelectHtml += '</optgroup>';
   tagSelectHtml += '</select>';
   tagSelectHtml += '</div>';
