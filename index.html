@@ -3130,14 +3130,22 @@ function getMatchPool(all,mode){
     const cutoff = Math.ceil(sorted.length/2);
     pool = sorted.slice(0,cutoff);
 
-  }else if(mode.type==='bottom25' || mode.type==='bottom10'){
-    // Bottom 25% / 10% by total matchups
+  }else if(mode.type==='bottom25' || mode.type==='bottom10' || mode.type==='bottom5'){
+    // Bottom 25% / 10% / 5% by total matchups
     const sorted = [...all].sort(
       (a,b)=> matchupsCount(a) - matchupsCount(b)
     );
-    const fraction = mode.type==='bottom25' ? 0.25 : 0.10;
+    const fraction = mode.type==='bottom25' ? 0.25 : mode.type==='bottom10' ? 0.10 : 0.05;
     const cutoff = Math.max(2, Math.ceil(sorted.length * fraction));
     pool = sorted.slice(0, cutoff);
+
+  }else if(mode.type==='undefeated'){
+    // Images with zero losses
+    pool = all.filter(it=> (it.losses||0)===0);
+
+  }else if(mode.type==='winless'){
+    // Images with zero wins
+    pool = all.filter(it=> (it.wins||0)===0);
 
   }else if(
     mode.type==='topWinPct10' ||
@@ -5168,10 +5176,13 @@ function labelForMatchMode(){
   if(matchMode.type==='bottom') return 'Bottom 50% by matchups';
   if(matchMode.type==='bottom25') return 'Bottom 25% by matchups';
   if(matchMode.type==='bottom10') return 'Bottom 10% by matchups';
+  if(matchMode.type==='bottom5') return 'Bottom 5% by matchups';
   if(matchMode.type==='topWinPct10') return 'Top 10% by win%';
   if(matchMode.type==='topWinPct25') return 'Top 25% by win%';
   if(matchMode.type==='topWinPct50') return 'Top 50% by win%';
   if(matchMode.type==='bottomWinPct10') return 'Bottom 10% by win%';
+  if(matchMode.type==='undefeated') return 'Undefeated images (0 losses)';
+  if(matchMode.type==='winless') return 'Winless images (0 wins)';
   if(matchMode.type==='freshLeaf') return 'Fresh images (leaf icon)';
   if(matchMode.type==='generated') return 'Generated matchup (different generators)';
   if(matchMode.type==='locked' && matchMode.lockedId){
@@ -5917,10 +5928,13 @@ if (dt && dt.files && dt.files.length) {
       'bottom',
       'bottom25',
       'bottom10',
+      'bottom5',
       'topWinPct10',
       'topWinPct25',
       'topWinPct50',
       'bottomWinPct10',
+      'undefeated',
+      'winless',
       'freshLeaf'
     ];
 
@@ -5960,11 +5974,15 @@ if (dt && dt.files && dt.files.length) {
 <option value="bottom">Bottom 50% by matchups</option>
 <option value="bottom25">Bottom 25% by matchups</option>
 <option value="bottom10">Bottom 10% by matchups</option>
+<option value="bottom5">Bottom 5% by matchups</option>
 
 <option value="topWinPct10">Top 10% by win%</option>
 <option value="topWinPct25">Top 25% by win%</option>
 <option value="topWinPct50">Top 50% by win%</option>
 <option value="bottomWinPct10">Bottom 10% by win%</option>
+
+<option value="undefeated">Undefeated images (0 losses)</option>
+<option value="winless">Winless images (0 wins)</option>
 
 <option value="freshLeaf">Fresh images (leaf icon)</option>
 
