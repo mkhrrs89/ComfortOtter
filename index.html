@@ -2709,6 +2709,21 @@ const LazySafeImage = ({
         }
         return [];
       });
+      const [ungroupedCollectionsOpen, setUngroupedCollectionsOpen] = useState(()=>{
+        if(typeof localStorage==='undefined') return false;
+        try{
+          const raw = localStorage.getItem('collectionGroups');
+          if(raw){
+            const parsed = JSON.parse(raw);
+            if(typeof parsed?.ungroupedOpen === 'boolean'){
+              return parsed.ungroupedOpen;
+            }
+          }
+        }catch(err){
+          console.warn('Failed to load ungrouped collection open state', err);
+        }
+        return false;
+      });
       const [generatorGroups, setGeneratorGroups] = useState(()=>{
         if(typeof localStorage==='undefined') return [];
         try{
@@ -4157,11 +4172,11 @@ for (let idx = 1; idx < files.length; idx++) {
       useEffect(()=>{
         if(typeof localStorage==='undefined') return;
         try{
-          localStorage.setItem('collectionGroups', JSON.stringify({groups: collectionGroups}));
+          localStorage.setItem('collectionGroups', JSON.stringify({groups: collectionGroups, ungroupedOpen: ungroupedCollectionsOpen}));
         }catch(err){
           console.warn('Failed to persist collection groups', err);
         }
-      },[collectionGroups]);
+      },[collectionGroups, ungroupedCollectionsOpen]);
       useEffect(()=>{
         if(typeof localStorage==='undefined') return;
         try{
@@ -4259,6 +4274,10 @@ for (let idx = 1; idx < files.length; idx++) {
 
       function toggleGroupOpen(id){
         setCollectionGroups(prev=>prev.map(g=>g.id===id ? {...g, open: !g.open} : g));
+      }
+
+      function toggleUngroupedCollectionsOpen(){
+        setUngroupedCollectionsOpen(prev=>!prev);
       }
 
       function moveCollectionToGroup(name,targetGroupId){
@@ -5558,10 +5577,20 @@ if (dt && dt.files && dt.files.length) {
                           <div className="collectionGroupHeader">
                             <span className="smallMuted">Ungrouped</span>
                             <span className="smallMuted">{ungroupedCollections.length} collections</span>
+                            <button
+                              className="btn sm ghost collectionGroupCaret"
+                              aria-label={ungroupedCollectionsOpen ? 'Collapse Ungrouped' : 'Expand Ungrouped'}
+                              title={ungroupedCollectionsOpen ? 'Collapse Ungrouped' : 'Expand Ungrouped'}
+                              onClick={toggleUngroupedCollectionsOpen}
+                            >
+                              <span aria-hidden="true">{ungroupedCollectionsOpen ? '▾' : '▸'}</span>
+                            </button>
                           </div>
-                          <div className="collectionGroupItems">
-                            {ungroupedCollections.map(renderCollectionRow)}
-                          </div>
+                          {ungroupedCollectionsOpen && (
+                            <div className="collectionGroupItems">
+                              {ungroupedCollections.map(renderCollectionRow)}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -6237,10 +6266,20 @@ if (dt && dt.files && dt.files.length) {
                               <div className="collectionGroupHeader">
                                 <span className="smallMuted">Ungrouped</span>
                                 <span className="smallMuted">{ungroupedCollections.length} collections</span>
+                                <button
+                                  className="btn sm ghost collectionGroupCaret"
+                                  aria-label={ungroupedCollectionsOpen ? 'Collapse Ungrouped' : 'Expand Ungrouped'}
+                                  title={ungroupedCollectionsOpen ? 'Collapse Ungrouped' : 'Expand Ungrouped'}
+                                  onClick={toggleUngroupedCollectionsOpen}
+                                >
+                                  <span aria-hidden="true">{ungroupedCollectionsOpen ? '▾' : '▸'}</span>
+                                </button>
                               </div>
-                              <div className="collectionGroupItems">
-                                {ungroupedCollections.map(renderStatsCollectionRow)}
-                              </div>
+                              {ungroupedCollectionsOpen && (
+                                <div className="collectionGroupItems">
+                                  {ungroupedCollections.map(renderStatsCollectionRow)}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -6506,10 +6545,20 @@ if (dt && dt.files && dt.files.length) {
                                 <div className="collectionGroupHeader">
                                   <span className="smallMuted">Ungrouped</span>
                                   <span className="smallMuted">{ungroupedCollections.length} collections</span>
+                                  <button
+                                    className="btn sm ghost collectionGroupCaret"
+                                    aria-label={ungroupedCollectionsOpen ? 'Collapse Ungrouped' : 'Expand Ungrouped'}
+                                    title={ungroupedCollectionsOpen ? 'Collapse Ungrouped' : 'Expand Ungrouped'}
+                                    onClick={toggleUngroupedCollectionsOpen}
+                                  >
+                                    <span aria-hidden="true">{ungroupedCollectionsOpen ? '▾' : '▸'}</span>
+                                  </button>
                                 </div>
-                                <div className="collectionGroupItems">
-                                  {ungroupedCollections.map(renderCollectionStatsRow)}
-                                </div>
+                                {ungroupedCollectionsOpen && (
+                                  <div className="collectionGroupItems">
+                                    {ungroupedCollections.map(renderCollectionStatsRow)}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
