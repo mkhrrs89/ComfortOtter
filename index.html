@@ -4187,7 +4187,7 @@ for (let idx = 1; idx < files.length; idx++) {
       },[generatorGroups]);
 
       useEffect(()=>{
-        if(!libraryHydrated) return;
+        if(!libraryFullyLoaded) return;
         const allowed = new Set(allCollectionNames);
         setCollectionGroups(prev=>{
           if(allowed.size === 0) return prev;
@@ -4201,9 +4201,9 @@ for (let idx = 1; idx < files.length; idx++) {
           });
           return changed ? next : prev;
         });
-      },[allCollectionNames, libraryHydrated]);
+      },[allCollectionNames, libraryFullyLoaded]);
       useEffect(()=>{
-        if(!libraryHydrated) return;
+        if(!libraryFullyLoaded) return;
         const allowed = new Set(allGeneratorNames);
         setGeneratorGroups(prev=>{
           if(allowed.size === 0) return prev;
@@ -4217,7 +4217,7 @@ for (let idx = 1; idx < files.length; idx++) {
           });
           return changed ? next : prev;
         });
-      },[allGeneratorNames, libraryHydrated]);
+      },[allGeneratorNames, libraryFullyLoaded]);
 
       useEffect(()=>{
         const validIds = new Set(collectionGroups.map(g=>String(g.id)));
