@@ -438,6 +438,19 @@
       background:var(--card);
       flex-shrink:0;
     }
+    .rankNoticeThumbPlaceholder{
+      width:64px;
+      height:64px;
+      border-radius:8px;
+      border:1px solid var(--ring);
+      background:var(--card);
+      color:var(--muted);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:24px;
+      flex-shrink:0;
+    }
     .rankNoticeText{
       font-size:12px;
       color:var(--text);
@@ -3375,7 +3388,12 @@ async function handleFiles(fileList, forcedCollections = null, forcedGenerator =
         const next = [
           ...changes.map(change => ({
             id: change.id,
-            message: change.message,
+            imageId: change.imageId,
+            kind: change.kind,
+            oldRank: change.oldRank,
+            newRank: change.newRank,
+            listLabel: change.listLabel,
+            thumbSrc: change.thumbSrc,
             createdAt: now
           })),
           ...existing
@@ -3383,9 +3401,53 @@ async function handleFiles(fileList, forcedCollections = null, forcedGenerator =
         saveRankNoticeFeed(next.slice(0, 500));
       }
 
+      function movementText({oldRank, newRank, listLabel}){
+        const label = listLabel || 'the list';
+        if(oldRank == null && newRank != null){
+          return `Entered ${label} at #${newRank}`;
+        }
+        if(oldRank != null && newRank == null){
+          return `Fell out of ${label} (was #${oldRank})`;
+        }
+        if(oldRank != null && newRank != null){
+          if(newRank < oldRank){
+            const diff = oldRank - newRank;
+            return `Moved up ${diff} ${diff===1 ? 'place' : 'places'}`;
+          }
+          if(newRank > oldRank){
+            const diff = newRank - oldRank;
+            return `Moved down ${diff} ${diff===1 ? 'place' : 'places'}`;
+          }
+        }
+        return 'No change';
+      }
+
       useEffect(()=>{
         return ()=>clearRankNoticeTimers();
       },[]);
+
+
+      const RankNoticeThumb = ({change})=>{
+        const [failed, setFailed] = useState(false);
+        const fallbackSources = dedupeSources([
+          change?.thumbSrc,
+          ...getDisplaySources(change?.item)
+        ]);
+        const primarySrc = fallbackSources[0] || '';
+        if(failed || !primarySrc){
+          return <div className="rankNoticeThumbPlaceholder" aria-hidden="true">🖼️</div>;
+        }
+        return (
+          <img
+            className="rankNoticeThumb"
+            src={primarySrc}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            onError={()=>setFailed(true)}
+          />
+        );
+      };
 
       useEffect(()=>{
         if(!topPointsRanking.length){
@@ -3410,13 +3472,18 @@ async function handleFiles(fileList, forcedCollections = null, forcedGenerator =
         const rankingChanged = prev.length !== topPointsRanking.length
           || prev.some((entry, index) => !topPointsRanking[index] || topPointsRanking[index].id !== entry.id);
 
-        const addChange = (entry, message)=>{
+        const addChange = ({entry, oldRank=null, newRank=null, listLabel='Top 25'})=>{
           if(!entry || seen.has(entry.id)) return;
           seen.add(entry.id);
           affected.push({
             id: entry.id,
+            imageId: entry.id,
             item: entry.item,
-            message
+            kind: 'rankMove',
+            oldRank,
+            newRank,
+            listLabel,
+            thumbSrc: getDisplaySrc(entry.item)
           });
         };
 
@@ -3426,16 +3493,16 @@ async function handleFiles(fileList, forcedCollections = null, forcedGenerator =
             if(entry.rank < prevEntry.rank){
               const displaced = prev[entry.rank - 1];
               if(displaced && displaced.id !== entry.id){
-                addChange(entry, `ID ${entry.id} took the #${entry.rank} spot away from ID ${displaced.id}!!`);
+                addChange({entry, oldRank: prevEntry.rank, newRank: entry.rank});
               }else{
-                addChange(entry, `ID ${entry.id} climbed to #${entry.rank} from #${prevEntry.rank}.`);
+                addChange({entry, oldRank: prevEntry.rank, newRank: entry.rank});
               }
             }else{
               const usurper = topPointsRanking[prevEntry.rank - 1];
               if(usurper && usurper.id !== entry.id){
-                addChange(entry, `ID ${entry.id} lost the #${prevEntry.rank} spot to ID ${usurper.id}.`);
+                addChange({entry, oldRank: prevEntry.rank, newRank: entry.rank});
               }else{
-                addChange(entry, `ID ${entry.id} slid down to #${entry.rank} from #${prevEntry.rank}.`);
+                addChange({entry, oldRank: prevEntry.rank, newRank: entry.rank});
               }
             }
           }
@@ -3443,13 +3510,13 @@ async function handleFiles(fileList, forcedCollections = null, forcedGenerator =
 
         for(const prevEntry of prev){
           if(!nextById.has(prevEntry.id)){
-            addChange(prevEntry, `ID ${prevEntry.id} dropped out of the top 25 from #${prevEntry.rank}.`);
+            addChange({entry: prevEntry, oldRank: prevEntry.rank, newRank: null});
           }
         }
 
         for(const entry of topPointsRanking){
           if(!prevById.has(entry.id)){
-            addChange(entry, `ID ${entry.id} entered the top 25 at #${entry.rank}.`);
+            addChange({entry, oldRank: null, newRank: entry.rank});
           }
         }
 
@@ -5304,13 +5371,9 @@ function labelForMatchMode(){
             <div className={`rankNotice ${rankNoticeVisible ? 'show' : ''}`}>
               <div className="rankNoticeList">
                 {rankNotice.changes.map(change => (
-                  <div className="rankNoticeRow" key={`${change.id}-${change.message}`}>
-                    <img
-                      className="rankNoticeThumb"
-                      src={getDisplaySrc(change.item)}
-                      alt={`Image #${change.id}`}
-                    />
-                    <div className="rankNoticeText">{change.message}</div>
+                  <div className="rankNoticeRow" key={`${change.id}-${change.oldRank}-${change.newRank}-${change.createdAt || ''}`}>
+                    <RankNoticeThumb change={change} />
+                    <div className="rankNoticeText">{movementText(change)}</div>
                   </div>
                 ))}
               </div>

@@ -18,12 +18,40 @@
     }
     .feedItem{
       display:flex;
-      flex-direction:column;
-      gap:4px;
+      gap:10px;
+      align-items:center;
       padding:12px 14px;
       border-radius:14px;
       border:1px solid var(--borderSoft);
       background:rgba(10,16,24,0.6);
+    }
+    .feedThumb{
+      width:56px;
+      height:56px;
+      border-radius:10px;
+      object-fit:cover;
+      border:1px solid var(--borderSoft);
+      background:rgba(10,16,24,0.9);
+      flex-shrink:0;
+    }
+    .feedThumbPlaceholder{
+      width:56px;
+      height:56px;
+      border-radius:10px;
+      border:1px solid var(--borderSoft);
+      background:rgba(10,16,24,0.9);
+      color:var(--muted);
+      font-size:22px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      flex-shrink:0;
+    }
+    .feedBody{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      min-width:0;
     }
     .feedMessage{
       font-size:14px;
@@ -84,6 +112,27 @@
       }
     };
 
+    const movementText = ({ oldRank, newRank, listLabel }) => {
+      const label = listLabel || 'the list';
+      if (oldRank == null && newRank != null) {
+        return `Entered ${label} at #${newRank}`;
+      }
+      if (oldRank != null && newRank == null) {
+        return `Fell out of ${label} (was #${oldRank})`;
+      }
+      if (oldRank != null && newRank != null) {
+        if (newRank < oldRank) {
+          const diff = oldRank - newRank;
+          return `Moved up ${diff} ${diff === 1 ? 'place' : 'places'}`;
+        }
+        if (newRank > oldRank) {
+          const diff = newRank - oldRank;
+          return `Moved down ${diff} ${diff === 1 ? 'place' : 'places'}`;
+        }
+      }
+      return 'No change';
+    };
+
     const renderFeed = () => {
       const entries = loadFeed();
       feed.innerHTML = '';
@@ -98,9 +147,33 @@
         const item = document.createElement('div');
         item.className = 'feedItem';
 
+        if (entry.thumbSrc) {
+          const thumb = document.createElement('img');
+          thumb.className = 'feedThumb';
+          thumb.src = entry.thumbSrc;
+          thumb.alt = '';
+          thumb.loading = 'lazy';
+          thumb.decoding = 'async';
+          thumb.onerror = () => {
+            const fallback = document.createElement('div');
+            fallback.className = 'feedThumbPlaceholder';
+            fallback.textContent = '🖼️';
+            thumb.replaceWith(fallback);
+          };
+          item.appendChild(thumb);
+        } else {
+          const fallback = document.createElement('div');
+          fallback.className = 'feedThumbPlaceholder';
+          fallback.textContent = '🖼️';
+          item.appendChild(fallback);
+        }
+
+        const body = document.createElement('div');
+        body.className = 'feedBody';
+
         const message = document.createElement('div');
         message.className = 'feedMessage';
-        message.textContent = entry.message || 'Top 25 updated.';
+        message.textContent = movementText(entry);
 
         const time = document.createElement('div');
         time.className = 'feedTime';
@@ -109,8 +182,9 @@
           ? date.toLocaleString()
           : 'Just now';
 
-        item.appendChild(message);
-        item.appendChild(time);
+        body.appendChild(message);
+        body.appendChild(time);
+        item.appendChild(body);
         feed.appendChild(item);
       });
     };
