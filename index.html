@@ -1619,7 +1619,11 @@ const normalizeCollectionGroupsForExport = (groups, allowedCollectionNames)=>{
   return normalizeCollectionGroupsInput(groups)
     .map(g=>({
       ...g,
-      members: (g.members || []).filter(name=>allowed.size===0 || allowed.has(name))
+      // Keep all user-defined members in exports so custom/empty groups round-trip.
+      // We only filter when an explicit allow-list is supplied and populated.
+      members: allowed.size > 0
+        ? (g.members || []).filter(name=>allowed.has(name))
+        : (g.members || [])
     }));
 };
 
@@ -3710,7 +3714,8 @@ async function exportMetadata(){
     type: 'metadata-only',
     exportedAt: new Date().toISOString(),
     items: metaItems,
-    collectionGroups: normalizeCollectionGroupsForExport(collectionGroups, allCollectionNames),
+    // Export full user-defined collection groups (including custom members not yet used by items).
+    collectionGroups: normalizeCollectionGroupsForExport(collectionGroups),
     generatorGroups: normalizeGeneratorGroupsForExport(generatorGroups, allGeneratorNames),
     generatorCatalog: customGenerators
   };
@@ -3863,6 +3868,12 @@ const importedGeneratorCatalog = Array.isArray(firstJson.generatorCatalog) ? [..
 
         if(!json.items || !Array.isArray(json.items)){
           throw new Error(`Bad file format in ${f.name}`);
+        }
+        if(Array.isArray(json.collectionGroups)){
+          importedGroupDefs.push(...json.collectionGroups);
+        }
+        if(Array.isArray(json.generatorGroups)){
+          importedGeneratorGroupDefs.push(...json.generatorGroups);
         }
         if(Array.isArray(json.generatorCatalog)){
           importedGeneratorCatalog.push(...json.generatorCatalog);
