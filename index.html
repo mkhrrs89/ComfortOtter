@@ -4262,39 +4262,6 @@ for (let idx = 1; idx < files.length; idx++) {
       },[generatorGroups]);
 
       useEffect(()=>{
-        if(!libraryFullyLoaded) return;
-        const allowed = new Set(allCollectionNames);
-        setCollectionGroups(prev=>{
-          if(allowed.size === 0) return prev;
-          let changed = false;
-          const next = prev.map(group=>{
-            const filtered = (group.members || []).filter(name=>allowed.has(name));
-            const deduped = Array.from(new Set(filtered));
-            const same = deduped.length === (group.members||[]).length && deduped.every((m,idx)=>m === (group.members||[])[idx]);
-            if(!same) changed = true;
-            return {...group, members: deduped};
-          });
-          return changed ? next : prev;
-        });
-      },[allCollectionNames, libraryFullyLoaded]);
-      useEffect(()=>{
-        if(!libraryFullyLoaded) return;
-        const allowed = new Set(allGeneratorNames);
-        setGeneratorGroups(prev=>{
-          if(allowed.size === 0) return prev;
-          let changed = false;
-          const next = prev.map(group=>{
-            const filtered = (group.members || []).filter(name=>allowed.has(name));
-            const deduped = Array.from(new Set(filtered));
-            const same = deduped.length === (group.members||[]).length && deduped.every((m,idx)=>m === (group.members||[])[idx]);
-            if(!same) changed = true;
-            return {...group, members: deduped};
-          });
-          return changed ? next : prev;
-        });
-      },[allGeneratorNames, libraryFullyLoaded]);
-
-      useEffect(()=>{
         const validIds = new Set(collectionGroups.map(g=>String(g.id)));
         setLibraryCollectionFilter(prev=>{
           const includeGroups = (prev.includeGroups || []).filter(id=>validIds.has(String(id)));
@@ -4344,6 +4311,23 @@ for (let idx = 1; idx < files.length; idx++) {
             members: [],
             open: true
           }];
+        });
+      }
+
+      function pruneMissingCollectionGroupMembers(){
+        if(!confirm('Prune group members that are not present in your current library? This cannot be automatically undone.')) return;
+        const allowed = new Set(allCollectionNames);
+        setCollectionGroups(prev=>{
+          let changed = false;
+          const next = prev.map(group=>{
+            const filtered = (group.members || []).filter(name=>allowed.has(name));
+            const deduped = Array.from(new Set(filtered));
+            const sameLen = deduped.length === (group.members||[]).length;
+            const same = sameLen && deduped.every((m,idx)=>m === (group.members||[])[idx]);
+            if(!same) changed = true;
+            return same ? group : {...group, members: deduped};
+          });
+          return changed ? next : prev;
         });
       }
 
@@ -4537,6 +4521,23 @@ for (let idx = 1; idx < files.length; idx++) {
             members: [],
             open: true
           }];
+        });
+      }
+
+      function pruneMissingGeneratorGroupMembers(){
+        if(!confirm('Prune generator group members that are not present in your current library? This cannot be automatically undone.')) return;
+        const allowed = new Set(allGeneratorNames);
+        setGeneratorGroups(prev=>{
+          let changed = false;
+          const next = prev.map(group=>{
+            const filtered = (group.members || []).filter(name=>allowed.has(name));
+            const deduped = Array.from(new Set(filtered));
+            const sameLen = deduped.length === (group.members||[]).length;
+            const same = sameLen && deduped.every((m,idx)=>m === (group.members||[])[idx]);
+            if(!same) changed = true;
+            return same ? group : {...group, members: deduped};
+          });
+          return changed ? next : prev;
         });
       }
 
@@ -5576,6 +5577,9 @@ if (dt && dt.files && dt.files.length) {
                         <button className="btn sm ghost" onClick={createCollectionGroup}>
                           Create group
                         </button>
+                        <button className="btn sm ghost" onClick={pruneMissingCollectionGroupMembers}>
+                          Prune missing
+                        </button>
                         {hasCollectionFilters && (
                           <button
                             className="btn sm ghost"
@@ -5676,6 +5680,9 @@ if (dt && dt.files && dt.files.length) {
                       <div className="flexRow" style={{gap:6, flexWrap:'wrap'}}>
                         <button className="btn sm ghost" onClick={createGeneratorGroup}>
                           Create group
+                        </button>
+                        <button className="btn sm ghost" onClick={pruneMissingGeneratorGroupMembers}>
+                          Prune missing
                         </button>
                         {hasGeneratorFilters && (
                           <button
