@@ -129,6 +129,63 @@
       opacity:0.5;
       cursor:default;
     }
+    button, .btn, [role="button"]{
+      transition:transform 120ms ease, filter 120ms ease, box-shadow 120ms ease;
+      will-change:transform, filter;
+    }
+    button.is-pressed, .btn.is-pressed, [role="button"].is-pressed,
+    button:active, .btn:active, [role="button"]:active{
+      transform:translateY(1px) scale(0.98);
+      filter:brightness(1.08);
+    }
+    .jobOverlayBackdrop{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.55);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:16px;
+      z-index:1400;
+    }
+    .jobOverlayCard{
+      width:min(520px, 100%);
+      background:var(--panel);
+      border:1px solid var(--ring);
+      border-radius:14px;
+      padding:14px;
+      box-shadow:0 20px 60px rgba(0,0,0,0.45);
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .jobLabel{font-size:18px;font-weight:700;}
+    .jobDetail{font-size:12px;color:var(--muted);min-height:17px;}
+    .jobBarOuter{
+      width:100%;
+      height:10px;
+      border-radius:999px;
+      background:var(--ghost);
+      border:1px solid var(--ring);
+      overflow:hidden;
+    }
+    .jobBarInner{
+      height:100%;
+      border-radius:999px;
+      background:linear-gradient(90deg,#1f9d73,#2ac18e);
+      transition:width 160ms ease;
+    }
+    .jobMetaRow{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);gap:10px;}
+    .jobUnknown{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;}
+    .jobSpinner{
+      width:16px;
+      height:16px;
+      border-radius:50%;
+      border:2px solid rgba(255,255,255,0.3);
+      border-top-color:#c3f3df;
+      animation:jobSpin .8s linear infinite;
+    }
+    @keyframes jobSpin{to{transform:rotate(360deg);}}
     .collectionFilterToolbar{
       flex-direction:column;
       align-items:flex-start;
@@ -812,6 +869,25 @@
       border-color:#b36a50;
       color:#ffe7d8;
     }
+
+    @media (max-width: 768px){
+      .jobOverlayBackdrop{
+        align-items:flex-end;
+      }
+      .jobOverlayCard{
+        width:100%;
+        border-radius:14px 14px 0 0;
+      }
+    }
+    @media (prefers-reduced-motion: reduce){
+      button, .btn, [role="button"], .jobBarInner{
+        transition:none !important;
+      }
+      .jobSpinner{
+        animation:none !important;
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -922,7 +998,7 @@
       return url;
     }catch(err){
       console.error('Upload blob failed', err);
-      throw err;
+      return null;
     }
   };
   window.fetchFullImageUrl = async function fetchFullImageUrl(id){
@@ -2689,6 +2765,41 @@ const LazySafeImage = ({
   );
 };
 
+function fmtEta(s){
+  if(s==null) return '';
+  const m = Math.floor(s/60), r = s%60;
+  return m>0 ? `~${m}m ${r}s left` : `~${r}s left`;
+}
+
+function ProgressOverlay({ job, onCancel }){
+  const hasProgress = typeof job.progress === 'number';
+  const pct = hasProgress ? Math.max(0, Math.min(100, Math.round(job.progress * 100))) : null;
+  return (
+    <div className="jobOverlayBackdrop" role="status" aria-live="polite" aria-busy="true">
+      <div className="jobOverlayCard">
+        <div className="jobLabel">{job.label}</div>
+        <div className="jobDetail">{job.detail || ' '}</div>
+        {hasProgress ? (
+          <>
+            <div className="jobBarOuter">
+              <div className="jobBarInner" style={{ width:`${pct}%` }}></div>
+            </div>
+            <div className="jobMetaRow">
+              <span>{pct}%</span>
+              <span>{job.etaSeconds != null ? fmtEta(job.etaSeconds) : ''}</span>
+            </div>
+          </>
+        ) : (
+          <div className="jobUnknown">
+            <span className="jobSpinner" aria-hidden="true"></span>
+            <span>Working…</span>
+          </div>
+        )}
+        {job.canCancel && <button className="btn ghost" onClick={onCancel}>Cancel</button>}
+      </div>
+    </div>
+  );
+}
 
     // ... function App starts below here ...
 
@@ -2785,6 +2896,7 @@ const LazySafeImage = ({
       const [selectedIds,setSelectedIds] = useState([]); // for gallery batch + export
       const [exportBusy, setExportBusy] = useState(false);
       const [exportPct, setExportPct] = useState(0);
+      const [job, setJob] = useState(null);
       const [exportUrl, setExportUrl] = useState(null);
       const [exportFilename, setExportFilename] = useState(null);
       const [batchOpen,setBatchOpen] = useState(false);
@@ -2830,6 +2942,63 @@ const [pendingOpenId, setPendingOpenId] = useState(() => {
       useEffect(()=>{
         return ()=>{ if(exportUrl) URL.revokeObjectURL(exportUrl); };
       },[exportUrl]);
+
+      function startJob(label, opts={}){
+        const cancelToken = { cancelled:false };
+        const startedAt = Date.now();
+        setJob({
+          active:true,
+          label,
+          detail: opts.detail || '',
+          progress: (typeof opts.progress==='number') ? opts.progress : null,
+          startedAt,
+          etaSeconds: null,
+          canCancel: !!opts.canCancel,
+          cancelToken
+        });
+        return cancelToken;
+      }
+
+      function updateJob(patch){
+        setJob(prev=>{
+          if(!prev || !prev.active) return prev;
+          const next = { ...prev, ...patch };
+          if(typeof next.progress === 'number' && next.progress>0 && next.progress<1){
+            const elapsed = (Date.now() - next.startedAt)/1000;
+            const rate = next.progress / Math.max(0.001, elapsed);
+            const remaining = (1-next.progress) / Math.max(0.0001, rate);
+            next.etaSeconds = Math.max(0, Math.round(remaining));
+          }else{
+            next.etaSeconds = null;
+          }
+          return next;
+        });
+      }
+
+      function finishJob(){
+        setJob(null);
+      }
+
+      function cancelJob(){
+        setJob(prev=>{
+          if(prev?.cancelToken) prev.cancelToken.cancelled = true;
+          return prev ? { ...prev, canCancel:false, detail:'Cancelling…' } : prev;
+        });
+      }
+
+      useEffect(()=>{
+        const root = document;
+        const onClick = (e)=>{
+          const el = e.target?.closest?.('button, .btn, [role="button"]');
+          if(!el) return;
+          if(el.disabled || el.getAttribute('aria-disabled')==='true') return;
+          if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+          el.classList.add('is-pressed');
+          window.setTimeout(()=>el.classList.remove('is-pressed'), 140);
+        };
+        root.addEventListener('click', onClick, true);
+        return ()=>root.removeEventListener('click', onClick, true);
+      },[]);
 
       async function analyzeForOrphans(file){
         try {
@@ -3631,55 +3800,78 @@ async function exportLibrary(){
     alert('No images to export. Select some images in the gallery first.');
     return;
   }
-
-  const fullItems = await Promise.all(exportItems.map(async (it) => {
-    if(!it || !it.id) return it;
-    try{
-      const full = await idbGet(it.id);
-      return full || it;
-    }catch(err){
-      console.warn('Failed to hydrate export item', it.id, err);
-      return it;
-    }
-  }));
-
-  // Build and download JSON (full image export)
-  const payload = {
-    version: 2,
-    type: 'library-full',
-    exportedAt: new Date().toISOString(),
-    items: fullItems,
-    generatorCatalog: customGenerators
-  };
-  const blob = new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
-  const a = document.createElement('a');
-  const ts = new Date().toISOString().replace(/[:.]/g,'-');
-  a.href = URL.createObjectURL(blob);
-  a.download = `modelmatchup-library-${ts}.json`;
-  a.click();
-  URL.revokeObjectURL(a.href);
-
-  // SAFER: mark exported items without clearing the whole DB
+  const cancelToken = startJob('Exporting images', { canCancel:true, detail:'Starting…', progress:0 });
   try{
-    const stamp = nowStamp();
-    for(const it of exportItems){
-      const existing = items.find(x => x.id === it.id);
-      const last = existing && existing.lastExportedAt
-        ? existing.lastExportedAt
-        : stamp;
-
-      // patchItem updates React state + IndexedDB for this one item
-      patchItem(it.id, {
-        hasBeenExported: true,
-        lastExportedAt: last
-      });
+    const fullItems = [];
+    const total = exportItems.length;
+    for(let i=0; i<total; i++){
+      if(cancelToken.cancelled) throw new Error('JOB_CANCELLED');
+      const it = exportItems[i];
+      if(!it || !it.id){
+        continue;
+      }
+      try{
+        const full = await idbGet(it.id);
+        fullItems.push(full || it);
+      }catch(err){
+        console.warn('Failed to hydrate export item', it.id, err);
+        fullItems.push(it);
+      }
+      updateJob({progress:(i+1)/total, detail:`Preparing ${i+1}/${total}`});
+      if(i % 10 === 0){
+        await new Promise(r=>setTimeout(r,0));
+      }
     }
+
+    if(cancelToken.cancelled) throw new Error('JOB_CANCELLED');
+
+    // Build and download JSON (full image export)
+    const payload = {
+      version: 2,
+      type: 'library-full',
+      exportedAt: new Date().toISOString(),
+      items: fullItems,
+      generatorCatalog: customGenerators
+    };
+    const blob = new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+    const a = document.createElement('a');
+    const ts = new Date().toISOString().replace(/[:.]/g,'-');
+    a.href = URL.createObjectURL(blob);
+    a.download = `modelmatchup-library-${ts}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+
+    // SAFER: mark exported items without clearing the whole DB
+    try{
+      const stamp = nowStamp();
+      for(const it of exportItems){
+        const existing = items.find(x => x.id === it.id);
+        const last = existing && existing.lastExportedAt
+          ? existing.lastExportedAt
+          : stamp;
+
+        // patchItem updates React state + IndexedDB for this one item
+        patchItem(it.id, {
+          hasBeenExported: true,
+          lastExportedAt: last
+        });
+      }
+    }catch(err){
+      console.error('Failed to update export flags', err);
+      // Even if this fails, your library is still intact.
+    }
+    // After export: clear any selected images in the gallery
+    setSelectedIds([]);
   }catch(err){
-    console.error('Failed to update export flags', err);
-    // Even if this fails, your library is still intact.
+    if(err && err.message === 'JOB_CANCELLED'){
+      toast('Export cancelled');
+      return;
+    }
+    console.error(err);
+    alert('Export failed: ' + (err && err.message ? err.message : err));
+  }finally{
+    finishJob();
   }
-  // After export: clear any selected images in the gallery
-  setSelectedIds([]);
 }
 
 
@@ -3715,75 +3907,90 @@ async function exportMetadata(){
 
   setExportBusy(true);
   setExportPct(0);
+  const cancelToken = startJob('Exporting images', { canCancel:true, detail:'Starting…', progress:0 });
 
-  // Build metadata incrementally (NO Promise.all)
-  const metaItems = [];
-  const total = exportItems.length;
+  try{
+    // Build metadata incrementally (NO Promise.all)
+    const metaItems = [];
+    const total = exportItems.length;
 
-  for(let i=0; i<total; i++){
-    const it = exportItems[i];
-    if(!it?.id) continue;
+    for(let i=0; i<total; i++){
+      if(cancelToken.cancelled) throw new Error('JOB_CANCELLED');
+      const it = exportItems[i];
+      if(!it?.id) continue;
 
-    // Only pull from IDB if needed
-    let sourceItem = it;
-    try{
-      if(!sourceItem.fullUrl && !sourceItem.thumbnail && !sourceItem.thumbDataUrl){
-        const full = await idbGet(it.id);
-        if(full) sourceItem = full;
+      // Only pull from IDB if needed
+      let sourceItem = it;
+      try{
+        if(!sourceItem.fullUrl && !sourceItem.thumbnail && !sourceItem.thumbDataUrl){
+          const full = await idbGet(it.id);
+          if(full) sourceItem = full;
+        }
+      }catch(err){}
+
+      const badges = badgeMap.get(it.id) || {};
+      const badgeNames = Object.keys(badges).filter(k => badges[k]);
+
+      metaItems.push({
+        id: it.id,
+        title: sourceItem.title || '',
+        imageNumber: sourceItem.imageNumber || null,
+        generator: sourceItem.generator || '',
+        collections: sourceItem.collections || [],
+        wins: sourceItem.wins || 0,
+        losses: sourceItem.losses || 0,
+        tourneyBonus: sourceItem.tourneyBonus || 0,
+        tourneyCount: sourceItem.tourneyCount || 0,
+        points: computePoints(sourceItem.wins,sourceItem.losses,sourceItem.tourneyBonus||0),
+        matchups: matchupsCount(sourceItem),
+        addedAt: sourceItem.addedAt || null,
+        badges: badgeNames
+      });
+
+      const pct = Math.round(((i+1)/total)*100);
+      setExportPct(pct);
+      updateJob({progress:(i+1)/total, detail:`Writing ${i+1}/${total}`});
+      if(i % 10 === 0){
+        await new Promise(r=>setTimeout(r,0));
       }
-    }catch(err){}
-
-    const badges = badgeMap.get(it.id) || {};
-    const badgeNames = Object.keys(badges).filter(k => badges[k]);
-
-    metaItems.push({
-      id: it.id,
-      title: it.title || '',
-      imageNumber: it.imageNumber || null,
-      generator: it.generator || '',
-      collections: it.collections || [],
-      wins: it.wins || 0,
-      losses: it.losses || 0,
-      tourneyBonus: it.tourneyBonus || 0,
-      tourneyCount: it.tourneyCount || 0,
-      points: computePoints(it.wins,it.losses,it.tourneyBonus||0),
-      matchups: matchupsCount(it),
-      addedAt: it.addedAt || null,
-      badges: badgeNames
-    });
-
-    if(i % 50 === 0){
-      setExportPct(Math.round((i/total)*100));
-      await new Promise(r=>setTimeout(r,0)); // yield for iOS
     }
+
+    const payload = {
+      version: 6,
+      type: 'metadata-only',
+      exportedAt: new Date().toISOString(),
+      items: metaItems,
+      // Export full user-defined collection groups (including custom members not yet used by items).
+      collectionGroups: normalizeCollectionGroupsForExport(collectionGroups),
+      generatorGroups: normalizeGeneratorGroupsForExport(generatorGroups, allGeneratorNames),
+      generatorCatalog: customGenerators
+    };
+
+    // IMPORTANT: no pretty-print on mobile (much smaller, less memory)
+    const json = JSON.stringify(payload);
+
+    const blob = new Blob([json], { type:'application/json' });
+    const url = URL.createObjectURL(blob);
+    const ts = new Date().toISOString().replace(/[:.]/g,'-');
+    const filename = `modelmatchup-metadata-${ts}.json`;
+
+    setExportUrl(url);
+    setExportFilename(filename);
+    setExportPct(100);
+
+    // Tell user the export is ready and they must tap again to download
+    toast(`Export ready. Tap Export again to download.`);
+  }catch(err){
+    if(err && err.message === 'JOB_CANCELLED'){
+      toast('Export cancelled');
+      return;
+    }
+    console.error(err);
+    alert('Export failed: ' + (err && err.message ? err.message : err));
+  }finally{
+    setExportBusy(false);
+    finishJob();
   }
-
-  const payload = {
-    version: 6,
-    type: 'metadata-only',
-    exportedAt: new Date().toISOString(),
-    items: metaItems,
-    // Export full user-defined collection groups (including custom members not yet used by items).
-    collectionGroups: normalizeCollectionGroupsForExport(collectionGroups),
-    generatorGroups: normalizeGeneratorGroupsForExport(generatorGroups, allGeneratorNames),
-    generatorCatalog: customGenerators
-  };
-
-  // IMPORTANT: no pretty-print on mobile (much smaller, less memory)
-  const json = JSON.stringify(payload);
-
-  const blob = new Blob([json], { type:'application/json' });
-  const url = URL.createObjectURL(blob);
-  const ts = new Date().toISOString().replace(/[:.]/g,'-');
-  const filename = `modelmatchup-metadata-${ts}.json`;
-
-  setExportUrl(url);
-  setExportFilename(filename);
-  setExportPct(100);
-  setExportBusy(false);
-
-  // Tell user the export is ready and they must tap again to download
-  toast(`Export ready. Tap Export again to download.`);
 }
 
 
@@ -3831,6 +4038,7 @@ async function generateMissingThumbnails(){
 
 
 async function importLibraryFiles(fileList){
+  let wasCancelled = false;
   try{
     const files = Array.from(fileList || []);
     if(!files.length) return;
@@ -3869,8 +4077,10 @@ const importedGeneratorCatalog = Array.isArray(firstJson.generatorCatalog) ? [..
     // PATH A: FULL EXPORT IMPORT (images + metadata)
     // ======================================================
     if(isFullExport){
+      const cancelToken = startJob('Importing images', { canCancel:true, detail:'Reading files…', progress:null });
       let totalImported = 0;
       let nextImageNumber = getNextImageNumber(items);
+      let totalPlanned = firstItems.length;
 
       // Helper to normalize + write one items array to DB in chunks
       async function importItemsArray(itemsArr){
@@ -3899,8 +4109,16 @@ const importedGeneratorCatalog = Array.isArray(firstJson.generatorCatalog) ? [..
 
         const CHUNK = 10;
         for(let i = 0; i < cleaned.length; i += CHUNK){
+          if(cancelToken.cancelled) throw new Error('JOB_CANCELLED');
           const chunk = cleaned.slice(i, i + CHUNK);
           await idbBulkPut(chunk);
+          const doneForFile = Math.min(cleaned.length, i + CHUNK);
+          const overallDone = totalImported + doneForFile;
+          updateJob({
+            progress: totalPlanned ? overallDone / totalPlanned : null,
+            detail:`Importing ${overallDone}/${totalPlanned}`
+          });
+          await new Promise(r=>setTimeout(r,0));
         }
 
         totalImported += cleaned.length;
@@ -3911,7 +4129,9 @@ const importedGeneratorCatalog = Array.isArray(firstJson.generatorCatalog) ? [..
 
       // process REMAINING files one-by-one (no big parsedFiles array)
       for(let idx = 1; idx < files.length; idx++){
+        if(cancelToken.cancelled) throw new Error('JOB_CANCELLED');
         const f = files[idx];
+        updateJob({ detail:`Reading ${f.name}…`, progress:null });
         const text = await f.text();
         const json = JSON.parse(text);
 
@@ -3927,6 +4147,8 @@ const importedGeneratorCatalog = Array.isArray(firstJson.generatorCatalog) ? [..
         if(Array.isArray(json.generatorCatalog)){
           importedGeneratorCatalog.push(...json.generatorCatalog);
         }
+        totalPlanned += json.items.length;
+        updateJob({ detail:`Importing ${totalImported}/${totalPlanned}`, progress: totalPlanned ? totalImported / totalPlanned : null });
         await importItemsArray(json.items);
       }
 
@@ -3946,12 +4168,15 @@ const importedGeneratorCatalog = Array.isArray(firstJson.generatorCatalog) ? [..
       }
 
       alert(`Import complete. Added ${totalImported} images.`);
+      finishJob();
       return;
     }
 
     // ======================================================
     // PATH B: METADATA-ONLY IMPORT (no dataUrl)
     // ======================================================
+
+    const cancelToken = startJob('Importing metadata', { canCancel:true, detail:'Reading file…', progress:null });
 
     // Build lookup maps without ever touching React state
     const { byId, byFingerprint } = await getSmartLookupMap();
@@ -3960,7 +4185,9 @@ const importedGeneratorCatalog = Array.isArray(firstJson.generatorCatalog) ? [..
 const allImportedMeta = [...firstItems];
 
 for (let idx = 1; idx < files.length; idx++) {
+  if(cancelToken.cancelled) throw new Error('JOB_CANCELLED');
   const f = files[idx];
+  updateJob({ detail:`Reading ${f.name}…`, progress:null });
   const text = await f.text();
   const json = JSON.parse(text);
 
@@ -4017,8 +4244,10 @@ for (let idx = 1; idx < files.length; idx++) {
     }
     const BATCH_SIZE = 20;
     let totalUpdated = 0;
+    updateJob({ progress:0, detail:`Applying 0/${updatesToApply.length}` });
 
     for(let i = 0; i < updatesToApply.length; i += BATCH_SIZE){
+      if(cancelToken.cancelled) throw new Error('JOB_CANCELLED');
       const batch = updatesToApply.slice(i, i + BATCH_SIZE);
       const tx = db.transaction(DB_STORE, 'readwrite');
       const store = tx.objectStore(DB_STORE);
@@ -4084,6 +4313,13 @@ for (let idx = 1; idx < files.length; idx++) {
       });
 
       totalUpdated += batch.length;
+      updateJob({
+        progress: updatesToApply.length ? totalUpdated / updatesToApply.length : null,
+        detail:`Applying ${Math.min(totalUpdated, updatesToApply.length)}/${updatesToApply.length}`
+      });
+      if(i % (BATCH_SIZE * 2) === 0){
+        await new Promise(r=>setTimeout(r,0));
+      }
     }
 
     // ---- 3. Mirror those changes into React state (thumb-only) ----
@@ -4140,9 +4376,21 @@ for (let idx = 1; idx < files.length; idx++) {
     }
 
     alert(`Metadata sync complete. Updated ${totalUpdated} images.`);
+    finishJob();
   }catch(e){
+    if(e && e.message === 'JOB_CANCELLED'){
+      wasCancelled = true;
+      toast('Import cancelled');
+      finishJob();
+      return;
+    }
+    finishJob();
     console.error(e);
     alert('Import failed: ' + (e && e.message ? e.message : e));
+  }finally{
+    if(!wasCancelled){
+      finishJob();
+    }
   }
 }
 
@@ -7546,6 +7794,7 @@ onChange={e => {
         </div>
       )}
       {/* --- END CLEANUP / ORPHAN MODAL --- */}
+      {job?.active && <ProgressOverlay job={job} onCancel={cancelJob} />}
         </div>
       );
     }
