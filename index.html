@@ -867,10 +867,17 @@
       ...rest
     } = item;
 
-    return {
+    const meta = {
       ...rest,
       updatedAt: new Date().toISOString()
     };
+    if (typeof meta.fullUrl === 'string') {
+      const v = meta.fullUrl.trim();
+      if (v.startsWith('data:') || v.startsWith('blob:')) {
+        delete meta.fullUrl;
+      }
+    }
+    return meta;
   }
 
   async function saveItemToCloud(item) {
@@ -903,6 +910,19 @@
     }catch(err){
       console.error('Upload failed for cropped image', err);
       return null;
+    }
+  };
+  window.uploadBlobToFirebase = async function uploadBlobToFirebase(id, blob, contentType){
+    if(!id || !blob) return null;
+    try{
+      const path = `images/${id}.jpg`;
+      const storageRef = ref(storage, path);
+      await uploadBytes(storageRef, blob, { contentType: contentType || 'image/jpeg' });
+      const url = await getDownloadURL(storageRef);
+      return url;
+    }catch(err){
+      console.error('Upload blob failed', err);
+      throw err;
     }
   };
   window.fetchFullImageUrl = async function fetchFullImageUrl(id){
@@ -3073,17 +3093,19 @@ useEffect(()=>{
       async function handleReplaceImageFile(file, item){
         if(!file || !item) return;
         try{
-          const { dataUrl, blob, mime } = await fileToResizedBlobAndDataUrl(file, 2000);
+          const { dataUrl, mime } = await fileToResizedBlobAndDataUrl(file, 2000);
           const thumbDataUrl = await dataUrlToThumbDataUrl(dataUrl);
           setPreviewSrc(dataUrl);
 
           let uploadedUrl = null;
-          if (window.firebaseStorage){
+          let uploadErr = null;
+
+          if (window.uploadBlobToFirebase){
             try{
-              const storageRef = ref(window.firebaseStorage, `images/${item.id}.jpg`);
-              await uploadBytes(storageRef, blob, { contentType: mime || file.type || 'image/jpeg' });
-              uploadedUrl = await getDownloadURL(storageRef);
+              // IMPORTANT: upload the ORIGINAL file so true full-res exists again
+              uploadedUrl = await window.uploadBlobToFirebase(item.id, file, file.type || mime || 'image/jpeg');
             }catch(err){
+              uploadErr = err;
               console.error('Failed to upload replacement image to Firebase', err);
             }
           }
@@ -3095,13 +3117,43 @@ useEffect(()=>{
             fullUrl: finalFullUrl
           });
 
-          if(window.firebaseStorage && !uploadedUrl){
-            alert('Saved the replacement image locally, but updating Firebase failed. The app will use the local copy until you retry online.');
+          if(window.uploadBlobToFirebase && !uploadedUrl){
+            const code = uploadErr?.code ? ` (${uploadErr.code})` : '';
+            alert(`Saved locally, but Firebase Storage upload failed${code}. Check console for details. The app will use the local copy until you retry.`);
           }
         }catch(err){
           console.error('Replace image failed', err);
           alert('Failed to replace image. Please try again.');
         }
+      }
+
+      async function retryCloudUploadForPreviewItem(item){
+        if(!item || !item.id) return;
+        const fallbackDataUrl = typeof item.dataUrl === 'string' ? item.dataUrl : '';
+        if(!fallbackDataUrl){
+          alert('No local image data is available to retry upload. Please use Replace image to pick a file.');
+          return;
+        }
+
+        let uploadedUrl = null;
+        let uploadErr = null;
+        if(window.uploadDataUrlToFirebase){
+          try{
+            uploadedUrl = await window.uploadDataUrlToFirebase(item.id, fallbackDataUrl);
+          }catch(err){
+            uploadErr = err;
+            console.error('Retry cloud upload failed', err);
+          }
+        }
+
+        if(uploadedUrl){
+          await patchItem(item.id,{fullUrl:uploadedUrl});
+          alert('Cloud upload retry succeeded.');
+          return;
+        }
+
+        const code = uploadErr?.code ? ` (${uploadErr.code})` : '';
+        alert(`Retry upload failed${code}. Check console for details.`);
       }
 
       // delete with confirm
@@ -7243,6 +7295,9 @@ if (dt && dt.files && dt.files.length) {
                     }}
                   >
                     Replace image
+                  </button>
+                  <button className="btn ghost" onClick={()=>retryCloudUploadForPreviewItem(previewItem)}>
+                    Retry cloud upload
                   </button>
                   <button className="btn ghost" onClick={()=>startLockedMatchup(previewItem)}>
                     Lock matchup
