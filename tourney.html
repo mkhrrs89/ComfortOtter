@@ -537,32 +537,67 @@ function attachHdButtons(rootEl){
     const TOURNEY_STORE = 'tourneyState_256';
     const TOURNEY_STATE_ID = 'tourneyState_256';
 
-    function openItemsDB(){
+    const OPEN_DB_TIMEOUT_MS = 10000;
+
+    function canUseIndexedDB(){
+      try{
+        return typeof indexedDB !== 'undefined';
+      }catch(err){
+        return false;
+      }
+    }
+
+    function openDBWithTimeout(name, version, ensureStoreName){
+      if(!canUseIndexedDB()){
+        return Promise.reject(new Error('IndexedDB unavailable on this browser.'));
+      }
       return new Promise((resolve,reject)=>{
-        const req = indexedDB.open(DB_NAME);
+        let settled = false;
+        const req = indexedDB.open(name, version);
+        const timeoutId = setTimeout(()=>{
+          if(settled) return;
+          settled = true;
+          reject(new Error(`Timed out opening IndexedDB ${name}.`));
+        }, OPEN_DB_TIMEOUT_MS);
+
+        const done = (fn)=>{
+          if(settled) return;
+          settled = true;
+          clearTimeout(timeoutId);
+          fn();
+        };
+
         req.onupgradeneeded = () => {
           const db = req.result;
-          if(!db.objectStoreNames.contains(DB_STORE)){
-            db.createObjectStore(DB_STORE,{keyPath:'id'});
+          if(ensureStoreName && !db.objectStoreNames.contains(ensureStoreName)){
+            db.createObjectStore(ensureStoreName,{keyPath:'id'});
           }
         };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
+        req.onblocked = () => {
+          done(()=>reject(new Error(`IndexedDB ${name} is blocked by another tab. Close other app tabs and retry.`)));
+        };
+        req.onsuccess = () => {
+          const db = req.result;
+          db.onversionchange = ()=>{
+            try{ db.close(); }catch(e){}
+          };
+          if(ensureStoreName && !db.objectStoreNames.contains(ensureStoreName)){
+            db.close();
+            done(()=>reject(new Error(`IndexedDB ${name} missing required store ${ensureStoreName}.`)));
+            return;
+          }
+          done(()=>resolve(db));
+        };
+        req.onerror = () => done(()=>reject(req.error || new Error(`Failed to open IndexedDB ${name}.`)));
       });
     }
 
+    function openItemsDB(){
+      return openDBWithTimeout(DB_NAME, 2, DB_STORE);
+    }
+
     function openTourneyDB(){
-      return new Promise((resolve,reject)=>{
-        const req = indexedDB.open(TOURNEY_DB_NAME);
-        req.onupgradeneeded = () => {
-          const db = req.result;
-          if(!db.objectStoreNames.contains(TOURNEY_STORE)){
-            db.createObjectStore(TOURNEY_STORE,{keyPath:'id'});
-          }
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-      });
+      return openDBWithTimeout(TOURNEY_DB_NAME, 2, TOURNEY_STORE);
     }
 
     function stripBigFieldsForMemory(item){
