@@ -1043,6 +1043,40 @@
 
     const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
+    // ---- toast compatibility shim (prevents ReferenceError) ----
+    (function(){
+      // If it already exists, don’t overwrite
+      if(typeof window.toast !== 'undefined') return;
+
+      function forward(msg, type){
+        try{
+          // Prefer app toast if available
+          if(typeof window.addToast === 'function') return window.addToast(msg, { type });
+          // If addToast exists in local scope, expose it and use it
+          if(typeof addToast === 'function'){
+            window.addToast = addToast;
+            return addToast(msg, { type });
+          }
+        }catch(e){}
+        // Fallbacks (never throw)
+        console.log(`[${type||'info'}]`, msg);
+        if(type === 'error') {
+          try{ window.alert(String(msg)); }catch(e){}
+        }
+      }
+
+      // Make `toast("hi")` work too
+      function toastFn(msg){ return forward(msg, 'info'); }
+      toastFn.success = (msg)=>forward(msg, 'success');
+      toastFn.error   = (msg)=>forward(msg, 'error');
+      toastFn.info    = (msg)=>forward(msg, 'info');
+      toastFn.warn    = (msg)=>forward(msg, 'warning');
+
+      // define globally so identifier `toast` resolves in browser global env
+      window.toast = toastFn;
+    })();
+    // --------------------------------------------
+
     // ---------- IndexedDB ----------
     const DB_NAME = 'modelMatchupDB';
     const DB_STORE = 'items';
