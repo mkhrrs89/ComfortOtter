@@ -3837,7 +3837,7 @@ async function exportLibrary(){
     const a = document.createElement('a');
     const ts = new Date().toISOString().replace(/[:.]/g,'-');
     a.href = URL.createObjectURL(blob);
-    a.download = `modelmatchup-library-${ts}.json`;
+    a.download = `mmatchup-library-${ts}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
 
@@ -3883,7 +3883,7 @@ async function exportMetadata(){
     try{
       const a = document.createElement('a');
       a.href = exportUrl;
-      a.download = exportFilename || 'modelmatchup-metadata.json';
+      a.download = exportFilename || 'mmatchup-metadata.json';
       a.rel = 'noopener';
       document.body.appendChild(a);
       a.click();
@@ -3972,7 +3972,7 @@ async function exportMetadata(){
     const blob = new Blob([json], { type:'application/json' });
     const url = URL.createObjectURL(blob);
     const ts = new Date().toISOString().replace(/[:.]/g,'-');
-    const filename = `modelmatchup-metadata-${ts}.json`;
+    const filename = `mmatchup-metadata-${ts}.json`;
 
     setExportUrl(url);
     setExportFilename(filename);
