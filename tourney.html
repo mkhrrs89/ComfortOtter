@@ -511,21 +511,33 @@ function attachHdButtons(rootEl){
 }
 
 
-    // Helper: bind tap for buttons (not images)
+    // Helper: bind tap/click in a way that behaves consistently on mobile browsers.
     function addTap(el, handler){
       if(!el) return;
       let locked = false;
-      const wrapped = (ev)=>{
-        ev.preventDefault();
-        ev.stopPropagation();
+      const invoke = (ev)=>{
+        if(ev){
+          ev.preventDefault();
+          ev.stopPropagation();
+        }
         if(locked) return;
+        if(el.disabled) return;
         locked = true;
         try{ handler(); } finally {
           setTimeout(()=>{ locked = false; }, 150);
         }
       };
-      el.addEventListener('click', wrapped);
-      el.addEventListener('touchstart', wrapped, {passive:false});
+
+      if(window.PointerEvent){
+        el.addEventListener('pointerup', (ev)=>{
+          if(ev.pointerType === 'mouse' && ev.button !== 0) return;
+          invoke(ev);
+        });
+      }else{
+        el.addEventListener('touchend', invoke, {passive:false});
+      }
+
+      el.addEventListener('click', invoke);
     }
 
     // === MAIN ITEMS DB (same as index.html) ===
