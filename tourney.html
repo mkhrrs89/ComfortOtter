@@ -87,6 +87,9 @@
       align-items:center;
       gap:6px;
       -webkit-tap-highlight-color: transparent;
+      -webkit-user-select:none;
+      user-select:none;
+      touch-action:manipulation;
     }
     .btn.sm{padding:5px 9px;font-size:12px}
     .btn.ghost{background:var(--ghost);}
@@ -528,13 +531,13 @@ function attachHdButtons(rootEl){
         }
       };
 
+      el.addEventListener('touchend', invoke, {passive:false});
+
       if(window.PointerEvent){
         el.addEventListener('pointerup', (ev)=>{
           if(ev.pointerType === 'mouse' && ev.button !== 0) return;
           invoke(ev);
         });
-      }else{
-        el.addEventListener('touchend', invoke, {passive:false});
       }
 
       el.addEventListener('click', invoke);
