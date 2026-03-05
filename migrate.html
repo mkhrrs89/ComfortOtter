@@ -314,7 +314,19 @@
           }
         } catch (err){
           failed++;
-          log(`ERROR for ${item.id}: ${err.message || err}`);
+          const sr = (err && typeof err.serverResponse === 'string') ? err.serverResponse : '';
+          const cd = (err && err.customData) ? JSON.stringify(err.customData) : '';
+          let errJson = '';
+          try {
+            errJson = JSON.stringify(err);
+          } catch (jsonErr) {
+            errJson = String(err);
+          }
+          log(`ERROR for ${item.id}: ${err?.message || err} (${err?.code || 'no-code'})`);
+          if (sr) log(`serverResponse: ${sr}`);
+          if (cd) log(`customData: ${cd}`);
+          if (errJson) log(`errorJson: ${errJson}`);
+          console.error('Firebase upload error', err);
         }
       }
 
