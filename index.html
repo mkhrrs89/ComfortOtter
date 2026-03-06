@@ -1314,12 +1314,11 @@
 
 function slimItemForState(it){
   if(!it) return it;
-  const thumbnail = it.thumbnail || it.thumbDataUrl || null;
-  // IMPORTANT: keep only lightweight fields in React state
+  const hasThumb = !!(it.thumbnail || it.thumbDataUrl);
   return {
     ...it,
-    hasThumb: !!thumbnail,
-    thumbnail,
+    hasThumb,
+    thumbnail: null,
     thumbDataUrl: null,
     dataUrl: null
   };
@@ -1347,16 +1346,11 @@ async function idbGet(id){
 function mapDbRecordToUiItem(v){
   if (!v) return null;
 
-  // Prefer true thumbnail fields. We *don’t* fall back to dataUrl here,
-  // because most of your big base64 blobs have been cleaned up.
   const thumb = v.thumbnail || v.thumbDataUrl || null;
-
-  console.debug("ComfortOtter mapDbRecordToUiItem", v.id, { hasThumb: !!thumb, hasFullUrl: !!v.fullUrl });
 
   return {
     id: v.id,
 
-    // core metadata
     title: v.title || '',
     imageNumber: Number.isFinite(Number(v.imageNumber)) ? Number(v.imageNumber) : null,
     generator: v.generator || '',
@@ -1372,12 +1366,10 @@ function mapDbRecordToUiItem(v){
       v.hasBeenExported === undefined ? true : !!v.hasBeenExported,
     lastExportedAt: v.lastExportedAt || null,
 
-    // cloud reference
     fullUrl: v.fullUrl || null,
 
-    // IMPORTANT: do NOT load base64 into React state
     hasThumb: !!thumb,
-    thumbnail: thumb,
+    thumbnail: null,
     thumbDataUrl: null,
     dataUrl: null
   };
@@ -2552,9 +2544,7 @@ function getFullOnlySources(item){
 
 // Display sources across the app should be THUMBNAILS ONLY.
 function getDisplaySources(item){
-  const thumbs = getThumbOnlySources(item);
-  if(thumbs.length>0) return thumbs;
-  return getFullOnlySources(item);
+  return getThumbOnlySources(item);
 }
 
 // Matchups should only load full-size images when explicitly requested.
@@ -2744,7 +2734,6 @@ const SafeImage = ({
         const thumbHydrated = await tryHydrateThumb();
         if(thumbHydrated) return;
       }
-      console.debug("ComfortOtter SafeImage thumb gave up", item?.id);
       setCurrentSrc('');
       return;
     }
@@ -2754,7 +2743,6 @@ const SafeImage = ({
 
     if(item?.id && !fullRefreshTriedRef.current && isHttpUrl(failingSrc) && typeof window.fetchFullImageUrl === 'function'){
       fullRefreshTriedRef.current = true;
-      console.debug("ComfortOtter SafeImage HD refresh attempt", item?.id);
       try{
         const freshRemote = await window.fetchFullImageUrl(item.id);
         if(isNonEmptySrc(freshRemote) && freshRemote !== failingSrc){
@@ -2763,7 +2751,6 @@ const SafeImage = ({
           if(onResolved && freshRemote !== item.fullUrl){
             onResolved(freshRemote);
           }
-          console.debug("ComfortOtter SafeImage HD refresh success", item?.id);
           setCurrentSrc(freshRemote);
           return;
         }
