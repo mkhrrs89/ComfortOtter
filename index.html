@@ -2724,6 +2724,29 @@ const SafeImage = ({
   }, [hydrateThumb, item && item.id, currentSrc, tryHydrateThumb]);
 
   const handleError = useCallback(async ()=>{
+    const failingSrc = currentSrc;
+
+    const tryRefreshUrl = async ()=>{
+      if(!item?.id) return false;
+      if(!isHttpUrl(failingSrc)) return false;
+      if(typeof window.fetchFullImageUrl !== 'function') return false;
+      try{
+        const fresh = await window.fetchFullImageUrl(item.id);
+        if(isNonEmptySrc(fresh) && fresh !== failingSrc){
+          console.debug("ComfortOtter: refreshed Firebase URL for", item.id);
+          onResolved?.(fresh);
+          setCurrentSrc(fresh);
+          return true;
+        }
+      }catch(_err){
+        // Continue normal fallback handling if refresh fails.
+      }
+      return false;
+    };
+
+    const refreshed = await tryRefreshUrl();
+    if(refreshed) return;
+
     const next = queueRef.current.find(url => url && url !== currentSrc);
     if(next){
       setCurrentSrc(next);
