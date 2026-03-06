@@ -2430,6 +2430,7 @@ const ImageModal = ({ item, onClose, onSave, onDelete, generatorOptions = [] }) 
                 fallbackSrcs={getDisplaySources(item)}
                 className="modal-img"
                 allowFull={modalWantHd}
+                onResolved={(url)=>onSave(item.id,{fullUrl:url})}
               />
               <div className="toolbar" style={{marginTop:8}}>
                 <button
@@ -2545,7 +2546,9 @@ function getFullOnlySources(item){
 
 // Display sources across the app should be THUMBNAILS ONLY.
 function getDisplaySources(item){
-  return getThumbOnlySources(item);
+  const thumbs = getThumbOnlySources(item);
+  if(thumbs.length>0) return thumbs;
+  return getFullOnlySources(item);
 }
 
 // Matchups should only load full-size images when explicitly requested.
@@ -2590,6 +2593,7 @@ const SafeImage = ({
   const hydratedRef = useRef(false);
   const hydratedThumbRef = useRef(false);
   const repairTriedRef = useRef(false);
+  const fullRefreshTriedRef = useRef(false);
   const [currentSrc, setCurrentSrc] = useState('');
 
   const rebuildQueue = useCallback(() => {
@@ -2613,6 +2617,7 @@ const SafeImage = ({
     hydratedRef.current = false;
     hydratedThumbRef.current = false;
     repairTriedRef.current = false;
+    fullRefreshTriedRef.current = false;
   }, [item && item.id]);
 
   useEffect(()=>{
@@ -2630,23 +2635,16 @@ const SafeImage = ({
     if(!item || !item.id || hydratedRef.current) return null;
     hydratedRef.current = true;
     try{
-      const full = await idbGet(item.id);
       const remote = window.fetchFullImageUrl ? await window.fetchFullImageUrl(item.id) : null;
-      const merged = preferRemote
-        ? dedupeSources([
-            remote,
-            ...getFullOnlySources(full),
-            ...getThumbOnlySources(full),
-            ...queueRef.current
-          ])
-        : dedupeSources([
-            ...getFullOnlySources(full),
-            ...getThumbOnlySources(full),
-            ...queueRef.current,
-            remote
-          ]);
+      const full = await idbGet(item.id);
+      const merged = dedupeSources([
+        remote,
+        ...getFullOnlySources(full),
+        ...getThumbOnlySources(full),
+        ...queueRef.current
+      ]);
       queueRef.current = merged;
-      if(remote && onResolved){
+      if(remote && onResolved && remote !== item.fullUrl){
         onResolved(remote);
       }
       const next = merged.find(url => url && url !== currentSrc);
@@ -2658,7 +2656,7 @@ const SafeImage = ({
       console.warn('SafeImage hydration failed', err);
     }
     return null;
-  },[allowFull, item, currentSrc, onResolved, preferRemote]);
+  },[allowFull, item, currentSrc, onResolved]);
 
   const tryHydrateThumb = useCallback(async ()=>{
     if(!hydrateThumb) return null;
@@ -2752,8 +2750,25 @@ const SafeImage = ({
       const repaired = await tryRepairItem();
       if(repaired) return;
     }
+    if(allowFull && item?.id && !fullRefreshTriedRef.current){
+      fullRefreshTriedRef.current = true;
+      try{
+        const freshRemote = window.fetchFullImageUrl ? await window.fetchFullImageUrl(item.id) : null;
+        if(isNonEmptySrc(freshRemote)){
+          const repairedQueue = dedupeSources([freshRemote, ...queueRef.current]);
+          queueRef.current = repairedQueue;
+          if(onResolved && freshRemote !== item.fullUrl){
+            onResolved(freshRemote);
+          }
+          setCurrentSrc(freshRemote);
+          return;
+        }
+      }catch(err){
+        console.warn('SafeImage full URL refresh failed', err);
+      }
+    }
     setCurrentSrc('');
-  },[currentSrc, allowFull, hydrateThumb, tryHydrate, tryHydrateThumb, tryRepairItem]);
+  },[currentSrc, allowFull, hydrateThumb, tryHydrate, tryHydrateThumb, tryRepairItem, item, onResolved]);
 
   return (
     <img
@@ -7572,6 +7587,7 @@ if (dt && dt.files && dt.files.length) {
                     fallbackSrcs={getDisplaySources(previewItem)}
                     alt={previewItem.title || 'Image'}
                     allowFull={previewWantHd}
+                    onResolved={(url)=>patchItem(previewItem.id,{fullUrl:url})}
                   />
                   <div className="toolbar" style={{marginTop:8, justifyContent:'center'}}>
                     <button
