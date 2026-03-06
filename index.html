@@ -1991,24 +1991,30 @@ async function fileToResizedBlobAndDataUrl(file, maxSide = 2000){
   return { dataUrl, blob: blob || file, mime, resized: true };
 }
 
-    // *** UPDATED: default maxSide 1500 + quality 0.95 ***
-    async function fileToCompressedDataUrl(file,maxSide=1500){
-      const dataUrl = await new Promise((resolve,reject)=>{
-        const img = new Image();
-        img.onload = ()=> resolve(img);
-        img.onerror = reject;
-        img.src = URL.createObjectURL(file);
-      }).then(img=>{
-        const {w,h} = fitWithin(img.naturalWidth,img.naturalHeight,maxSide);
-        const c = document.createElement('canvas');
-        c.width = w;
-        c.height = h;
-        const ctx = c.getContext('2d');
-        ctx.drawImage(img,0,0,w,h);
-        return c.toDataURL(CANVAS_FORMAT,0.95);
-      });
-      return dataUrl;
-    }
+async function fileToCompressedDataUrl(file, maxSide = 1500){
+  const objectUrl = URL.createObjectURL(file);
+
+  try {
+    const dataUrl = await new Promise((resolve, reject)=>{
+      const img = new Image();
+      img.onload = ()=> resolve(img);
+      img.onerror = reject;
+      img.src = objectUrl;
+    }).then(img=>{
+      const {w,h} = fitWithin(img.naturalWidth, img.naturalHeight, maxSide);
+      const c = document.createElement('canvas');
+      c.width = w;
+      c.height = h;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img,0,0,w,h);
+      return c.toDataURL(CANVAS_FORMAT,0.95);
+    });
+
+    return dataUrl;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
 
 async function dataUrlToThumbDataUrl(src, maxSide = 320, quality = 0.80){
   const dataUrl = await new Promise((resolve, reject)=>{
@@ -3324,16 +3330,26 @@ useEffect(()=>{
           return next;
         });
       }
-      async function addNewItems(newItems){
+      async function addNewItems(newItems, options = {}){
+        const preserveImageNumbers = !!options.preserveImageNumbers;
         const nextNumber = getNextImageNumber(items);
-        const numberedItems = newItems.map((item, index) => ({
-          ...item,
-          title: trimTitle(item.title || ''),
-          imageNumber: nextNumber + index
-        }));
+
+        const numberedItems = preserveImageNumbers
+          ? newItems.map(item => ({
+              ...item,
+              title: trimTitle(item.title || '')
+            }))
+          : newItems.map((item, index) => ({
+              ...item,
+              title: trimTitle(item.title || ''),
+              imageNumber: nextNumber + index
+            }));
+
         const merged = [...items, ...numberedItems.map(slimItemForState)];
         setItems(merged);
+
         await idbBulkPut(numberedItems);
+
         if(merged.length>=2 && (!matchIds[0]||!matchIds[1])){
           const [a,b] = pickTwoFromPool(merged);
           setMatchIds([a,b]);
@@ -3597,35 +3613,56 @@ async function handleFiles(fileList, forcedCollections = null, forcedGenerator =
   const arr = Array.from(fileList || []);
   if (!arr.length) return;
 
-  const processed = [];
+  const BATCH_SIZE = 2; // keep tiny for iPhone Safari stability
+  let nextNumber = getNextImageNumber(items);
+  let addedCount = 0;
 
-  for (const file of arr){
-    const id = createId();
+  for (let start = 0; start < arr.length; start += BATCH_SIZE){
+    const batch = arr.slice(start, start + BATCH_SIZE);
+    const processed = [];
 
-    // Full-size compressed image (same as before, max ~1300px)
-    const dataUrl = await fileToCompressedDataUrl(file, 1500);
+    for (const file of batch){
+      const id = createId();
 
-    // NEW: smaller thumbnail (around 320px)
-    const thumbDataUrl = await fileToCompressedDataUrl(file, 480);
+      const dataUrl = await fileToCompressedDataUrl(file, 1500);
+      const thumbDataUrl = await fileToCompressedDataUrl(file, 480);
 
-    processed.push({
-      id,
-      title: trimTitle(file.name.replace(/\.[^.]+$/,'')),
-      generator: forcedGenerator || '',
-      collections: forcedCollections || [],
-      wins: 0,
-      losses: 0,
-      tourneyBonus: 0,
-      tourneyCount: 0,
-      dataUrl,        // full-size compressed
-      thumbnail: thumbDataUrl, // rename to our unified field
-      addedAt: nowStamp(),
-      hasBeenExported: false,
-      lastExportedAt: null
+      processed.push({
+        id,
+        title: trimTitle(file.name.replace(/\.[^.]+$/,'')),
+        generator: forcedGenerator || '',
+        collections: forcedCollections || [],
+        wins: 0,
+        losses: 0,
+        tourneyBonus: 0,
+        tourneyCount: 0,
+        dataUrl,
+        thumbnail: thumbDataUrl,
+        addedAt: nowStamp(),
+        hasBeenExported: false,
+        lastExportedAt: null,
+        imageNumber: nextNumber++
+      });
+
+      await sleep(0);
+    }
+
+    await addNewItems(processed, { preserveImageNumbers: true });
+    addedCount += processed.length;
+
+    // Let Safari breathe between batches
+    await sleep(0);
+    await new Promise(requestAnimationFrame);
+
+    if (window.gcThumbnailsMaybe) {
+      try { await window.gcThumbnailsMaybe(); } catch {}
+    }
+
+    console.debug('ComfortOtter upload batch complete', {
+      addedCount,
+      total: arr.length
     });
   }
-
-  await addNewItems(processed);
 }
 
 
