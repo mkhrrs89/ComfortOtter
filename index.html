@@ -1156,14 +1156,29 @@
         db = await openDB();
       }catch(err){
         console.warn('IndexedDB unavailable, cannot persist items.', err);
-        return;
+        throw err;
       }
+
       return new Promise((res,rej)=>{
         const tx = db.transaction(DB_STORE,'readwrite');
         const st = tx.objectStore(DB_STORE);
-        for(const it of items) st.put(it);
-        tx.oncomplete = () => res();
-        tx.onerror = () => rej(tx.error);
+
+        for(const it of items){
+          if (it) st.put(it);
+        }
+
+        tx.oncomplete = () => {
+          try{ db.close(); }catch(e){}
+          res();
+        };
+        tx.onerror = () => {
+          try{ db.close(); }catch(e){}
+          rej(tx.error || new Error('IndexedDB bulk put failed.'));
+        };
+        tx.onabort = () => {
+          try{ db.close(); }catch(e){}
+          rej(tx.error || new Error('IndexedDB bulk put aborted.'));
+        };
       });
     }
     async function idbBulkPutMerged(items){
@@ -3316,16 +3331,26 @@ useEffect(()=>{
         });
       }
       async function addNewItems(newItems){
+        if (!Array.isArray(newItems) || !newItems.length) return;
+
         const nextNumber = getNextImageNumber(items);
         const numberedItems = newItems.map((item, index) => ({
           ...item,
           title: trimTitle(item.title || ''),
           imageNumber: nextNumber + index
         }));
+
+        const CHUNK = 5;
+        for (let i = 0; i < numberedItems.length; i += CHUNK){
+          const chunk = numberedItems.slice(i, i + CHUNK);
+          await idbBulkPut(chunk);
+          await new Promise(r => setTimeout(r, 0));
+        }
+
         const merged = [...items, ...numberedItems.map(slimItemForState)];
         setItems(merged);
-        await idbBulkPut(numberedItems);
-        if(merged.length>=2 && (!matchIds[0]||!matchIds[1])){
+
+        if (merged.length >= 2 && (!matchIds[0] || !matchIds[1])){
           const [a,b] = pickTwoFromPool(merged);
           setMatchIds([a,b]);
         }
@@ -3613,7 +3638,19 @@ async function handleFiles(fileList, forcedCollections = null, forcedGenerator =
     });
   }
 
-  await addNewItems(processed);
+  try{
+    await addNewItems(processed);
+    if (window.toast?.success) {
+      window.toast.success(`Saved ${processed.length} image${processed.length===1?'':'s'}.`);
+    }
+  }catch(err){
+    console.error('Failed to save new images locally', err);
+    if (window.toast?.error) {
+      window.toast.error('Could not save new images locally. Please try again.');
+    } else {
+      alert('Could not save new images locally. Please try again.');
+    }
+  }
 }
 
 
