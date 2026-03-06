@@ -2589,6 +2589,7 @@ const SafeImage = ({
   const queueRef = useRef([]);
   const hydratedRef = useRef(false);
   const hydratedThumbRef = useRef(false);
+  const repairTriedRef = useRef(false);
   const [currentSrc, setCurrentSrc] = useState('');
 
   const rebuildQueue = useCallback(() => {
@@ -2611,6 +2612,7 @@ const SafeImage = ({
   useEffect(()=>{
     hydratedRef.current = false;
     hydratedThumbRef.current = false;
+    repairTriedRef.current = false;
   }, [item && item.id]);
 
   useEffect(()=>{
@@ -2688,6 +2690,31 @@ const SafeImage = ({
     }
   }, [hydrateThumb, item && item.id, currentSrc]);
 
+  const tryRepairItem = useCallback(async ()=>{
+    if(!item?.id) return null;
+    if(repairTriedRef.current) return null;
+    if(typeof window.repairItemSources !== 'function') return null;
+    repairTriedRef.current = true;
+    try{
+      const repaired = await window.repairItemSources(item, { quiet: true });
+      if(!repaired) return null;
+      const merged = dedupeSources([
+        repaired.thumbnail,
+        repaired.thumbDataUrl,
+        ...queueRef.current
+      ]);
+      queueRef.current = merged;
+      const next = merged.find(u => isNonEmptySrc(u));
+      if(next && next !== currentSrc){
+        setCurrentSrc(next);
+        return next;
+      }
+    }catch(err){
+      console.warn('SafeImage repair failed', err);
+    }
+    return null;
+  }, [item && item.id, currentSrc]);
+
   useEffect(()=>{
     if(!hydrateThumb) return;
     if(!item || !item.id) return;
@@ -2721,8 +2748,12 @@ const SafeImage = ({
       const thumbHydrated = await tryHydrateThumb();
       if(thumbHydrated) return;
     }
+    if(!allowFull){
+      const repaired = await tryRepairItem();
+      if(repaired) return;
+    }
     setCurrentSrc('');
-  },[currentSrc, allowFull, hydrateThumb, tryHydrate, tryHydrateThumb]);
+  },[currentSrc, allowFull, hydrateThumb, tryHydrate, tryHydrateThumb, tryRepairItem]);
 
   return (
     <img
@@ -3357,6 +3388,45 @@ useEffect(()=>{
 
         const code = uploadErr?.code ? ` (${uploadErr.code})` : '';
         alert(`Retry upload failed${code}. Check console for details.`);
+      }
+
+      async function repairItemSources(item, options = {}){
+        if(!item?.id) throw new Error('Missing item id');
+        const quiet = !!options.quiet;
+        let working = item;
+
+        let refreshedUrl = null;
+        if(window.fetchFullImageUrl){
+          refreshedUrl = await window.fetchFullImageUrl(item.id);
+        }
+        const fullCandidate = refreshedUrl || working.fullUrl || working.dataUrl;
+        if(!isNonEmptySrc(fullCandidate)){
+          throw new Error('No usable image source found');
+        }
+
+        if(refreshedUrl && refreshedUrl !== working.fullUrl){
+          await patchItem(working.id, { fullUrl: refreshedUrl });
+          working = { ...working, fullUrl: refreshedUrl };
+        }
+
+        const thumbDataUrl = await srcToThumbDataUrl(fullCandidate, 480, 0.82);
+        await patchItem(working.id, {
+          thumbnail: thumbDataUrl,
+          thumbDataUrl
+        });
+
+        const merged = {
+          ...working,
+          fullUrl: fullCandidate,
+          thumbnail: thumbDataUrl,
+          thumbDataUrl
+        };
+        await idbPutMerged(merged);
+
+        if(!quiet && window.toast){
+          window.toast.success('Image repaired and thumbnail rebuilt.');
+        }
+        return merged;
       }
 
       // delete with confirm
@@ -5430,6 +5500,53 @@ const statsRows = useMemo(()=>{
         ? sortedCollectionItems
         : sortedCollectionItems.slice(collStart, collEnd);
 
+      async function repairMissingThumbnailsCurrentPage(){
+        const visibleItems = tab==='Library'
+          ? libraryPageItems
+          : tab==='Collections'
+            ? collectionPageItems
+            : [];
+        if(!visibleItems.length){
+          if(window.toast) window.toast.info('No visible items to repair on this page.');
+          return;
+        }
+
+        let repaired = 0;
+        let failed = 0;
+        for(let i=0;i<visibleItems.length;i++){
+          const item = visibleItems[i];
+          const hasThumb = isNonEmptySrc(item?.thumbnail) || isNonEmptySrc(item?.thumbDataUrl);
+          if(hasThumb) continue;
+
+          try{
+            await repairItemSources(item, { quiet: true });
+            repaired += 1;
+          }catch(err){
+            failed += 1;
+            console.warn('Batch thumbnail repair failed for', item?.id, err);
+          }
+
+          if((i+1)%10===0){
+            await sleep(0);
+          }
+        }
+
+        if(window.toast){
+          if(repaired>0){
+            window.toast.success(`Repaired ${repaired} missing thumbnails on this page.`);
+          }else if(failed===0){
+            window.toast.info('No missing thumbnails found on this page.');
+          }
+          if(failed>0){
+            window.toast.warn(`Skipped ${failed} items that could not be repaired.`);
+          }
+        }
+      }
+
+      useEffect(()=>{
+        window.repairItemSources = repairItemSources;
+      }, [repairItemSources]);
+
       const left = items.find(it=>it.id===matchIds[0]) || null;
       const right = items.find(it=>it.id===matchIds[1]) || null;
       const isMobile = viewportMode !== 'desktop';
@@ -5703,6 +5820,16 @@ function labelForMatchMode(){
       <a className="navItem" href="settings.html" onClick={closeNavMenu}>
         Settings
       </a>
+      <button
+        type="button"
+        className="navItem"
+        onClick={async ()=>{
+          await repairMissingThumbnailsCurrentPage();
+          closeNavMenu();
+        }}
+      >
+        Tools: Repair missing thumbnails (current page)
+      </button>
     </div>
   </details>
 </div>
@@ -5781,6 +5908,9 @@ if (dt && dt.files && dt.files.length) {
   )}
 <button className="btn ghost" onClick={generateMissingThumbnails}>
   Generate thumbnails
+</button>
+<button className="btn ghost" onClick={repairMissingThumbnailsCurrentPage}>
+  Tools: Repair missing thumbnails (current page)
 </button>
 
 
@@ -7580,6 +7710,19 @@ if (dt && dt.files && dt.files.length) {
                   </button>
                   <button className="btn ghost" onClick={()=>retryCloudUploadForPreviewItem(previewItem)}>
                     Retry cloud upload
+                  </button>
+                  <button
+                    className="btn ghost"
+                    onClick={async ()=>{
+                      try{
+                        await repairItemSources(previewItem);
+                      }catch(err){
+                        console.error('Repair image failed', err);
+                        if(window.toast) window.toast.error('Repair failed for this image.');
+                      }
+                    }}
+                  >
+                    Repair image
                   </button>
                   <button className="btn ghost" onClick={()=>startLockedMatchup(previewItem)}>
                     Lock matchup
