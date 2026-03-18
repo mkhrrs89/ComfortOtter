@@ -100,6 +100,44 @@
       z-index:2;
       touch-action:manipulation;
     }
+    .tourneyControlRow{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      flex-wrap:wrap;
+      margin-bottom:6px;
+    }
+    .tourneyControlStack{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .tourneySelect{
+      font-size:13px;
+      padding:4px 6px;
+      border-radius:8px;
+      border:1px solid var(--ring);
+      background:var(--ghost);
+      color:var(--text);
+      max-width:100%;
+    }
+    .tourneyStartRow{
+      margin-top:10px;
+    }
+    @media (max-width:800px){
+      .tourneyControlRow{
+        align-items:flex-start;
+      }
+      .tourneyControlRow--mobileStack{
+        flex-direction:column;
+      }
+      .tourneyControlRow--mobileStack .tourneySelect{
+        width:100%;
+      }
+      .tourneyStartRow{
+        margin-top:14px;
+      }
+    }
     .toolbar{
       display:flex;
       flex-wrap:wrap;
@@ -522,30 +560,38 @@ function attachHdButtons(rootEl){
     // Helper: bind tap/click in a way that behaves consistently on mobile browsers.
     function addTap(el, handler){
       if(!el) return;
-      let locked = false;
+      let lockUntil = 0;
       const invoke = (ev)=>{
+        const now = Date.now();
+        if(now < lockUntil) return;
+        if(el.disabled) return;
         if(ev){
           ev.preventDefault();
           ev.stopPropagation();
         }
-        if(locked) return;
-        if(el.disabled) return;
-        locked = true;
+        lockUntil = now + 250;
         try{ handler(); } finally {
-          setTimeout(()=>{ locked = false; }, 150);
+          setTimeout(()=>{
+            if(Date.now() >= lockUntil){
+              lockUntil = 0;
+            }
+          }, 260);
         }
       };
-
-      el.addEventListener('touchend', invoke, {passive:false});
 
       if(window.PointerEvent){
         el.addEventListener('pointerup', (ev)=>{
           if(ev.pointerType === 'mouse' && ev.button !== 0) return;
           invoke(ev);
         });
+      }else{
+        el.addEventListener('touchend', invoke, {passive:false});
       }
 
-      el.addEventListener('click', invoke);
+      el.addEventListener('click', (ev)=>{
+        if(ev.detail !== 0 && window.PointerEvent) return;
+        invoke(ev);
+      });
     }
 
     // === MAIN ITEMS DB (same as index.html) ===
@@ -1082,15 +1128,15 @@ if(!tourneyState){
     : 0;
 
   // Build the dropdown + button (layout B: Pool [select]   Start button)
-  let fieldSizeHtml = '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px;">';
+  let fieldSizeHtml = '<div class="tourneyControlRow">';
   fieldSizeHtml += '<span class="smallMuted">Field size:</span>';
-  fieldSizeHtml += '<select id="tFieldSizeSelect" style="font-size:13px;padding:4px 6px;border-radius:8px;border:1px solid var(--ring);background:var(--ghost);color:var(--text);">';
+  fieldSizeHtml += '<select id="tFieldSizeSelect" class="tourneySelect">';
   fieldSizeHtml += '<option value="256"'+(currentMaxFieldSize===256?' selected':'')+'>256</option>';
   fieldSizeHtml += '<option value="128"'+(currentMaxFieldSize===128?' selected':'')+'>128</option>';
   fieldSizeHtml += '</select>';
   fieldSizeHtml += '</div>';
 
-  let poolModeHtml = '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">';
+  let poolModeHtml = '<div class="tourneyControlRow">';
   poolModeHtml += '<span class="smallMuted">Pool mode:</span>';
   poolModeHtml += '<label style="display:flex;align-items:center;gap:6px;">' +
     '<input type="radio" name="tPoolMode" value="single"'+(currentPoolMode==='single'?' checked':'')+' /> Single filter</label>';
@@ -1098,9 +1144,9 @@ if(!tourneyState){
     '<input type="radio" name="tPoolMode" value="dual"'+(currentPoolMode==='dual'?' checked':'')+' /> Tag + filter</label>';
   poolModeHtml += '</div>';
 
-  let poolSelectHtml = '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">';
+  let poolSelectHtml = '<div class="tourneyControlRow tourneyControlRow--mobileStack">';
   poolSelectHtml += '<span class="smallMuted">Pool:</span>';
-  poolSelectHtml += '<select id="tPoolSelect" style="font-size:13px;padding:4px 6px;border-radius:8px;border:1px solid var(--ring);background:var(--ghost);color:var(--text);">';
+  poolSelectHtml += '<select id="tPoolSelect" class="tourneySelect">';
 
   // "All images" option
   poolSelectHtml += '<option value="__ALL__"'+(currentPool==='__ALL__'?' selected':'')+'>All images</option>';
@@ -1137,10 +1183,10 @@ if(!tourneyState){
   poolSelectHtml += '</select>';
   poolSelectHtml += '</div>';
 
-  let tagSelectHtml = '<div id="tDualPoolControls" style="display:flex;flex-direction:column;gap:6px;">';
-  tagSelectHtml += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">';
+  let tagSelectHtml = '<div id="tDualPoolControls" class="tourneyControlStack">';
+  tagSelectHtml += '<div class="tourneyControlRow tourneyControlRow--mobileStack">';
   tagSelectHtml += '<span class="smallMuted">Tag:</span>';
-  tagSelectHtml += '<select id="tTagPoolSelect" style="font-size:13px;padding:4px 6px;border-radius:8px;border:1px solid var(--ring);background:var(--ghost);color:var(--text);">';
+  tagSelectHtml += '<select id="tTagPoolSelect" class="tourneySelect">';
   tagSelectHtml += '<option value="__ALL_TAGS__"'+(currentTagPool==='__ALL_TAGS__'?' selected':'')+'>All tags</option>';
   for(const [name,count] of tagCollections){
     const sel = (currentTagPool === name) ? ' selected' : '';
@@ -1150,9 +1196,9 @@ if(!tourneyState){
   tagSelectHtml += '</select>';
   tagSelectHtml += '</div>';
 
-  tagSelectHtml += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">';
+  tagSelectHtml += '<div class="tourneyControlRow tourneyControlRow--mobileStack">';
   tagSelectHtml += '<span class="smallMuted">Filter:</span>';
-  tagSelectHtml += '<select id="tOtherPoolSelect" style="font-size:13px;padding:4px 6px;border-radius:8px;border:1px solid var(--ring);background:var(--ghost);color:var(--text);">';
+  tagSelectHtml += '<select id="tOtherPoolSelect" class="tourneySelect">';
   tagSelectHtml += '<option value="__ALL__"'+(currentOtherPool==='__ALL__'?' selected':'')+'>All images</option>';
   tagSelectHtml += '<option value="__RECENT_256__"'+(currentOtherPool==='__RECENT_256__'?' selected':'')+'>Most recent 256 ('+recentCount+')</option>';
   tagSelectHtml += '<optgroup label="Tournament history">';
@@ -1182,7 +1228,7 @@ if(!tourneyState){
     poolModeHtml +
     poolSelectHtml +
     tagSelectHtml +
-    '<button class="btn actionBtn" type="button" id="tStartBtn">Start new tournament</button>';
+    '<div class="tourneyStartRow"><button class="btn actionBtn" type="button" id="tStartBtn">Start new tournament</button></div>';
 
   const poolModeInputs = Array.from(document.querySelectorAll('input[name="tPoolMode"]'));
   const poolSelect = document.getElementById('tPoolSelect');
