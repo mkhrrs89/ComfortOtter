@@ -180,19 +180,25 @@
       padding:4px;
       -webkit-tap-highlight-color: transparent;
     }
-.imageCardBtn{
-  border:none;
-  background:none;
-  padding:0;
-  margin:0;
-  display:block;
-  width:100%;
-  cursor:pointer;
-  -webkit-appearance:none;
-  appearance:none;
-  touch-action:manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
+    .imageCardBtn{
+      border:none;
+      background:#000;
+      padding:0;
+      margin:0;
+      display:flex;
+      width:100%;
+      align-items:center;
+      justify-content:center;
+      cursor:pointer;
+      -webkit-appearance:none;
+      appearance:none;
+      touch-action:manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .imageCardBtn:focus-visible{
+      outline:2px solid var(--accent);
+      outline-offset:2px;
+    }
     .imageCard img{
       width:100%;
       height:64vh;
@@ -247,6 +253,19 @@
       justify-content:center;
       gap:8px;
       margin-top:4px;
+    }
+    .matchActionStatus{
+      margin-top:8px;
+      text-align:center;
+      font-size:12px;
+      color:var(--muted);
+      min-height:1.2em;
+    }
+    .matchActionStatus.isError{
+      color:#ffd7dc;
+    }
+    .matchActionStatus.isBusy{
+      color:#c5f4dc;
     }
     .badge{
       border-radius:999px;
@@ -561,37 +580,15 @@ function attachHdButtons(rootEl){
 }
 
 
-    // Helper: bind tap/click in a way that behaves consistently on mobile browsers.
+    // Use native button clicks so mobile Safari/WebKit can handle tap synthesis reliably.
 function addTap(el, handler){
-  if(!el) return;
-
-  let lastTouchLikeEvent = 0;
-
-  const invoke = (ev)=>{
-    if(el.disabled) return;
-    if(ev){
-      ev.preventDefault();
-      ev.stopPropagation();
-    }
-    handler();
-  };
-
-  if(window.PointerEvent){
-    el.addEventListener('pointerup', (ev)=>{
-      if(ev.pointerType === 'mouse' && ev.button !== 0) return;
-      lastTouchLikeEvent = Date.now();
-      invoke(ev);
-    });
-  } else {
-    el.addEventListener('touchend', (ev)=>{
-      lastTouchLikeEvent = Date.now();
-      invoke(ev);
-    }, { passive:false });
-  }
+  if(!el || el.dataset.tapBound === 'true') return;
+  el.dataset.tapBound = 'true';
 
   el.addEventListener('click', (ev)=>{
-    if(Date.now() - lastTouchLikeEvent < 500) return;
-    invoke(ev);
+    if(el.disabled) return;
+    ev.preventDefault();
+    handler(ev);
   });
 }
 
@@ -605,6 +602,7 @@ function addTap(el, handler){
     const TOURNEY_STATE_ID = 'tourneyState_256';
 
     const OPEN_DB_TIMEOUT_MS = 10000;
+    const WRITE_TX_TIMEOUT_MS = 10000;
 
     function canUseIndexedDB(){
       try{
@@ -718,28 +716,22 @@ function addTap(el, handler){
     }
 
     async function idbPutItem(item){
-      const db = await openItemsDB();
-      return new Promise((res,rej)=>{
-        const tx = db.transaction(DB_STORE,'readwrite');
-        const st = tx.objectStore(DB_STORE);
-
-        if(!item || !item.id){
-          tx.oncomplete = ()=>res();
-          return;
-        }
-
+      if(!item || !item.id) return;
+      return runWriteTransaction(openItemsDB(), DB_STORE, (st, tx)=>{
         const getReq = st.get(item.id);
         getReq.onsuccess = ()=>{
-          const merged = mergeLargeFields(getReq.result, item);
-          st.put(merged);
+          try{
+            const merged = mergeLargeFields(getReq.result, item);
+            st.put(merged);
+          }catch(err){
+            console.error('Failed to merge item before put', item && item.id, err);
+            try{ tx.abort(); }catch(e){}
+          }
         };
         getReq.onerror = ()=>{
           st.put(item);
         };
-
-        tx.oncomplete = ()=>res();
-        tx.onerror = ()=>rej(tx.error);
-      });
+      }, `Saving item ${item.id}`);
     }
 
     async function hydrateImgEl(imgEl, itemId){
@@ -782,14 +774,9 @@ function addTap(el, handler){
     }
 
     async function saveTourneyState(state){
-      const db = await openTourneyDB();
-      return new Promise((res,rej)=>{
-        const tx = db.transaction(TOURNEY_STORE,'readwrite');
-        const st = tx.objectStore(TOURNEY_STORE);
+      return runWriteTransaction(openTourneyDB(), TOURNEY_STORE, (st)=>{
         st.put({...state,id:TOURNEY_STATE_ID});
-        tx.oncomplete = ()=>res();
-        tx.onerror = ()=>rej(tx.error);
-      });
+      }, 'Saving tournament progress');
     }
 
     async function clearTourneyState(){
@@ -986,6 +973,60 @@ let currentMaxFieldSize = 256;
 let initErrorMessage = '';
 const hydratingFullUrls = new Set();
 const DISPLAY_TITLE_MAX_LENGTH = 20;
+let matchActionStatus = { message:'', tone:'idle' };
+
+function setMatchActionStatus(message, tone='idle'){
+  matchActionStatus = { message: message || '', tone };
+  const statusNode = document.getElementById('tMatchActionStatus');
+  if(statusNode){
+    statusNode.textContent = matchActionStatus.message;
+    statusNode.className = 'matchActionStatus' +
+      (tone === 'error' ? ' isError' : tone === 'busy' ? ' isBusy' : '');
+  }
+}
+
+function formatErrorMessage(err, fallback){
+  if(err && typeof err.message === 'string' && err.message.trim()) return err.message.trim();
+  if(typeof err === 'string' && err.trim()) return err.trim();
+  return fallback;
+}
+
+function txErrorMessage(tx, fallback){
+  return formatErrorMessage(tx && tx.error, fallback);
+}
+
+function runWriteTransaction(dbPromise, storeName, worker, label){
+  return Promise.resolve(dbPromise).then(db => new Promise((resolve,reject)=>{
+    let settled = false;
+    let timeoutId = null;
+
+    const finish = (fn)=>{
+      if(settled) return;
+      settled = true;
+      if(timeoutId != null) clearTimeout(timeoutId);
+      fn();
+    };
+
+    let tx;
+    try{
+      tx = db.transaction(storeName,'readwrite');
+      const store = tx.objectStore(storeName);
+      worker(store, tx);
+    }catch(err){
+      finish(()=>reject(err));
+      return;
+    }
+
+    timeoutId = setTimeout(()=>{
+      try{ tx.abort(); }catch(e){}
+      finish(()=>reject(new Error(label + ' timed out.')));
+    }, WRITE_TX_TIMEOUT_MS);
+
+    tx.oncomplete = ()=>finish(()=>resolve());
+    tx.onerror = ()=>finish(()=>reject(new Error(txErrorMessage(tx, label + ' failed.'))));
+    tx.onabort = ()=>finish(()=>reject(new Error(txErrorMessage(tx, label + ' was aborted.'))));
+  }));
+}
 
 function formatDisplayTitle(value){
   const text = typeof value === 'string' ? value : '';
@@ -1082,7 +1123,7 @@ function formatDisplayTitle(value){
 
       if(!totalImgs){
         statusEl.textContent = 'No images found. Add images in the main app to run a tournament.';
-        controlsEl.innerHTML = '<button class="btn" id="tBackBtn">Go to main app</button>';
+        controlsEl.innerHTML = '<button class="btn" type="button" id="tBackBtn">Go to main app</button>';
         const backBtn = document.getElementById('tBackBtn');
         if(backBtn) addTap(backBtn, ()=>{ window.location.href = 'index.html'; });
         return;
@@ -1378,9 +1419,9 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
         hintEl.textContent = fieldInfo;
 
         controlsEl.innerHTML =
-          (hasHistory ? '<button class="btn" id="tUndoBtn">Undo last result</button> ' : '') +
+          (hasHistory ? '<button class="btn" type="button" id="tUndoBtn">Undo last result</button> ' : '') +
           '<button class="btn actionBtn" type="button" id="tNewBtn">Start new tournament</button>' +
-          ' <button class="btn ghost" id="tResetBtn">Reset / clear</button>';
+          ' <button class="btn ghost" type="button" id="tResetBtn">Reset / clear</button>';
         const newBtn = document.getElementById('tNewBtn');
         const resetBtn = document.getElementById('tResetBtn');
         const undoBtn = document.getElementById('tUndoBtn');
@@ -1431,9 +1472,9 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
       hintEl.textContent = fieldInfo;
 
       controlsEl.innerHTML =
-        (hasHistory ? '<button class="btn" id="tUndoBtn">Undo last result</button> ' : '') +
+        (hasHistory ? '<button class="btn" type="button" id="tUndoBtn">Undo last result</button> ' : '') +
         '<button class="btn actionBtn" type="button" id="tNewBtn">New tournament</button>' +
-        ' <button class="btn ghost" id="tResetBtn">Reset / clear</button>';
+        ' <button class="btn ghost" type="button" id="tResetBtn">Reset / clear</button>';
       const newBtn = document.getElementById('tNewBtn');
       const resetBtn = document.getElementById('tResetBtn');
       const undoBtn = document.getElementById('tUndoBtn');
@@ -1504,7 +1545,9 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
         '<div class="matchFooter">' +
 '<button class="btn sm" type="button" id="tLeftWinBtn">Left wins</button>' +
 '<button class="btn sm" type="button" id="tRightWinBtn">Right wins</button>' +
-        '</div>';
+        '</div>' +
+        '<div class="matchActionStatus" id="tMatchActionStatus" aria-live="polite"></div>';
+      setMatchActionStatus(matchActionStatus.message, matchActionStatus.tone);
       Promise.all([
         hydrateImgEl(document.getElementById('tLeftImg'), idA),
         hydrateImgEl(document.getElementById('tRightImg'), idB),
@@ -1692,12 +1735,12 @@ async function startNewTournament(){
       if(w){
         w.wins = Math.max(0, (w.wins||0) + 1);
         if(typeof w.tourneyBonus !== 'number') w.tourneyBonus = Number(w.tourneyBonus||0);
-        try{ await idbPutItem(w); }catch(e){ console.error(e); }
+        await idbPutItem(w);
       }
       if(l){
         l.losses = Math.max(0, (l.losses||0) + 1);
         if(typeof l.tourneyBonus !== 'number') l.tourneyBonus = Number(l.tourneyBonus||0);
-        try{ await idbPutItem(l); }catch(e){ console.error(e); }
+        await idbPutItem(l);
       }
     }
 
@@ -1706,11 +1749,11 @@ async function startNewTournament(){
       const l = itemsById.get(loserId);
       if(w){
         w.wins = Math.max(0, (w.wins||0) - 1);
-        try{ await idbPutItem(w); }catch(e){ console.error(e); }
+        await idbPutItem(w);
       }
       if(l){
         l.losses = Math.max(0, (l.losses||0) - 1);
-        try{ await idbPutItem(l); }catch(e){ console.error(e); }
+        await idbPutItem(l);
       }
     }
 
@@ -1739,11 +1782,7 @@ async function incrementTourneyCountsForParticipants(participantIds){
       if(!champ) return;
       const prev = Number(champ.tourneyBonus || 0);
       champ.tourneyBonus = prev + 5;
-      try{
-        await idbPutItem(champ);
-      }catch(e){
-        console.error(e);
-      }
+      await idbPutItem(champ);
     }
 
     async function removeChampionBonus(championId){
@@ -1751,25 +1790,23 @@ async function incrementTourneyCountsForParticipants(participantIds){
       if(!champ) return;
       const prev = Number(champ.tourneyBonus || 0);
       champ.tourneyBonus = Math.max(0, prev - 5);
-      try{
-        await idbPutItem(champ);
-      }catch(e){
-        console.error(e);
-      }
+      await idbPutItem(champ);
     }
 
     async function pickWinner(side){
       if(isProcessing) return;
       if(!tourneyState || tourneyState.completed) return;
       isProcessing = true;
+      setMatchActionStatus('Saving winner...', 'busy');
 
       try{
         const s = tourneyState;
         const size = s.currentRoundSize;
         const entrants = getEntrantsForRound(size,s);
         if(entrants.length < size){
-          alert('Bracket data is inconsistent. Please reset the tournament.');
-          isProcessing = false;
+          const msg = 'Bracket data is inconsistent. Please reset the tournament.';
+          setMatchActionStatus(msg, 'error');
+          alert(msg);
           return;
         }
 
@@ -1778,8 +1815,9 @@ async function incrementTourneyCountsForParticipants(participantIds){
         const idA = entrants[idxA];
         const idB = entrants[idxB];
         if(!idA || !idB){
-          alert('Match data is incomplete. Please reset the tournament.');
-          isProcessing = false;
+          const msg = 'Match data is incomplete. Please reset the tournament.';
+          setMatchActionStatus(msg, 'error');
+          alert(msg);
           return;
         }
 
@@ -1788,7 +1826,6 @@ async function incrementTourneyCountsForParticipants(participantIds){
 
         await applyWinLoss(winnerId, loserId);
 
-        // record history
         if(!Array.isArray(s.matchHistory)) s.matchHistory = [];
         s.matchHistory.push({
           roundSize: size,
@@ -1817,9 +1854,12 @@ async function incrementTourneyCountsForParticipants(participantIds){
 
         await saveTourneyState(s);
         tourneyState = s;
+        setMatchActionStatus('Winner saved');
         renderAll();
       }catch(e){
-        console.error(e);
+        const detail = formatErrorMessage(e, 'Unknown error.');
+        console.error('Winner action failed', { side, error: e, tourneyStateSnapshot: tourneyState });
+        setMatchActionStatus(`Winner action failed: ${detail}`, 'error');
       }finally{
         isProcessing = false;
       }
