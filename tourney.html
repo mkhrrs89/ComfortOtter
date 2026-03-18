@@ -95,6 +95,11 @@
     .btn.ghost{background:var(--ghost);}
     .btn.danger{background:var(--danger);}
     .btn[disabled]{opacity:0.5;cursor:default;}
+    .actionBtn{
+      position:relative;
+      z-index:2;
+      touch-action:manipulation;
+    }
     .toolbar{
       display:flex;
       flex-wrap:wrap;
@@ -1177,7 +1182,7 @@ if(!tourneyState){
     poolModeHtml +
     poolSelectHtml +
     tagSelectHtml +
-    '<button class="btn" id="tStartBtn">Start new tournament</button>';
+    '<button class="btn actionBtn" type="button" id="tStartBtn">Start new tournament</button>';
 
   const poolModeInputs = Array.from(document.querySelectorAll('input[name="tPoolMode"]'));
   const poolSelect = document.getElementById('tPoolSelect');
@@ -1327,7 +1332,7 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
 
         controlsEl.innerHTML =
           (hasHistory ? '<button class="btn" id="tUndoBtn">Undo last result</button> ' : '') +
-          '<button class="btn" id="tNewBtn">Start new tournament</button>' +
+          '<button class="btn actionBtn" type="button" id="tNewBtn">Start new tournament</button>' +
           ' <button class="btn ghost" id="tResetBtn">Reset / clear</button>';
         const newBtn = document.getElementById('tNewBtn');
         const resetBtn = document.getElementById('tResetBtn');
@@ -1380,7 +1385,7 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
 
       controlsEl.innerHTML =
         (hasHistory ? '<button class="btn" id="tUndoBtn">Undo last result</button> ' : '') +
-        '<button class="btn" id="tNewBtn">New tournament</button>' +
+        '<button class="btn actionBtn" type="button" id="tNewBtn">New tournament</button>' +
         ' <button class="btn ghost" id="tResetBtn">Reset / clear</button>';
       const newBtn = document.getElementById('tNewBtn');
       const resetBtn = document.getElementById('tResetBtn');
