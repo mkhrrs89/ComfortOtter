@@ -180,15 +180,19 @@
       padding:4px;
       -webkit-tap-highlight-color: transparent;
     }
-    .imageCardBtn{
-      border:none;
-      background:none;
-      padding:0;
-      margin:0;
-      display:block;
-      width:100%;
-      cursor:pointer;
-    }
+.imageCardBtn{
+  border:none;
+  background:none;
+  padding:0;
+  margin:0;
+  display:block;
+  width:100%;
+  cursor:pointer;
+  -webkit-appearance:none;
+  appearance:none;
+  touch-action:manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
     .imageCard img{
       width:100%;
       height:64vh;
@@ -558,41 +562,38 @@ function attachHdButtons(rootEl){
 
 
     // Helper: bind tap/click in a way that behaves consistently on mobile browsers.
-    function addTap(el, handler){
-      if(!el) return;
-      let lockUntil = 0;
-      const invoke = (ev)=>{
-        const now = Date.now();
-        if(now < lockUntil) return;
-        if(el.disabled) return;
-        if(ev){
-          ev.preventDefault();
-          ev.stopPropagation();
-        }
-        lockUntil = now + 250;
-        try{ handler(); } finally {
-          setTimeout(()=>{
-            if(Date.now() >= lockUntil){
-              lockUntil = 0;
-            }
-          }, 260);
-        }
-      };
+function addTap(el, handler){
+  if(!el) return;
 
-      if(window.PointerEvent){
-        el.addEventListener('pointerup', (ev)=>{
-          if(ev.pointerType === 'mouse' && ev.button !== 0) return;
-          invoke(ev);
-        });
-      }else{
-        el.addEventListener('touchend', invoke, {passive:false});
-      }
+  let lastTouchLikeEvent = 0;
 
-      el.addEventListener('click', (ev)=>{
-        if(ev.detail !== 0 && window.PointerEvent) return;
-        invoke(ev);
-      });
+  const invoke = (ev)=>{
+    if(el.disabled) return;
+    if(ev){
+      ev.preventDefault();
+      ev.stopPropagation();
     }
+    handler();
+  };
+
+  if(window.PointerEvent){
+    el.addEventListener('pointerup', (ev)=>{
+      if(ev.pointerType === 'mouse' && ev.button !== 0) return;
+      lastTouchLikeEvent = Date.now();
+      invoke(ev);
+    });
+  } else {
+    el.addEventListener('touchend', (ev)=>{
+      lastTouchLikeEvent = Date.now();
+      invoke(ev);
+    }, { passive:false });
+  }
+
+  el.addEventListener('click', (ev)=>{
+    if(Date.now() - lastTouchLikeEvent < 500) return;
+    invoke(ev);
+  });
+}
 
     // === MAIN ITEMS DB (same as index.html) ===
     const DB_NAME = 'modelMatchupDB';
@@ -1468,16 +1469,12 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
 
       matchEl.innerHTML =
 '<div class="arena">' +
-  '<button class="imageCardBtn" id="tLeftImgBtn">' +
-    '<div class="imageCard">' +
-      '<img id="tLeftImg" src="'+getDisplaySrc(left)+'" data-srcs="'+escapeHtml(serializeSources(getDisplaySources(left)))+'" data-full-srcs="'+escapeHtml(serializeSources(dedupeSources([...getFullOnlySources(left), ...getThumbOnlySources(left)])))+'" data-src-index="0" alt="Left" />' +
-    '</div>' +
+  '<button type="button" class="imageCard imageCardBtn" id="tLeftImgBtn" aria-label="Choose left image">' +
+    '<img id="tLeftImg" src="'+getDisplaySrc(left)+'" data-srcs="'+escapeHtml(serializeSources(getDisplaySources(left)))+'" data-full-srcs="'+escapeHtml(serializeSources(dedupeSources([...getFullOnlySources(left), ...getThumbOnlySources(left)])))+'" data-src-index="0" alt="Left" />' +
   '</button>' +
   '<div class="vs">VS</div>' +
-  '<button class="imageCardBtn" id="tRightImgBtn">' +
-    '<div class="imageCard">' +
-      '<img id="tRightImg" src="'+getDisplaySrc(right)+'" data-srcs="'+escapeHtml(serializeSources(getDisplaySources(right)))+'" data-full-srcs="'+escapeHtml(serializeSources(dedupeSources([...getFullOnlySources(right), ...getThumbOnlySources(right)])))+'" data-src-index="0" alt="Right" />' +
-    '</div>' +
+  '<button type="button" class="imageCard imageCardBtn" id="tRightImgBtn" aria-label="Choose right image">' +
+    '<img id="tRightImg" src="'+getDisplaySrc(right)+'" data-srcs="'+escapeHtml(serializeSources(getDisplaySources(right)))+'" data-full-srcs="'+escapeHtml(serializeSources(dedupeSources([...getFullOnlySources(right), ...getThumbOnlySources(right)])))+'" data-src-index="0" alt="Right" />' +
   '</button>' +
 '</div>' +
 
@@ -1505,8 +1502,8 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
           '</div>' +
         '</div>' +
         '<div class="matchFooter">' +
-          '<button class="btn sm" id="tLeftWinBtn">Left wins</button>' +
-          '<button class="btn sm" id="tRightWinBtn">Right wins</button>' +
+'<button class="btn sm" type="button" id="tLeftWinBtn">Left wins</button>' +
+'<button class="btn sm" type="button" id="tRightWinBtn">Right wins</button>' +
         '</div>';
       Promise.all([
         hydrateImgEl(document.getElementById('tLeftImg'), idA),
@@ -1521,23 +1518,10 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
       const leftWinBtn = document.getElementById('tLeftWinBtn');
       const rightWinBtn = document.getElementById('tRightWinBtn');
 
-      // Images: click only (allow scroll/zoom)
-      if(leftImgBtn){
-        leftImgBtn.addEventListener('click', (e)=>{
-          e.preventDefault();
-          pickWinner('left');
-        });
-      }
-      if(rightImgBtn){
-        rightImgBtn.addEventListener('click', (e)=>{
-          e.preventDefault();
-          pickWinner('right');
-        });
-      }
-
-      // Buttons: full tap helper
-      addTap(leftWinBtn, ()=>pickWinner('left'));
-      addTap(rightWinBtn, ()=>pickWinner('right'));
+addTap(leftImgBtn, ()=>pickWinner('left'));
+addTap(rightImgBtn, ()=>pickWinner('right'));
+addTap(leftWinBtn, ()=>pickWinner('left'));
+addTap(rightWinBtn, ()=>pickWinner('right'));
 
       renderBracket();
     }
