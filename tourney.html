@@ -587,7 +587,8 @@ function addTap(el, handler){
 
   el.addEventListener('click', (ev)=>{
     if(el.disabled) return;
-    ev.preventDefault();
+    // iOS Safari can drop follow-up click behaviors when preventDefault is used
+    // on button clicks after interacting with form controls.
     handler(ev);
   });
 }
