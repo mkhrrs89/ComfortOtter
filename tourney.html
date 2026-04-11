@@ -580,17 +580,23 @@ function attachHdButtons(rootEl){
 }
 
 
-    // Use native button clicks so mobile Safari/WebKit can handle tap synthesis reliably.
+    // Use multiple input events so touch interactions stay reliable on iOS.
 function addTap(el, handler){
   if(!el || el.dataset.tapBound === 'true') return;
   el.dataset.tapBound = 'true';
 
-  el.addEventListener('click', (ev)=>{
+  let lastInvokeAt = 0;
+  const invoke = (ev)=>{
     if(el.disabled) return;
-    // iOS Safari can drop follow-up click behaviors when preventDefault is used
-    // on button clicks after interacting with form controls.
+    const now = Date.now();
+    if(now - lastInvokeAt < 350) return;
+    lastInvokeAt = now;
     handler(ev);
-  });
+  };
+
+  el.addEventListener('click', invoke);
+  el.addEventListener('pointerup', invoke);
+  el.addEventListener('touchend', invoke, { passive:true });
 }
 
     // === MAIN ITEMS DB (same as index.html) ===
