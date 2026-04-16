@@ -580,12 +580,23 @@ function attachHdButtons(rootEl){
 }
 
 
-    // Use multiple input events so touch interactions stay reliable on iOS.
+    // Register taps while guarding against long-press / drag gestures.
 function addTap(el, handler){
   if(!el || el.dataset.tapBound === 'true') return;
   el.dataset.tapBound = 'true';
 
+  const MAX_TAP_MS = 240;
+  const MAX_MOVE_PX = 12;
+
+  let startedAt = 0;
+  let startX = 0;
+  let startY = 0;
+  let touchActive = false;
+  let movedTooFar = false;
+  let touchCountAtStart = 0;
+  let suppressClickUntil = 0;
   let lastInvokeAt = 0;
+
   const invoke = (ev)=>{
     if(el.disabled) return;
     const now = Date.now();
@@ -594,9 +605,73 @@ function addTap(el, handler){
     handler(ev);
   };
 
-  el.addEventListener('click', invoke);
-  el.addEventListener('pointerup', invoke);
-  el.addEventListener('touchend', invoke, { passive:true });
+  const markStart = (x, y, touches)=>{
+    startedAt = Date.now();
+    startX = Number.isFinite(x) ? x : 0;
+    startY = Number.isFinite(y) ? y : 0;
+    touchCountAtStart = touches || 1;
+    touchActive = true;
+    movedTooFar = false;
+  };
+
+  const trackMove = (x, y)=>{
+    if(!touchActive) return;
+    if(!Number.isFinite(x) || !Number.isFinite(y)) return;
+    if(Math.abs(x - startX) > MAX_MOVE_PX || Math.abs(y - startY) > MAX_MOVE_PX){
+      movedTooFar = true;
+    }
+  };
+
+  const maybeInvokeTap = (ev)=>{
+    if(!touchActive) return;
+    touchActive = false;
+    const heldMs = Date.now() - startedAt;
+    suppressClickUntil = Date.now() + 450;
+    if(movedTooFar) return;
+    if(touchCountAtStart > 1) return; // pinch / zoom should never select a winner
+    if(heldMs > MAX_TAP_MS) return;   // long press should never select a winner
+    invoke(ev);
+  };
+
+  el.addEventListener('pointerdown', (ev)=>{
+    if(ev.pointerType === 'mouse') return;
+    markStart(ev.clientX, ev.clientY, 1);
+  });
+  el.addEventListener('pointermove', (ev)=>{
+    if(ev.pointerType === 'mouse') return;
+    trackMove(ev.clientX, ev.clientY);
+  });
+  el.addEventListener('pointerup', (ev)=>{
+    if(ev.pointerType === 'mouse') return;
+    maybeInvokeTap(ev);
+  });
+  el.addEventListener('pointercancel', ()=>{
+    touchActive = false;
+  });
+
+  el.addEventListener('touchstart', (ev)=>{
+    const t = ev.changedTouches && ev.changedTouches[0];
+    if(!t) return;
+    markStart(t.clientX, t.clientY, ev.touches ? ev.touches.length : 1);
+  }, { passive:true });
+  el.addEventListener('touchmove', (ev)=>{
+    const t = ev.changedTouches && ev.changedTouches[0];
+    if(!t) return;
+    trackMove(t.clientX, t.clientY);
+  }, { passive:true });
+  el.addEventListener('touchend', (ev)=>{
+    maybeInvokeTap(ev);
+  }, { passive:true });
+  el.addEventListener('touchcancel', ()=>{
+    touchActive = false;
+  }, { passive:true });
+
+  el.addEventListener('click', (ev)=>{
+    // Keep keyboard / mouse click behavior intact, but ignore synthetic click
+    // generated after touch handling to avoid duplicate winner picks.
+    if(Date.now() < suppressClickUntil) return;
+    invoke(ev);
+  });
 }
 
     // === MAIN ITEMS DB (same as index.html) ===
