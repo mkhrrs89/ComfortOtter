@@ -799,20 +799,23 @@ function addTap(el, handler){
 
     async function idbPutItem(item){
       if(!item || !item.id) return;
-      return runWriteTransaction(openItemsDB(), DB_STORE, (st, tx)=>{
-        const getReq = st.get(item.id);
-        getReq.onsuccess = ()=>{
-          try{
-            const merged = mergeLargeFields(getReq.result, item);
-            st.put(merged);
-          }catch(err){
-            console.error('Failed to merge item before put', item && item.id, err);
-            try{ tx.abort(); }catch(e){}
-          }
-        };
-        getReq.onerror = ()=>{
-          st.put(item);
-        };
+
+      let existing = null;
+      try{
+        existing = await idbGetItem(item.id);
+      }catch(err){
+        console.warn('Failed to load existing item before save; continuing with incoming data only', item.id, err);
+      }
+
+      let merged = item;
+      try{
+        merged = mergeLargeFields(existing, item);
+      }catch(err){
+        console.error('Failed to merge item before put', item && item.id, err);
+      }
+
+      return runWriteTransaction(openItemsDB(), DB_STORE, (st)=>{
+        st.put(merged);
       }, `Saving item ${item.id}`);
     }
 
