@@ -1053,6 +1053,7 @@ let items = [];
 let itemsById = new Map();
 let tourneyState = null;
 let isProcessing = false;
+let isStartingTournament = false;
 let currentPoolMode = 'single';
 let currentPool = '__ALL__'; // "__ALL__" means use all images
 let currentTagPool = '__ALL_TAGS__';
@@ -1071,6 +1072,20 @@ function setMatchActionStatus(message, tone='idle'){
     statusNode.className = 'matchActionStatus' +
       (tone === 'error' ? ' isError' : tone === 'busy' ? ' isBusy' : '');
   }
+}
+
+function setTournamentStartBusyState(isBusy){
+  const startBtn = document.getElementById('tStartBtn');
+  const newBtn = document.getElementById('tNewBtn');
+  const targetBtn = startBtn || newBtn;
+  if(!targetBtn) return;
+  if(!targetBtn.dataset.normalLabel){
+    targetBtn.dataset.normalLabel = targetBtn.textContent || 'Start new tournament';
+  }
+  targetBtn.disabled = !!isBusy;
+  targetBtn.textContent = isBusy
+    ? 'Starting...'
+    : (targetBtn.dataset.normalLabel || 'Start new tournament');
 }
 
 function formatErrorMessage(err, fallback){
@@ -1366,6 +1381,7 @@ if(!tourneyState){
   const otherSelect = document.getElementById('tOtherPoolSelect');
   const fieldSizeSelect = document.getElementById('tFieldSizeSelect');
   const startBtn = document.getElementById('tStartBtn');
+  if(startBtn) addTap(startBtn, startNewTournament);
   const dualControls = document.getElementById('tDualPoolControls');
   const singleControls = poolSelect && poolSelect.parentElement;
 
@@ -1474,7 +1490,6 @@ if(!tourneyState){
       }
     });
   }
-  if(startBtn) addTap(startBtn, startNewTournament);
 
   return;
 }
@@ -1710,6 +1725,10 @@ addTap(rightWinBtn, ()=>pickWinner('right'));
     }
 
 async function startNewTournament(){
+  if(isStartingTournament) return;
+  isStartingTournament = true;
+  setTournamentStartBusyState(true);
+  try{
   if(items.length < 2){
     alert('You need at least 2 images to run a tournament.');
     return;
@@ -1769,15 +1788,7 @@ async function startNewTournament(){
   initialSize = Math.max(2, pow);
 
   const participantIds = ids.slice(0,initialSize);
-
-  // NEW: bump tourneyCount once for everyone in this field
-  try{
-    await incrementTourneyCountsForParticipants(participantIds);
-  }catch(e){
-    console.error('Failed to increment tourney counts', e);
-  }
-
-  tourneyState = {
+  const nextTourneyState = {
     id: TOURNEY_STATE_ID,
     createdAt: new Date().toISOString(),
     initialSize,
@@ -1796,11 +1807,28 @@ async function startNewTournament(){
   };
 
   try{
-    await saveTourneyState(tourneyState);
+    await saveTourneyState(nextTourneyState);
   }catch(e){
-    console.error(e);
+    const msg = 'Failed to start tournament: ' + formatErrorMessage(e, 'Could not save tournament state.');
+    console.error(msg, e);
+    alert(msg);
+    return;
   }
+
+  tourneyState = nextTourneyState;
   renderAll();
+
+  try{
+    await incrementTourneyCountsForParticipants(participantIds);
+  }catch(e){
+    const msg = 'Tournament started, but failed to update participant tournament counts.';
+    console.error(msg, e);
+    alert(msg);
+  }
+  }finally{
+    isStartingTournament = false;
+    setTournamentStartBusyState(false);
+  }
 }
 
 
@@ -1847,22 +1875,43 @@ async function startNewTournament(){
 
 async function incrementTourneyCountsForParticipants(participantIds){
   if (!Array.isArray(participantIds) || !participantIds.length) return;
-
-  for (const id of participantIds){
-    const item = itemsById.get(id);
-    if (!item) continue;
-
-    // bump in-memory
-    const prev = Number(item.tourneyCount || 0);
-    item.tourneyCount = prev + 1;
-
-    // persist to main items DB
-    try{
-      await idbPutItem(item);
-    }catch(e){
-      console.error('Failed to bump tourneyCount for', id, e);
-    }
-  }
+  const dbPromise = openItemsDB();
+  await runWriteTransaction(dbPromise, DB_STORE, (store, tx)=>{
+    let index = 0;
+    const ids = participantIds.slice();
+    const fail = (err)=>{
+      console.error('Failed to update participant tournament count batch', err);
+      try{ tx.abort(); }catch(_e){}
+    };
+    const processNext = ()=>{
+      if(index >= ids.length) return;
+      const id = ids[index++];
+      const item = itemsById.get(id);
+      if(!item){
+        processNext();
+        return;
+      }
+      const getReq = store.get(id);
+      getReq.onerror = ()=>fail(getReq.error || new Error('Failed to load participant before count update.'));
+      getReq.onsuccess = ()=>{
+        let merged;
+        try{
+          const existing = getReq.result || null;
+          const nextCount = Number(item.tourneyCount || 0) + 1;
+          merged = mergeLargeFields(existing, { ...item, tourneyCount: nextCount });
+          item.tourneyCount = nextCount;
+          itemsById.set(id, item);
+        }catch(err){
+          fail(err);
+          return;
+        }
+        const putReq = store.put(merged);
+        putReq.onerror = ()=>fail(putReq.error || new Error('Failed to persist participant tournament count.'));
+        putReq.onsuccess = ()=>processNext();
+      };
+    };
+    processNext();
+  }, 'Updating tournament counts for participants');
 }
 
     async function applyChampionBonus(championId){
