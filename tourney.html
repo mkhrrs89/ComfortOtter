@@ -893,23 +893,24 @@ function computePoints(w,l,tourneyBonus){
 
 function metricValue(item, metric){
   if(metric === 'wins') return Number(item && item.wins || 0);
+  if(metric === 'winpct') return pct(item && item.wins, item && item.losses);
   return computePoints(item && item.wins, item && item.losses, item && item.tourneyBonus||0);
 }
 
 function buildTopPoolOptions(allItems){
   if(!Array.isArray(allItems) || allItems.length === 0) return [];
 
-  const percents = [10,25,50];
-  const metrics = [
-    {key:'points', label:'points'},
-    {key:'wins', label:'wins'}
+  const metricConfigs = [
+    {key:'points', label:'points', percents:[10,25,50]},
+    {key:'wins', label:'wins', percents:[10,25,50]},
+    {key:'winpct', label:'win%', percents:[50]}
   ];
 
   const pools = [];
 
-  for(const metric of metrics){
+  for(const metric of metricConfigs){
     const sorted = allItems.slice().sort((a,b)=> metricValue(b, metric.key) - metricValue(a, metric.key));
-    for(const pct of percents){
+    for(const pct of metric.percents){
       const count = Math.max(1, Math.floor(sorted.length * (pct/100)));
       pools.push({
         value: `__TOP_${metric.key.toUpperCase()}_${pct}__`,
@@ -929,9 +930,10 @@ function describePool(value){
   if(value === '__FEWEST_TOURNEYS__') return 'Fewest tournaments';
   if(value === '__TOP_WINPCT_25_BOTTOM_MATCHUPS_50__') return 'Top 25% win% & bottom 50% matchups';
   if(value === '__BOTTOM_5_TOP_5_WINPCT__') return 'Bottom 5% & top 5% by win%';
-  const topMatch = /^__TOP_(POINTS|WINS)_(\d+)__$/i.exec(value);
+  const topMatch = /^__TOP_(POINTS|WINS|WINPCT)_(\d+)__$/i.exec(value);
   if(topMatch){
-    const metric = topMatch[1].toLowerCase() === 'wins' ? 'wins' : 'points';
+    const metricKey = topMatch[1].toLowerCase();
+    const metric = metricKey === 'wins' ? 'wins' : (metricKey === 'winpct' ? 'win%' : 'points');
     return `Top ${topMatch[2]}% by ${metric}`;
   }
   return value;
@@ -983,9 +985,10 @@ function applyPoolFilter(allItems, poolValue){
   }
 
   // Top X% pools
-  const topMatch = /^__TOP_(POINTS|WINS)_(\d+)__$/i.exec(poolValue);
+  const topMatch = /^__TOP_(POINTS|WINS|WINPCT)_(\d+)__$/i.exec(poolValue);
   if(topMatch){
-    const metric = topMatch[1].toLowerCase() === 'wins' ? 'wins' : 'points';
+    const metricKey = topMatch[1].toLowerCase();
+    const metric = metricKey === 'wins' ? 'wins' : (metricKey === 'winpct' ? 'winpct' : 'points');
     const pct = Number(topMatch[2]);
     const sorted = allItems.slice().sort((a,b)=> metricValue(b, metric) - metricValue(a, metric));
     const count = Math.max(1, Math.floor(sorted.length * (pct/100)));
