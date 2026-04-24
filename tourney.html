@@ -1876,62 +1876,81 @@ async function startNewTournament(){
     }
 
     async function applyWinLoss(winnerId, loserId){
-      await runWriteTransaction(openItemsDB(), DB_STORE, (store, tx)=>{
-        const fail = (err)=>{
-          console.error('Failed batched win/loss update', err);
-          try{ tx.abort(); }catch(_e){}
-        };
-        const winnerMem = itemsById.get(winnerId);
-        const loserMem = itemsById.get(loserId);
-        const winnerReq = store.get(winnerId);
-        const loserReq = store.get(loserId);
+      console.debug('[applyWinLoss] entering', { winnerId, loserId });
+      try{
+        await runWriteTransaction(openItemsDB(), DB_STORE, (store, tx)=>{
+          const fail = (err)=>{
+            console.error('Failed batched win/loss update', err);
+            try{ tx.abort(); }catch(_e){}
+          };
 
-        winnerReq.onerror = ()=>fail(winnerReq.error || new Error('Failed loading winner record.'));
-        loserReq.onerror = ()=>fail(loserReq.error || new Error('Failed loading loser record.'));
-        winnerReq.onsuccess = ()=>maybePersist();
-        loserReq.onsuccess = ()=>maybePersist();
-
-        let readyCount = 0;
-        function maybePersist(){
-          readyCount += 1;
-          if(readyCount < 2) return;
-          try{
-            const winnerBase = winnerMem || winnerReq.result;
-            const loserBase = loserMem || loserReq.result;
-            if(!winnerBase || !loserBase){
-              throw new Error('Winner/loser record missing during stat update.');
+          const winnerReq = store.get(winnerId);
+          winnerReq.onerror = ()=>{ try{ tx.abort(); }catch(_e){}; };
+          winnerReq.onsuccess = ()=>{
+            console.debug('[applyWinLoss] winner get success', { winnerId });
+            let mergedWinner;
+            try{
+              const winnerDb = winnerReq.result || null;
+              const winnerMem = itemsById.get(winnerId) || null;
+              if(!winnerDb && !winnerMem){
+                throw new Error('Winner record missing during stat update.');
+              }
+              const winnerBase = mergeLargeFields(winnerDb, winnerMem || {});
+              mergedWinner = mergeLargeFields(winnerDb, {
+                ...winnerBase,
+                wins: Math.max(0, Number(winnerBase.wins || 0) + 1),
+                losses: Math.max(0, Number(winnerBase.losses || 0)),
+                tourneyBonus: Number(winnerBase.tourneyBonus || 0)
+              });
+            }catch(err){
+              fail(err);
+              return;
             }
 
-            const winnerUpdate = {
-              ...winnerBase,
-              wins: Math.max(0, Number(winnerBase.wins || 0) + 1),
-              tourneyBonus: Number(winnerBase.tourneyBonus || 0)
-            };
-            const loserUpdate = {
-              ...loserBase,
-              losses: Math.max(0, Number(loserBase.losses || 0) + 1),
-              tourneyBonus: Number(loserBase.tourneyBonus || 0)
-            };
-
-            const mergedWinner = mergeLargeFields(winnerReq.result || null, winnerUpdate);
-            const mergedLoser = mergeLargeFields(loserReq.result || null, loserUpdate);
-
             const putWinnerReq = store.put(mergedWinner);
-            putWinnerReq.onerror = ()=>fail(putWinnerReq.error || new Error('Failed saving winner record.'));
+            putWinnerReq.onerror = ()=>{ try{ tx.abort(); }catch(_e){}; };
             putWinnerReq.onsuccess = ()=>{
+              console.debug('[applyWinLoss] winner put queued', { winnerId });
               itemsById.set(winnerId, stripBigFieldsForMemory(mergedWinner));
             };
+          };
+
+          const loserReq = store.get(loserId);
+          loserReq.onerror = ()=>{ try{ tx.abort(); }catch(_e){}; };
+          loserReq.onsuccess = ()=>{
+            console.debug('[applyWinLoss] loser get success', { loserId });
+            let mergedLoser;
+            try{
+              const loserDb = loserReq.result || null;
+              const loserMem = itemsById.get(loserId) || null;
+              if(!loserDb && !loserMem){
+                throw new Error('Loser record missing during stat update.');
+              }
+              const loserBase = mergeLargeFields(loserDb, loserMem || {});
+              mergedLoser = mergeLargeFields(loserDb, {
+                ...loserBase,
+                wins: Math.max(0, Number(loserBase.wins || 0)),
+                losses: Math.max(0, Number(loserBase.losses || 0) + 1),
+                tourneyBonus: Number(loserBase.tourneyBonus || 0)
+              });
+            }catch(err){
+              fail(err);
+              return;
+            }
 
             const putLoserReq = store.put(mergedLoser);
-            putLoserReq.onerror = ()=>fail(putLoserReq.error || new Error('Failed saving loser record.'));
+            putLoserReq.onerror = ()=>{ try{ tx.abort(); }catch(_e){}; };
             putLoserReq.onsuccess = ()=>{
+              console.debug('[applyWinLoss] loser put queued', { loserId });
               itemsById.set(loserId, stripBigFieldsForMemory(mergedLoser));
             };
-          }catch(err){
-            fail(err);
-          }
-        }
-      }, `Applying win/loss for ${winnerId} vs ${loserId}`);
+          };
+        }, `Applying win/loss for ${winnerId} vs ${loserId}`);
+        console.debug('[applyWinLoss] transaction complete', { winnerId, loserId });
+      }catch(err){
+        console.error('[applyWinLoss] transaction abort/error', { winnerId, loserId, err });
+        throw err;
+      }
     }
 
     async function reverseWinLoss(winnerId, loserId){
@@ -1940,56 +1959,64 @@ async function startNewTournament(){
           console.error('Failed batched reverse win/loss update', err);
           try{ tx.abort(); }catch(_e){}
         };
-        const winnerMem = itemsById.get(winnerId);
-        const loserMem = itemsById.get(loserId);
+
         const winnerReq = store.get(winnerId);
-        const loserReq = store.get(loserId);
-
-        winnerReq.onerror = ()=>fail(winnerReq.error || new Error('Failed loading winner record for undo.'));
-        loserReq.onerror = ()=>fail(loserReq.error || new Error('Failed loading loser record for undo.'));
-        winnerReq.onsuccess = ()=>maybePersist();
-        loserReq.onsuccess = ()=>maybePersist();
-
-        let readyCount = 0;
-        function maybePersist(){
-          readyCount += 1;
-          if(readyCount < 2) return;
+        winnerReq.onerror = ()=>{ try{ tx.abort(); }catch(_e){}; };
+        winnerReq.onsuccess = ()=>{
+          let mergedWinner;
           try{
-            const winnerBase = winnerMem || winnerReq.result;
-            const loserBase = loserMem || loserReq.result;
-            if(!winnerBase || !loserBase){
-              throw new Error('Winner/loser record missing during undo stat update.');
+            const winnerDb = winnerReq.result || null;
+            const winnerMem = itemsById.get(winnerId) || null;
+            if(!winnerDb && !winnerMem){
+              throw new Error('Winner record missing during undo stat update.');
             }
-
-            const winnerUpdate = {
+            const winnerBase = mergeLargeFields(winnerDb, winnerMem || {});
+            mergedWinner = mergeLargeFields(winnerDb, {
               ...winnerBase,
               wins: Math.max(0, Number(winnerBase.wins || 0) - 1),
+              losses: Math.max(0, Number(winnerBase.losses || 0)),
               tourneyBonus: Number(winnerBase.tourneyBonus || 0)
-            };
-            const loserUpdate = {
-              ...loserBase,
-              losses: Math.max(0, Number(loserBase.losses || 0) - 1),
-              tourneyBonus: Number(loserBase.tourneyBonus || 0)
-            };
-
-            const mergedWinner = mergeLargeFields(winnerReq.result || null, winnerUpdate);
-            const mergedLoser = mergeLargeFields(loserReq.result || null, loserUpdate);
-
-            const putWinnerReq = store.put(mergedWinner);
-            putWinnerReq.onerror = ()=>fail(putWinnerReq.error || new Error('Failed saving winner undo record.'));
-            putWinnerReq.onsuccess = ()=>{
-              itemsById.set(winnerId, stripBigFieldsForMemory(mergedWinner));
-            };
-
-            const putLoserReq = store.put(mergedLoser);
-            putLoserReq.onerror = ()=>fail(putLoserReq.error || new Error('Failed saving loser undo record.'));
-            putLoserReq.onsuccess = ()=>{
-              itemsById.set(loserId, stripBigFieldsForMemory(mergedLoser));
-            };
+            });
           }catch(err){
             fail(err);
+            return;
           }
-        }
+
+          const putWinnerReq = store.put(mergedWinner);
+          putWinnerReq.onerror = ()=>{ try{ tx.abort(); }catch(_e){}; };
+          putWinnerReq.onsuccess = ()=>{
+            itemsById.set(winnerId, stripBigFieldsForMemory(mergedWinner));
+          };
+        };
+
+        const loserReq = store.get(loserId);
+        loserReq.onerror = ()=>{ try{ tx.abort(); }catch(_e){}; };
+        loserReq.onsuccess = ()=>{
+          let mergedLoser;
+          try{
+            const loserDb = loserReq.result || null;
+            const loserMem = itemsById.get(loserId) || null;
+            if(!loserDb && !loserMem){
+              throw new Error('Loser record missing during undo stat update.');
+            }
+            const loserBase = mergeLargeFields(loserDb, loserMem || {});
+            mergedLoser = mergeLargeFields(loserDb, {
+              ...loserBase,
+              wins: Math.max(0, Number(loserBase.wins || 0)),
+              losses: Math.max(0, Number(loserBase.losses || 0) - 1),
+              tourneyBonus: Number(loserBase.tourneyBonus || 0)
+            });
+          }catch(err){
+            fail(err);
+            return;
+          }
+
+          const putLoserReq = store.put(mergedLoser);
+          putLoserReq.onerror = ()=>{ try{ tx.abort(); }catch(_e){}; };
+          putLoserReq.onsuccess = ()=>{
+            itemsById.set(loserId, stripBigFieldsForMemory(mergedLoser));
+          };
+        };
       }, `Reversing win/loss for ${winnerId} vs ${loserId}`);
     }
 
