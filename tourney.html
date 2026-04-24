@@ -1098,6 +1098,32 @@ function txErrorMessage(tx, fallback){
   return formatErrorMessage(tx && tx.error, fallback);
 }
 
+function withTimeout(promise, ms, label){
+  return new Promise((resolve, reject)=>{
+    let settled = false;
+    const timeoutId = setTimeout(()=>{
+      if(settled) return;
+      settled = true;
+      reject(new Error(`${label} timed out after ${ms}ms.`));
+    }, ms);
+
+    Promise.resolve(promise).then(
+      (value)=>{
+        if(settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error)=>{
+        if(settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        reject(error);
+      }
+    );
+  });
+}
+
 function runWriteTransaction(dbPromise, storeName, worker, label){
   return Promise.resolve(dbPromise).then(db => new Promise((resolve,reject)=>{
     let settled = false;
@@ -1114,8 +1140,12 @@ function runWriteTransaction(dbPromise, storeName, worker, label){
     try{
       tx = db.transaction(storeName,'readwrite');
       const store = tx.objectStore(storeName);
-      worker(store, tx);
+      const workerResult = worker(store, tx);
+      if(workerResult && typeof workerResult.then === 'function'){
+        throw new Error(`${label} failed: transaction worker must not be async.`);
+      }
     }catch(err){
+      try{ if(tx) tx.abort(); }catch(_e){}
       finish(()=>reject(err));
       return;
     }
@@ -1846,31 +1876,121 @@ async function startNewTournament(){
     }
 
     async function applyWinLoss(winnerId, loserId){
-      const w = itemsById.get(winnerId);
-      const l = itemsById.get(loserId);
-      if(w){
-        w.wins = Math.max(0, (w.wins||0) + 1);
-        if(typeof w.tourneyBonus !== 'number') w.tourneyBonus = Number(w.tourneyBonus||0);
-        await idbPutItem(w);
-      }
-      if(l){
-        l.losses = Math.max(0, (l.losses||0) + 1);
-        if(typeof l.tourneyBonus !== 'number') l.tourneyBonus = Number(l.tourneyBonus||0);
-        await idbPutItem(l);
-      }
+      await runWriteTransaction(openItemsDB(), DB_STORE, (store, tx)=>{
+        const fail = (err)=>{
+          console.error('Failed batched win/loss update', err);
+          try{ tx.abort(); }catch(_e){}
+        };
+        const winnerMem = itemsById.get(winnerId);
+        const loserMem = itemsById.get(loserId);
+        const winnerReq = store.get(winnerId);
+        const loserReq = store.get(loserId);
+
+        winnerReq.onerror = ()=>fail(winnerReq.error || new Error('Failed loading winner record.'));
+        loserReq.onerror = ()=>fail(loserReq.error || new Error('Failed loading loser record.'));
+        winnerReq.onsuccess = ()=>maybePersist();
+        loserReq.onsuccess = ()=>maybePersist();
+
+        let readyCount = 0;
+        function maybePersist(){
+          readyCount += 1;
+          if(readyCount < 2) return;
+          try{
+            const winnerBase = winnerMem || winnerReq.result;
+            const loserBase = loserMem || loserReq.result;
+            if(!winnerBase || !loserBase){
+              throw new Error('Winner/loser record missing during stat update.');
+            }
+
+            const winnerUpdate = {
+              ...winnerBase,
+              wins: Math.max(0, Number(winnerBase.wins || 0) + 1),
+              tourneyBonus: Number(winnerBase.tourneyBonus || 0)
+            };
+            const loserUpdate = {
+              ...loserBase,
+              losses: Math.max(0, Number(loserBase.losses || 0) + 1),
+              tourneyBonus: Number(loserBase.tourneyBonus || 0)
+            };
+
+            const mergedWinner = mergeLargeFields(winnerReq.result || null, winnerUpdate);
+            const mergedLoser = mergeLargeFields(loserReq.result || null, loserUpdate);
+
+            const putWinnerReq = store.put(mergedWinner);
+            putWinnerReq.onerror = ()=>fail(putWinnerReq.error || new Error('Failed saving winner record.'));
+            putWinnerReq.onsuccess = ()=>{
+              itemsById.set(winnerId, stripBigFieldsForMemory(mergedWinner));
+            };
+
+            const putLoserReq = store.put(mergedLoser);
+            putLoserReq.onerror = ()=>fail(putLoserReq.error || new Error('Failed saving loser record.'));
+            putLoserReq.onsuccess = ()=>{
+              itemsById.set(loserId, stripBigFieldsForMemory(mergedLoser));
+            };
+          }catch(err){
+            fail(err);
+          }
+        }
+      }, `Applying win/loss for ${winnerId} vs ${loserId}`);
     }
 
     async function reverseWinLoss(winnerId, loserId){
-      const w = itemsById.get(winnerId);
-      const l = itemsById.get(loserId);
-      if(w){
-        w.wins = Math.max(0, (w.wins||0) - 1);
-        await idbPutItem(w);
-      }
-      if(l){
-        l.losses = Math.max(0, (l.losses||0) - 1);
-        await idbPutItem(l);
-      }
+      await runWriteTransaction(openItemsDB(), DB_STORE, (store, tx)=>{
+        const fail = (err)=>{
+          console.error('Failed batched reverse win/loss update', err);
+          try{ tx.abort(); }catch(_e){}
+        };
+        const winnerMem = itemsById.get(winnerId);
+        const loserMem = itemsById.get(loserId);
+        const winnerReq = store.get(winnerId);
+        const loserReq = store.get(loserId);
+
+        winnerReq.onerror = ()=>fail(winnerReq.error || new Error('Failed loading winner record for undo.'));
+        loserReq.onerror = ()=>fail(loserReq.error || new Error('Failed loading loser record for undo.'));
+        winnerReq.onsuccess = ()=>maybePersist();
+        loserReq.onsuccess = ()=>maybePersist();
+
+        let readyCount = 0;
+        function maybePersist(){
+          readyCount += 1;
+          if(readyCount < 2) return;
+          try{
+            const winnerBase = winnerMem || winnerReq.result;
+            const loserBase = loserMem || loserReq.result;
+            if(!winnerBase || !loserBase){
+              throw new Error('Winner/loser record missing during undo stat update.');
+            }
+
+            const winnerUpdate = {
+              ...winnerBase,
+              wins: Math.max(0, Number(winnerBase.wins || 0) - 1),
+              tourneyBonus: Number(winnerBase.tourneyBonus || 0)
+            };
+            const loserUpdate = {
+              ...loserBase,
+              losses: Math.max(0, Number(loserBase.losses || 0) - 1),
+              tourneyBonus: Number(loserBase.tourneyBonus || 0)
+            };
+
+            const mergedWinner = mergeLargeFields(winnerReq.result || null, winnerUpdate);
+            const mergedLoser = mergeLargeFields(loserReq.result || null, loserUpdate);
+
+            const putWinnerReq = store.put(mergedWinner);
+            putWinnerReq.onerror = ()=>fail(putWinnerReq.error || new Error('Failed saving winner undo record.'));
+            putWinnerReq.onsuccess = ()=>{
+              itemsById.set(winnerId, stripBigFieldsForMemory(mergedWinner));
+            };
+
+            const putLoserReq = store.put(mergedLoser);
+            putLoserReq.onerror = ()=>fail(putLoserReq.error || new Error('Failed saving loser undo record.'));
+            putLoserReq.onsuccess = ()=>{
+              itemsById.set(loserId, stripBigFieldsForMemory(mergedLoser));
+            };
+          }catch(err){
+            fail(err);
+          }
+        }
+      }, `Reversing win/loss for ${winnerId} vs ${loserId}`);
     }
 
 async function incrementTourneyCountsForParticipants(participantIds){
@@ -1961,43 +2081,67 @@ async function incrementTourneyCountsForParticipants(participantIds){
         const winnerId = (side === 'left') ? idA : idB;
         const loserId = (side === 'left') ? idB : idA;
 
-        await applyWinLoss(winnerId, loserId);
+        console.debug('[pickWinner] before applyWinLoss', { side, winnerId, loserId });
+        await withTimeout(applyWinLoss(winnerId, loserId), 12000, 'Saving winner/loser stats');
+        console.debug('[pickWinner] after applyWinLoss', { side, winnerId, loserId });
 
-        if(!Array.isArray(s.matchHistory)) s.matchHistory = [];
-        s.matchHistory.push({
+        const nextMatchHistory = Array.isArray(s.matchHistory) ? s.matchHistory.slice() : [];
+        nextMatchHistory.push({
           roundSize: size,
           winnerId,
           loserId
         });
 
+        const nextBracketProgress = { ...(s.bracketProgress || {}) };
         const key = String(size);
-        if(!s.bracketProgress) s.bracketProgress = {};
-        if(!Array.isArray(s.bracketProgress[key])) s.bracketProgress[key] = [];
-        s.bracketProgress[key].push(winnerId);
-        s.currentMatchIndex += 1;
+        const roundWinners = Array.isArray(nextBracketProgress[key]) ? nextBracketProgress[key].slice() : [];
+        roundWinners.push(winnerId);
+        nextBracketProgress[key] = roundWinners;
+        let nextCurrentMatchIndex = Number(s.currentMatchIndex || 0) + 1;
+        let nextCurrentRoundSize = size;
+        let nextCompleted = !!s.completed;
+        let nextChampionId = s.championId || null;
 
-        const finishedRound = s.currentMatchIndex >= size/2;
+        const finishedRound = nextCurrentMatchIndex >= size/2;
 
         if(finishedRound){
           if(size === 2){
-            s.completed = true;
-            s.championId = winnerId;
+            nextCompleted = true;
+            nextChampionId = winnerId;
             await applyChampionBonus(winnerId);
           }else{
-            s.currentRoundSize = size/2;
-            s.currentMatchIndex = 0;
+            nextCurrentRoundSize = size/2;
+            nextCurrentMatchIndex = 0;
           }
         }
 
-        await saveTourneyState(s);
-        tourneyState = s;
+        const nextState = {
+          ...s,
+          bracketProgress: nextBracketProgress,
+          matchHistory: nextMatchHistory,
+          currentMatchIndex: nextCurrentMatchIndex,
+          currentRoundSize: nextCurrentRoundSize,
+          completed: nextCompleted,
+          championId: nextChampionId
+        };
+
+        console.debug('[pickWinner] before saveTourneyState', { side, nextState });
+        await withTimeout(saveTourneyState(nextState), 12000, 'Saving tournament state');
+        console.debug('[pickWinner] after saveTourneyState', { side, nextState });
+        tourneyState = nextState;
         setMatchActionStatus('Winner saved');
+        console.debug('[pickWinner] before renderAll', { side });
         renderAll();
       }catch(e){
         const detail = formatErrorMessage(e, 'Unknown error.');
+        console.debug('[pickWinner] catch', { side, error: e });
         console.error('Winner action failed', { side, error: e, tourneyStateSnapshot: tourneyState });
         setMatchActionStatus(`Winner action failed: ${detail}`, 'error');
+        if(/timed out|abort|aborted|failed/i.test(detail)){
+          alert(`Could not save winner result: ${detail}`);
+        }
       }finally{
+        console.debug('[pickWinner] finally', { side });
         isProcessing = false;
       }
     }
