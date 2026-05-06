@@ -814,9 +814,11 @@ function addTap(el, handler){
         console.error('Failed to merge item before put', item && item.id, err);
       }
 
-      return runWriteTransaction(openItemsDB(), DB_STORE, (st)=>{
-        st.put(merged);
-      }, `Saving item ${item.id}`);
+      return enqueueItemsWrite(`Saving item ${item.id}`, ()=>
+        runWriteTransaction(openItemsDB(), DB_STORE, (st)=>{
+          st.put(merged);
+        }, `Saving item ${item.id}`)
+      );
     }
 
     async function hydrateImgEl(imgEl, itemId){
@@ -1124,40 +1126,93 @@ function withTimeout(promise, ms, label){
   });
 }
 
+
+let itemsWriteQueue = Promise.resolve();
+
+function isRetriableWriteError(err){
+  const name = err && err.name ? String(err.name) : '';
+  const msg = formatErrorMessage(err, '').toLowerCase();
+  return name === 'AbortError' ||
+    name === 'InvalidStateError' ||
+    name === 'TransactionInactiveError' ||
+    msg.includes('timed out') ||
+    msg.includes('abort');
+}
+
+function delay(ms){
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function enqueueItemsWrite(label, task){
+  const runTaskWithRetry = async ()=>{
+    let attempt = 0;
+    while(true){
+      attempt += 1;
+      try{
+        return await task();
+      }catch(err){
+        if(attempt >= 2 || !isRetriableWriteError(err)) throw err;
+        console.warn(`[itemsWriteQueue] retrying ${label} after transient failure`, { attempt, err });
+        await delay(200);
+      }
+    }
+  };
+
+  const queuedTask = itemsWriteQueue.then(async ()=>{
+    console.debug(`[itemsWriteQueue] start ${label}`);
+    try{
+      const result = await runTaskWithRetry();
+      console.debug(`[itemsWriteQueue] success ${label}`);
+      return result;
+    }catch(err){
+      console.error(`[itemsWriteQueue] failure ${label}`, err);
+      throw err;
+    }
+  });
+
+  itemsWriteQueue = queuedTask.catch(()=>{});
+  return queuedTask;
+}
+
 function runWriteTransaction(dbPromise, storeName, worker, label){
   return Promise.resolve(dbPromise).then(db => new Promise((resolve,reject)=>{
     let settled = false;
     let timeoutId = null;
+    let tx = null;
 
-    const finish = (fn)=>{
+    const settle = (fn)=>{
       if(settled) return;
       settled = true;
       if(timeoutId != null) clearTimeout(timeoutId);
       fn();
     };
 
-    let tx;
+    const buildError = (fallback)=>{
+      const base = txErrorMessage(tx, fallback);
+      return new Error(`${label}: ${base}`);
+    };
+
     try{
       tx = db.transaction(storeName,'readwrite');
       const store = tx.objectStore(storeName);
       const workerResult = worker(store, tx);
       if(workerResult && typeof workerResult.then === 'function'){
-        throw new Error(`${label} failed: transaction worker must not be async.`);
+        throw new Error('transaction worker must not be async.');
       }
     }catch(err){
       try{ if(tx) tx.abort(); }catch(_e){}
-      finish(()=>reject(err));
+      settle(()=>reject(new Error(`${label}: ${formatErrorMessage(err, 'failed to start write transaction.')}`)));
       return;
     }
 
     timeoutId = setTimeout(()=>{
-      try{ tx.abort(); }catch(e){}
-      finish(()=>reject(new Error(label + ' timed out.')));
+      try{ if(tx) tx.abort(); }catch(_e){}
+      settle(()=>reject(new Error(`${label}: transaction timed out after ${WRITE_TX_TIMEOUT_MS}ms.`)));
     }, WRITE_TX_TIMEOUT_MS);
 
-    tx.oncomplete = ()=>finish(()=>resolve());
-    tx.onerror = ()=>finish(()=>reject(new Error(txErrorMessage(tx, label + ' failed.'))));
-    tx.onabort = ()=>finish(()=>reject(new Error(txErrorMessage(tx, label + ' was aborted.'))));
+    tx.oncomplete = ()=>settle(()=>resolve());
+    tx.onerror = ()=>settle(()=>reject(buildError('write transaction failed.')));
+    tx.onabort = ()=>settle(()=>reject(buildError('write transaction was aborted.')));
   }));
 }
 
@@ -1878,14 +1933,15 @@ async function startNewTournament(){
     async function applyWinLoss(winnerId, loserId){
       console.debug('[applyWinLoss] entering', { winnerId, loserId });
       try{
-        await runWriteTransaction(openItemsDB(), DB_STORE, (store, tx)=>{
+        await enqueueItemsWrite(`applyWinLoss ${winnerId} vs ${loserId}`, ()=>runWriteTransaction(openItemsDB(), DB_STORE, (store, tx)=>{
+          console.debug('[applyWinLoss] begin', { winnerId, loserId });
           const fail = (err)=>{
             console.error('Failed batched win/loss update', err);
             try{ tx.abort(); }catch(_e){}
           };
 
           const winnerReq = store.get(winnerId);
-          winnerReq.onerror = ()=>{ try{ tx.abort(); }catch(_e){}; };
+          winnerReq.onerror = ()=>{ console.error('[applyWinLoss] tx error winner get', winnerReq.error); try{ tx.abort(); }catch(_e){}; };
           winnerReq.onsuccess = ()=>{
             console.debug('[applyWinLoss] winner get success', { winnerId });
             let mergedWinner;
@@ -1908,7 +1964,7 @@ async function startNewTournament(){
             }
 
             const putWinnerReq = store.put(mergedWinner);
-            putWinnerReq.onerror = ()=>{ try{ tx.abort(); }catch(_e){}; };
+            putWinnerReq.onerror = ()=>{ console.error('[applyWinLoss] tx error winner put', putWinnerReq.error); try{ tx.abort(); }catch(_e){}; };
             putWinnerReq.onsuccess = ()=>{
               console.debug('[applyWinLoss] winner put queued', { winnerId });
               itemsById.set(winnerId, stripBigFieldsForMemory(mergedWinner));
@@ -1916,7 +1972,7 @@ async function startNewTournament(){
           };
 
           const loserReq = store.get(loserId);
-          loserReq.onerror = ()=>{ try{ tx.abort(); }catch(_e){}; };
+          loserReq.onerror = ()=>{ console.error('[applyWinLoss] tx error loser get', loserReq.error); try{ tx.abort(); }catch(_e){}; };
           loserReq.onsuccess = ()=>{
             console.debug('[applyWinLoss] loser get success', { loserId });
             let mergedLoser;
@@ -1939,14 +1995,14 @@ async function startNewTournament(){
             }
 
             const putLoserReq = store.put(mergedLoser);
-            putLoserReq.onerror = ()=>{ try{ tx.abort(); }catch(_e){}; };
+            putLoserReq.onerror = ()=>{ console.error('[applyWinLoss] tx error loser put', putLoserReq.error); try{ tx.abort(); }catch(_e){}; };
             putLoserReq.onsuccess = ()=>{
               console.debug('[applyWinLoss] loser put queued', { loserId });
               itemsById.set(loserId, stripBigFieldsForMemory(mergedLoser));
             };
           };
-        }, `Applying win/loss for ${winnerId} vs ${loserId}`);
-        console.debug('[applyWinLoss] transaction complete', { winnerId, loserId });
+        }, `Applying win/loss for ${winnerId} vs ${loserId}`));
+        console.debug('[applyWinLoss] tx complete', { winnerId, loserId });
       }catch(err){
         console.error('[applyWinLoss] transaction abort/error', { winnerId, loserId, err });
         throw err;
@@ -1954,14 +2010,15 @@ async function startNewTournament(){
     }
 
     async function reverseWinLoss(winnerId, loserId){
-      await runWriteTransaction(openItemsDB(), DB_STORE, (store, tx)=>{
+      console.debug('[reverseWinLoss] begin', { winnerId, loserId });
+      await enqueueItemsWrite(`reverseWinLoss ${winnerId} vs ${loserId}`, ()=>runWriteTransaction(openItemsDB(), DB_STORE, (store, tx)=>{
         const fail = (err)=>{
           console.error('Failed batched reverse win/loss update', err);
           try{ tx.abort(); }catch(_e){}
         };
 
         const winnerReq = store.get(winnerId);
-        winnerReq.onerror = ()=>{ try{ tx.abort(); }catch(_e){}; };
+        winnerReq.onerror = ()=>{ console.error('[reverseWinLoss] tx error winner get', winnerReq.error); try{ tx.abort(); }catch(_e){}; };
         winnerReq.onsuccess = ()=>{
           let mergedWinner;
           try{
@@ -1983,14 +2040,14 @@ async function startNewTournament(){
           }
 
           const putWinnerReq = store.put(mergedWinner);
-          putWinnerReq.onerror = ()=>{ try{ tx.abort(); }catch(_e){}; };
+          putWinnerReq.onerror = ()=>{ console.error('[reverseWinLoss] tx error winner put', putWinnerReq.error); try{ tx.abort(); }catch(_e){}; };
           putWinnerReq.onsuccess = ()=>{
             itemsById.set(winnerId, stripBigFieldsForMemory(mergedWinner));
           };
         };
 
         const loserReq = store.get(loserId);
-        loserReq.onerror = ()=>{ try{ tx.abort(); }catch(_e){}; };
+        loserReq.onerror = ()=>{ console.error('[reverseWinLoss] tx error loser get', loserReq.error); try{ tx.abort(); }catch(_e){}; };
         loserReq.onsuccess = ()=>{
           let mergedLoser;
           try{
@@ -2012,18 +2069,19 @@ async function startNewTournament(){
           }
 
           const putLoserReq = store.put(mergedLoser);
-          putLoserReq.onerror = ()=>{ try{ tx.abort(); }catch(_e){}; };
+          putLoserReq.onerror = ()=>{ console.error('[reverseWinLoss] tx error loser put', putLoserReq.error); try{ tx.abort(); }catch(_e){}; };
           putLoserReq.onsuccess = ()=>{
             itemsById.set(loserId, stripBigFieldsForMemory(mergedLoser));
           };
         };
-      }, `Reversing win/loss for ${winnerId} vs ${loserId}`);
+      }, `Reversing win/loss for ${winnerId} vs ${loserId}`));
+      console.debug('[reverseWinLoss] tx complete', { winnerId, loserId });
     }
 
 async function incrementTourneyCountsForParticipants(participantIds){
   if (!Array.isArray(participantIds) || !participantIds.length) return;
-  const dbPromise = openItemsDB();
-  await runWriteTransaction(dbPromise, DB_STORE, (store, tx)=>{
+  console.debug('[incrementTourneyCountsForParticipants] begin', { count: participantIds.length });
+  await enqueueItemsWrite('incrementTourneyCountsForParticipants', ()=>runWriteTransaction(openItemsDB(), DB_STORE, (store, tx)=>{
     let index = 0;
     const ids = participantIds.slice();
     const fail = (err)=>{
@@ -2058,7 +2116,8 @@ async function incrementTourneyCountsForParticipants(participantIds){
       };
     };
     processNext();
-  }, 'Updating tournament counts for participants');
+  }, 'Updating tournament counts for participants'));
+  console.debug('[incrementTourneyCountsForParticipants] tx complete', { count: participantIds.length });
 }
 
     async function applyChampionBonus(championId){
@@ -2170,6 +2229,7 @@ async function incrementTourneyCountsForParticipants(participantIds){
       }finally{
         console.debug('[pickWinner] finally', { side });
         isProcessing = false;
+        if(matchActionStatus.tone === 'busy') setMatchActionStatus('');
       }
     }
 
