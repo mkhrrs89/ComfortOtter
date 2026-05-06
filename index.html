@@ -3489,6 +3489,15 @@ useEffect(() => {
   setMatchupRightHd(false);
 }, [matchIds[0], matchIds[1]]);
 
+const loadMatchupHdBoth = useCallback((e)=>{
+  if(e){
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  try { setMatchupLeftHd(true); } catch(err){ console.warn('Failed to load left HD image', err); }
+  try { setMatchupRightHd(true); } catch(err){ console.warn('Failed to load right HD image', err); }
+}, []);
+
 // Preload the current matchup images so flipping feels snappier
 useEffect(() => {
   if (!matchIds || !matchIds[0] || !matchIds[1]) return;
@@ -6658,15 +6667,6 @@ if (dt && dt.files && dt.files.length) {
       />
       {renderBadges(left.id,'badgeRow-top-right')}
     </button>
-    <div className="imgUnderRow">
-      <button
-        className="btn ghost sm"
-        onClick={(e)=>{ e.preventDefault(); e.stopPropagation(); setMatchupLeftHd(true); }}
-        disabled={matchupLeftHd}
-      >
-        {matchupLeftHd ? 'HD loaded' : 'Load HD'}
-      </button>
-    </div>
   </div>
   <div className="vs">VS</div>
   <div className="imageStack">
@@ -6683,16 +6683,16 @@ if (dt && dt.files && dt.files.length) {
       />
       {renderBadges(right.id,'badgeRow-top-right')}
     </button>
-    <div className="imgUnderRow">
-      <button
-        className="btn ghost sm"
-        onClick={(e)=>{ e.preventDefault(); e.stopPropagation(); setMatchupRightHd(true); }}
-        disabled={matchupRightHd}
-      >
-        {matchupRightHd ? 'HD loaded' : 'Load HD'}
-      </button>
-    </div>
   </div>
+</div>
+<div className="matchHdRow" style={{display:'flex',justifyContent:'center',marginTop:8}}>
+  <button
+    className="btn ghost sm"
+    onClick={loadMatchupHdBoth}
+    disabled={matchupLeftHd && matchupRightHd}
+  >
+    {(matchupLeftHd && matchupRightHd) ? 'HD loaded' : 'Load HD'}
+  </button>
 </div>
 
                   <div className="matchMetaRow">
