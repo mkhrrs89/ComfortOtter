@@ -285,6 +285,11 @@
     .matchMetaStats{
       font-size:13px;
     }
+    @media (max-width: 768px){
+      .matchMetaRow{gap:8px; margin-bottom:8px;}
+      .matchMetaBox{padding:6px;}
+      .matchMetaStats{font-size:12px;}
+    }
     .matchFooter{
       display:flex;
       justify-content:center;
@@ -1766,6 +1771,21 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
       const rightPts = computePoints(right.wins,right.losses,right.tourneyBonus||0);
 
       matchEl.innerHTML =
+        '<div class="matchMetaRow">' +
+          '<div class="matchMetaBox">' +
+            '<div class="matchMetaTitle">Left image</div>' +
+            '<div class="matchMetaStats">' +
+              'W '+left.wins+' • L '+left.losses+' • Pts '+leftPts+' • M '+matchupsCount(left) +
+            '</div>' +
+          '</div>' +
+          '<div></div>' +
+          '<div class="matchMetaBox">' +
+            '<div class="matchMetaTitle">Right image</div>' +
+            '<div class="matchMetaStats">' +
+              'W '+right.wins+' • L '+right.losses+' • Pts '+rightPts+' • M '+matchupsCount(right) +
+            '</div>' +
+          '</div>' +
+        '</div>' +
 '<div class="arena">' +
   '<button type="button" class="imageCard imageCardBtn" id="tLeftImgBtn" aria-label="Choose left image">' +
     '<img id="tLeftImg" src="'+getDisplaySrc(left)+'" data-srcs="'+escapeHtml(serializeSources(getDisplaySources(left)))+'" data-full-srcs="'+escapeHtml(serializeSources(dedupeSources([...getFullOnlySources(left), ...getThumbOnlySources(left)])))+'" data-src-index="0" alt="Left" />' +
@@ -1775,24 +1795,6 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
     '<img id="tRightImg" src="'+getDisplaySrc(right)+'" data-srcs="'+escapeHtml(serializeSources(getDisplaySources(right)))+'" data-full-srcs="'+escapeHtml(serializeSources(dedupeSources([...getFullOnlySources(right), ...getThumbOnlySources(right)])))+'" data-src-index="0" alt="Right" />' +
   '</button>' +
 '</div>' +
-
-        '<div class="matchMetaRow">' +
-          '<div class="matchMetaBox">' +
-            '<div class="matchMetaTitle">Left image</div>' +
-            '<div class="matchMetaStats">' +
-              (formatDisplayTitle(left.title) || 'Untitled') + '<br/>' +
-              'W '+left.wins+' • L '+left.losses+' • Pts '+leftPts+' • M '+matchupsCount(left) +
-            '</div>' +
-          '</div>' +
-          '<div></div>' +
-          '<div class="matchMetaBox">' +
-            '<div class="matchMetaTitle">Right image</div>' +
-            '<div class="matchMetaStats">' +
-              (formatDisplayTitle(right.title) || 'Untitled') + '<br/>' +
-              'W '+right.wins+' • L '+right.losses+' • Pts '+rightPts+' • M '+matchupsCount(right) +
-            '</div>' +
-          '</div>' +
-        '</div>' +
         '<div class="matchControlsRow">' +
           '<div class="matchControlsLeft">' +
 '<button class="btn sm" type="button" id="tLeftWinBtn">Left wins</button>' +

@@ -447,6 +447,12 @@
     .matchMetaStats{
       font-size:13px;
     }
+    @media (max-width: 768px){
+      .matchMetaRow{gap:8px; margin-bottom:8px;}
+      .matchMetaBox{padding:6px;}
+      .matchMetaStats{font-size:12px;}
+      .matchRecord{font-size:12px; padding:2px 6px;}
+    }
     .matchRecord{
       display:inline-flex;
       align-items:center;
@@ -6712,6 +6718,37 @@ if (dt && dt.files && dt.files.length) {
                 </p>
               ) : (
                 <>
+                  <div className="matchMetaRow">
+                    <div className="matchMetaBox">
+                      <div className="matchMetaTitle">Left image</div>
+                      <div className="matchMetaStats">
+                        <span className="matchRecord">
+                          W {left.wins} • L {left.losses} • Pts {computePoints(left.wins,left.losses,left.tourneyBonus||0)} • M {matchupsCount(left)}
+                        </span><br/>
+                        Collections: {collectionsToString(left.collections)}
+                      </div>
+                      <div className="toolbar" style={{marginTop:4,gap:6}}>
+                        <button className="btn ghost sm" onClick={()=>openPreviewFor(left)}>View</button>
+                        <button className="btn ghost sm" onClick={()=>startCropFor(left)}>Crop</button>
+                        <button className="btn ghost sm" onClick={()=>startLockedMatchup(left)}>Lock matchup</button>
+                      </div>
+                    </div>
+                    <div></div>
+                    <div className="matchMetaBox">
+                      <div className="matchMetaTitle">Right image</div>
+                      <div className="matchMetaStats">
+                        <span className="matchRecord">
+                          W {right.wins} • L {right.losses} • Pts {computePoints(right.wins,right.losses,right.tourneyBonus||0)} • M {matchupsCount(right)}
+                        </span><br/>
+                        Collections: {collectionsToString(right.collections)}
+                      </div>
+                      <div className="toolbar" style={{marginTop:4,gap:6}}>
+                        <button className="btn ghost sm" onClick={()=>openPreviewFor(right)}>View</button>
+                        <button className="btn ghost sm" onClick={()=>startCropFor(right)}>Crop</button>
+                        <button className="btn ghost sm" onClick={()=>startLockedMatchup(right)}>Lock matchup</button>
+                      </div>
+                    </div>
+                  </div>
 <div className="arena">
   <div className="imageStack">
     <button className={`imageCard ${matchupMedalClass(left.id)}`} onClick={()=>recordWin(left.id)}>
@@ -6745,39 +6782,6 @@ if (dt && dt.files && dt.files.length) {
     </button>
   </div>
 </div>
-                  <div className="matchMetaRow">
-                    <div className="matchMetaBox">
-                      <div className="matchMetaTitle">Left image</div>
-                      <div className="matchMetaStats">
-                        {left.title || 'Untitled'}<br/>
-                        <span className="matchRecord">
-                          W {left.wins} • L {left.losses} • Pts {computePoints(left.wins,left.losses,left.tourneyBonus||0)} • M {matchupsCount(left)}
-                        </span><br/>
-                        Collections: {collectionsToString(left.collections)}
-                      </div>
-                      <div className="toolbar" style={{marginTop:4,gap:6}}>
-                        <button className="btn ghost sm" onClick={()=>openPreviewFor(left)}>View</button>
-                        <button className="btn ghost sm" onClick={()=>startCropFor(left)}>Crop</button>
-                        <button className="btn ghost sm" onClick={()=>startLockedMatchup(left)}>Lock matchup</button>
-                      </div>
-                    </div>
-                    <div></div>
-                    <div className="matchMetaBox">
-                      <div className="matchMetaTitle">Right image</div>
-                      <div className="matchMetaStats">
-                        {right.title || 'Untitled'}<br/>
-                        <span className="matchRecord">
-                          W {right.wins} • L {right.losses} • Pts {computePoints(right.wins,right.losses,right.tourneyBonus||0)} • M {matchupsCount(right)}
-                        </span><br/>
-                        Collections: {collectionsToString(right.collections)}
-                      </div>
-                      <div className="toolbar" style={{marginTop:4,gap:6}}>
-                        <button className="btn ghost sm" onClick={()=>openPreviewFor(right)}>View</button>
-                        <button className="btn ghost sm" onClick={()=>startCropFor(right)}>Crop</button>
-                        <button className="btn ghost sm" onClick={()=>startLockedMatchup(right)}>Lock matchup</button>
-                      </div>
-                    </div>
-                  </div>
                   <div className="matchFooter">
                     <button className="btn sm" onClick={()=>rerollMatch()}>
                       Next matchup
