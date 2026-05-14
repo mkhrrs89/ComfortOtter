@@ -167,6 +167,22 @@
       gap:12px;
       margin:10px 0 6px;
     }
+    @media (max-width: 768px){
+      .arena{
+        grid-template-columns:1fr;
+        justify-items:center;
+      }
+      .arena .vs{
+        order:2;
+        margin:4px 0;
+      }
+      .arena > :first-child{
+        order:1;
+      }
+      .arena > :last-child{
+        order:3;
+      }
+    }
     .imageCard{
       position:relative;
       border:1px solid var(--ring);
