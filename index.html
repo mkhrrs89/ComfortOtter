@@ -6725,40 +6725,23 @@ if (dt && dt.files && dt.files.length) {
                 </p>
               ) : (
                 <>
-                  <div className="matchMetaRow">
-                    <div className="matchMetaBox">
-                      <div className="matchMetaTopRow">
-                        <div className="matchMetaStats">
-                          <span>{left.wins}-{left.losses}</span>
-                          <span>{pct(left.wins,left.losses).toFixed(2)}%</span>
-                          <span>{computePoints(left.wins,left.losses,left.tourneyBonus||0)} pts</span>
-                        </div>
-                        <div className="matchMetaControls">
-                          <button className="btn ghost sm" onClick={()=>openPreviewFor(left)}>View</button>
-                          <button className="btn ghost sm" onClick={()=>startCropFor(left)}>Crop</button>
-                          <button className="btn ghost sm" onClick={()=>startLockedMatchup(left)}>Lock</button>
-                        </div>
-                      </div>
-                      <div className="matchMetaCollections">Collections: {collectionsToString(left.collections)}</div>
-                    </div>
-                    <div className="matchMetaBox">
-                      <div className="matchMetaTopRow">
-                        <div className="matchMetaStats">
-                          <span>{right.wins}-{right.losses}</span>
-                          <span>{pct(right.wins,right.losses).toFixed(2)}%</span>
-                          <span>{computePoints(right.wins,right.losses,right.tourneyBonus||0)} pts</span>
-                        </div>
-                        <div className="matchMetaControls">
-                          <button className="btn ghost sm" onClick={()=>openPreviewFor(right)}>View</button>
-                          <button className="btn ghost sm" onClick={()=>startCropFor(right)}>Crop</button>
-                          <button className="btn ghost sm" onClick={()=>startLockedMatchup(right)}>Lock</button>
-                        </div>
-                      </div>
-                      <div className="matchMetaCollections">Collections: {collectionsToString(right.collections)}</div>
-                    </div>
-                  </div>
 <div className="arena">
   <div className="imageStack">
+    <div className="matchMetaBox">
+      <div className="matchMetaTopRow">
+        <div className="matchMetaStats">
+          <span>{left.wins}-{left.losses}</span>
+          <span>{pct(left.wins,left.losses).toFixed(2)}%</span>
+          <span>{computePoints(left.wins,left.losses,left.tourneyBonus||0)} pts</span>
+        </div>
+        <div className="matchMetaControls">
+          <button className="btn ghost sm" onClick={()=>openPreviewFor(left)}>View</button>
+          <button className="btn ghost sm" onClick={()=>startCropFor(left)}>Crop</button>
+          <button className="btn ghost sm" onClick={()=>startLockedMatchup(left)}>Lock</button>
+        </div>
+      </div>
+      <div className="matchMetaCollections">Collections: {collectionsToString(left.collections)}</div>
+    </div>
     <button className={`imageCard ${matchupMedalClass(left.id)}`} onClick={()=>recordWin(left.id)}>
       <SafeImage
         item={left}
@@ -6774,6 +6757,21 @@ if (dt && dt.files && dt.files.length) {
     </button>
   </div>
   <div className="imageStack">
+    <div className="matchMetaBox">
+      <div className="matchMetaTopRow">
+        <div className="matchMetaStats">
+          <span>{right.wins}-{right.losses}</span>
+          <span>{pct(right.wins,right.losses).toFixed(2)}%</span>
+          <span>{computePoints(right.wins,right.losses,right.tourneyBonus||0)} pts</span>
+        </div>
+        <div className="matchMetaControls">
+          <button className="btn ghost sm" onClick={()=>openPreviewFor(right)}>View</button>
+          <button className="btn ghost sm" onClick={()=>startCropFor(right)}>Crop</button>
+          <button className="btn ghost sm" onClick={()=>startLockedMatchup(right)}>Lock</button>
+        </div>
+      </div>
+      <div className="matchMetaCollections">Collections: {collectionsToString(right.collections)}</div>
+    </div>
     <button className={`imageCard ${matchupMedalClass(right.id)}`} onClick={()=>recordWin(right.id)}>
       <SafeImage
         item={right}
