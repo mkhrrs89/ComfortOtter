@@ -358,10 +358,6 @@
       .arena .imageCard{
         width:100%;
       }
-      .arena .vs{
-        order:2;
-        margin:4px 0;
-      }
       .arena .imageStack:first-child{
         order:1;
       }
@@ -416,54 +412,65 @@
         max-height:none;
       }
     }
-    .vs{
-      font-weight:700;
-      opacity:0.8;
-      font-size:16px;
-    }
     .matchMetaRow{
       display:grid;
-      grid-template-columns:1fr auto 1fr;
-      gap:12px;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
       align-items:center;
-      margin-bottom:6px;
-      font-size:13px;
+      margin-bottom:4px;
+      font-size:12px;
     }
     .matchMetaBox{
       background:var(--panel-soft);
       border-radius:10px;
-      padding:6px 8px;
+      padding:5px 7px;
       border:1px solid var(--ring);
       display:flex;
       flex-direction:column;
-      gap:3px;
+      gap:4px;
     }
-    .matchMetaTitle{
-      font-size:11px;
-      color:var(--muted);
-      text-transform:uppercase;
-      letter-spacing:0.06em;
+    .matchMetaTopRow{
+      display:flex;
+      align-items:center;
+      gap:6px 8px;
+      justify-content:space-between;
+      flex-wrap:wrap;
     }
     .matchMetaStats{
-      font-size:13px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      font-size:12px;
+      font-weight:600;
+      line-height:1.15;
     }
-    @media (max-width: 768px){
-      .matchMetaRow{gap:8px; margin-bottom:8px;}
-      .matchMetaBox{padding:6px;}
-      .matchMetaStats{font-size:12px;}
-      .matchRecord{font-size:12px; padding:2px 6px;}
-    }
-    .matchRecord{
-      display:inline-flex;
+    .matchMetaControls{
+      display:flex;
       align-items:center;
       gap:6px;
-      padding:2px 8px;
-      border-radius:999px;
-      background:rgba(56,189,248,0.12);
-      border:1px solid rgba(56,189,248,0.35);
-      font-weight:600;
-      font-size:14px;
-      margin:2px 0;
+      flex-wrap:wrap;
+      font-weight:400;
+    }
+    .matchMetaCollections{
+      font-size:11px;
+      line-height:1.2;
+      color:var(--muted);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .matchMetaControls .btn.sm{
+      font-size:11px;
+      line-height:1.1;
+      padding:4px 7px;
+    }
+    @media (max-width: 768px){
+      .matchMetaRow{gap:7px; margin-bottom:7px;}
+      .matchMetaBox{padding:5px 6px;}
+      .matchMetaTopRow{gap:5px 6px;}
+      .matchMetaStats{font-size:11px; gap:6px;}
+      .matchMetaCollections{font-size:10px;}
+      .matchMetaControls .btn.sm{font-size:10.5px; padding:3px 6px;}
     }
     .matchFooter{
       display:flex;
@@ -6720,33 +6727,34 @@ if (dt && dt.files && dt.files.length) {
                 <>
                   <div className="matchMetaRow">
                     <div className="matchMetaBox">
-                      <div className="matchMetaTitle">Left image</div>
-                      <div className="matchMetaStats">
-                        <span className="matchRecord">
-                          W {left.wins} • L {left.losses} • Pts {computePoints(left.wins,left.losses,left.tourneyBonus||0)} • M {matchupsCount(left)}
-                        </span><br/>
-                        Collections: {collectionsToString(left.collections)}
+                      <div className="matchMetaTopRow">
+                        <div className="matchMetaStats">
+                          <span>{left.wins}-{left.losses}</span>
+                          <span>{pct(left.wins,left.losses).toFixed(2)}%</span>
+                          <span>{computePoints(left.wins,left.losses,left.tourneyBonus||0)} pts</span>
+                        </div>
+                        <div className="matchMetaControls">
+                          <button className="btn ghost sm" onClick={()=>openPreviewFor(left)}>View</button>
+                          <button className="btn ghost sm" onClick={()=>startCropFor(left)}>Crop</button>
+                          <button className="btn ghost sm" onClick={()=>startLockedMatchup(left)}>Lock</button>
+                        </div>
                       </div>
-                      <div className="toolbar" style={{marginTop:4,gap:6}}>
-                        <button className="btn ghost sm" onClick={()=>openPreviewFor(left)}>View</button>
-                        <button className="btn ghost sm" onClick={()=>startCropFor(left)}>Crop</button>
-                        <button className="btn ghost sm" onClick={()=>startLockedMatchup(left)}>Lock matchup</button>
-                      </div>
+                      <div className="matchMetaCollections">Collections: {collectionsToString(left.collections)}</div>
                     </div>
-                    <div></div>
                     <div className="matchMetaBox">
-                      <div className="matchMetaTitle">Right image</div>
-                      <div className="matchMetaStats">
-                        <span className="matchRecord">
-                          W {right.wins} • L {right.losses} • Pts {computePoints(right.wins,right.losses,right.tourneyBonus||0)} • M {matchupsCount(right)}
-                        </span><br/>
-                        Collections: {collectionsToString(right.collections)}
+                      <div className="matchMetaTopRow">
+                        <div className="matchMetaStats">
+                          <span>{right.wins}-{right.losses}</span>
+                          <span>{pct(right.wins,right.losses).toFixed(2)}%</span>
+                          <span>{computePoints(right.wins,right.losses,right.tourneyBonus||0)} pts</span>
+                        </div>
+                        <div className="matchMetaControls">
+                          <button className="btn ghost sm" onClick={()=>openPreviewFor(right)}>View</button>
+                          <button className="btn ghost sm" onClick={()=>startCropFor(right)}>Crop</button>
+                          <button className="btn ghost sm" onClick={()=>startLockedMatchup(right)}>Lock</button>
+                        </div>
                       </div>
-                      <div className="toolbar" style={{marginTop:4,gap:6}}>
-                        <button className="btn ghost sm" onClick={()=>openPreviewFor(right)}>View</button>
-                        <button className="btn ghost sm" onClick={()=>startCropFor(right)}>Crop</button>
-                        <button className="btn ghost sm" onClick={()=>startLockedMatchup(right)}>Lock matchup</button>
-                      </div>
+                      <div className="matchMetaCollections">Collections: {collectionsToString(right.collections)}</div>
                     </div>
                   </div>
 <div className="arena">
@@ -6765,7 +6773,6 @@ if (dt && dt.files && dt.files.length) {
       {renderBadges(left.id,'badgeRow-top-right')}
     </button>
   </div>
-  <div className="vs">VS</div>
   <div className="imageStack">
     <button className={`imageCard ${matchupMedalClass(right.id)}`} onClick={()=>recordWin(right.id)}>
       <SafeImage
@@ -7821,7 +7828,7 @@ if (dt && dt.files && dt.files.length) {
                     Repair image
                   </button>
                   <button className="btn ghost" onClick={()=>startLockedMatchup(previewItem)}>
-                    Lock matchup
+                    Lock
                   </button>
                   <button
                     className="btn danger"

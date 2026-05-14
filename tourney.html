@@ -187,10 +187,6 @@
       .arena .imageCardBtn{
         width:100%;
       }
-      .arena .vs{
-        order:2;
-        margin:4px 0;
-      }
       .arena > :first-child{
         order:1;
       }
@@ -254,41 +250,44 @@
       padding:16px;
       text-align:center;
     }
-    .vs{
-      font-weight:700;
-      opacity:0.8;
-      font-size:16px;
-    }
     .matchMetaRow{
       display:grid;
-      grid-template-columns:1fr auto 1fr;
-      gap:12px;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
       align-items:flex-start;
-      margin-bottom:6px;
-      font-size:13px;
+      margin-bottom:4px;
+      font-size:12px;
     }
     .matchMetaBox{
       background:var(--panel-soft);
       border-radius:10px;
-      padding:6px 8px;
+      padding:5px 7px;
       border:1px solid var(--ring);
       display:flex;
       flex-direction:column;
-      gap:3px;
-    }
-    .matchMetaTitle{
-      font-size:11px;
-      color:var(--muted);
-      text-transform:uppercase;
-      letter-spacing:0.06em;
+      gap:4px;
     }
     .matchMetaStats{
-      font-size:13px;
+      display:flex;
+      gap:8px;
+      font-size:12px;
+      font-weight:600;
+      line-height:1.15;
+      flex-wrap:wrap;
+    }
+    .matchMetaCollections{
+      font-size:11px;
+      line-height:1.2;
+      color:var(--muted);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
     }
     @media (max-width: 768px){
       .matchMetaRow{gap:8px; margin-bottom:8px;}
-      .matchMetaBox{padding:6px;}
-      .matchMetaStats{font-size:12px;}
+      .matchMetaBox{padding:5px 6px;}
+      .matchMetaStats{font-size:11px; gap:6px;}
+      .matchMetaCollections{font-size:10px;}
     }
     .matchFooter{
       display:flex;
@@ -1773,24 +1772,26 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
       matchEl.innerHTML =
         '<div class="matchMetaRow">' +
           '<div class="matchMetaBox">' +
-            '<div class="matchMetaTitle">Left image</div>' +
             '<div class="matchMetaStats">' +
-              'W '+left.wins+' • L '+left.losses+' • Pts '+leftPts+' • M '+matchupsCount(left) +
+              '<span>'+left.wins+'-'+left.losses+'</span>' +
+              '<span>'+pct(left.wins,left.losses).toFixed(2)+'%</span>' +
+              '<span>'+leftPts+' pts</span>' +
             '</div>' +
+            '<div class="matchMetaCollections">Collections: '+escapeHtml(collectionsToString(left.collections))+'</div>' +
           '</div>' +
-          '<div></div>' +
           '<div class="matchMetaBox">' +
-            '<div class="matchMetaTitle">Right image</div>' +
             '<div class="matchMetaStats">' +
-              'W '+right.wins+' • L '+right.losses+' • Pts '+rightPts+' • M '+matchupsCount(right) +
+              '<span>'+right.wins+'-'+right.losses+'</span>' +
+              '<span>'+pct(right.wins,right.losses).toFixed(2)+'%</span>' +
+              '<span>'+rightPts+' pts</span>' +
             '</div>' +
+            '<div class="matchMetaCollections">Collections: '+escapeHtml(collectionsToString(right.collections))+'</div>' +
           '</div>' +
         '</div>' +
 '<div class="arena">' +
   '<button type="button" class="imageCard imageCardBtn" id="tLeftImgBtn" aria-label="Choose left image">' +
     '<img id="tLeftImg" src="'+getDisplaySrc(left)+'" data-srcs="'+escapeHtml(serializeSources(getDisplaySources(left)))+'" data-full-srcs="'+escapeHtml(serializeSources(dedupeSources([...getFullOnlySources(left), ...getThumbOnlySources(left)])))+'" data-src-index="0" alt="Left" />' +
   '</button>' +
-  '<div class="vs">VS</div>' +
   '<button type="button" class="imageCard imageCardBtn" id="tRightImgBtn" aria-label="Choose right image">' +
     '<img id="tRightImg" src="'+getDisplaySrc(right)+'" data-srcs="'+escapeHtml(serializeSources(getDisplaySources(right)))+'" data-full-srcs="'+escapeHtml(serializeSources(dedupeSources([...getFullOnlySources(right), ...getThumbOnlySources(right)])))+'" data-src-index="0" alt="Right" />' +
   '</button>' +
