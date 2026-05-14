@@ -167,6 +167,12 @@
       gap:12px;
       margin:10px 0 6px;
     }
+    .matchSide{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      min-width:0;
+    }
     @media (max-width: 768px){
       .pane.tourneyMatchPane{
         background:transparent;
@@ -187,10 +193,10 @@
       .arena .imageCardBtn{
         width:100%;
       }
-      .arena > :first-child{
+      .arena .matchSide:first-child{
         order:1;
       }
-      .arena > :last-child{
+      .arena .matchSide:last-child{
         order:3;
       }
     }
@@ -1770,31 +1776,33 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
       const rightPts = computePoints(right.wins,right.losses,right.tourneyBonus||0);
 
       matchEl.innerHTML =
-        '<div class="matchMetaRow">' +
-          '<div class="matchMetaBox">' +
-            '<div class="matchMetaStats">' +
-              '<span>'+left.wins+'-'+left.losses+'</span>' +
-              '<span>'+pct(left.wins,left.losses).toFixed(2)+'%</span>' +
-              '<span>'+leftPts+' pts</span>' +
-            '</div>' +
-            '<div class="matchMetaCollections">Collections: '+escapeHtml(collectionsToString(left.collections))+'</div>' +
-          '</div>' +
-          '<div class="matchMetaBox">' +
-            '<div class="matchMetaStats">' +
-              '<span>'+right.wins+'-'+right.losses+'</span>' +
-              '<span>'+pct(right.wins,right.losses).toFixed(2)+'%</span>' +
-              '<span>'+rightPts+' pts</span>' +
-            '</div>' +
-            '<div class="matchMetaCollections">Collections: '+escapeHtml(collectionsToString(right.collections))+'</div>' +
-          '</div>' +
-        '</div>' +
 '<div class="arena">' +
-  '<button type="button" class="imageCard imageCardBtn" id="tLeftImgBtn" aria-label="Choose left image">' +
+  '<div class="matchSide">' +
+    '<div class="matchMetaBox">' +
+      '<div class="matchMetaStats">' +
+        '<span>'+left.wins+'-'+left.losses+'</span>' +
+        '<span>'+pct(left.wins,left.losses).toFixed(2)+'%</span>' +
+        '<span>'+leftPts+' pts</span>' +
+      '</div>' +
+      '<div class="matchMetaCollections">Collections: '+escapeHtml(collectionsToString(left.collections))+'</div>' +
+    '</div>' +
+    '<button type="button" class="imageCard imageCardBtn" id="tLeftImgBtn" aria-label="Choose left image">' +
     '<img id="tLeftImg" src="'+getDisplaySrc(left)+'" data-srcs="'+escapeHtml(serializeSources(getDisplaySources(left)))+'" data-full-srcs="'+escapeHtml(serializeSources(dedupeSources([...getFullOnlySources(left), ...getThumbOnlySources(left)])))+'" data-src-index="0" alt="Left" />' +
-  '</button>' +
-  '<button type="button" class="imageCard imageCardBtn" id="tRightImgBtn" aria-label="Choose right image">' +
+    '</button>' +
+  '</div>' +
+  '<div class="matchSide">' +
+    '<div class="matchMetaBox">' +
+      '<div class="matchMetaStats">' +
+        '<span>'+right.wins+'-'+right.losses+'</span>' +
+        '<span>'+pct(right.wins,right.losses).toFixed(2)+'%</span>' +
+        '<span>'+rightPts+' pts</span>' +
+      '</div>' +
+      '<div class="matchMetaCollections">Collections: '+escapeHtml(collectionsToString(right.collections))+'</div>' +
+    '</div>' +
+    '<button type="button" class="imageCard imageCardBtn" id="tRightImgBtn" aria-label="Choose right image">' +
     '<img id="tRightImg" src="'+getDisplaySrc(right)+'" data-srcs="'+escapeHtml(serializeSources(getDisplaySources(right)))+'" data-full-srcs="'+escapeHtml(serializeSources(dedupeSources([...getFullOnlySources(right), ...getThumbOnlySources(right)])))+'" data-src-index="0" alt="Right" />' +
-  '</button>' +
+    '</button>' +
+  '</div>' +
 '</div>' +
         '<div class="matchControlsRow">' +
           '<div class="matchControlsLeft">' +
