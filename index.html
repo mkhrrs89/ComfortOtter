@@ -456,6 +456,26 @@
       margin-top:4px;
       text-align:center;
     }
+    .matchupControlsRow{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-bottom:6px;
+    }
+    .matchupControlsLeft{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      align-items:center;
+      flex:1 1 360px;
+      min-width:0;
+    }
+    .matchupControlsHd{
+      margin-left:auto;
+      flex:0 0 auto;
+    }
     /* Tables */
     .statsTab{
       background:var(--panel);
@@ -6549,8 +6569,8 @@ if (dt && dt.files && dt.files.length) {
           {/* MATCHUPS */}
           {tab==='Matchups' && (
             <section className="pane">
-              <div className="toolbar" style={{justifyContent:'space-between',marginBottom:6}}>
-                <div className="flexRow">
+              <div className="toolbar matchupControlsRow" style={{justifyContent:'space-between'}}>
+                <div className="matchupControlsLeft">
                   <label className="smallMuted">
                     Matchup pool{' '}
 <select
@@ -6658,6 +6678,15 @@ if (dt && dt.files && dt.files.length) {
                     Undo last result
                   </button>
                 </div>
+                {!!left && !!right && (
+                  <button
+                    className="btn ghost sm matchupControlsHd"
+                    onClick={loadMatchupHdBoth}
+                    disabled={matchupLeftHd && matchupRightHd}
+                  >
+                    {(matchupLeftHd && matchupRightHd) ? 'HD loaded' : 'Load HD'}
+                  </button>
+                )}
               </div>
 
               {(!left || !right) ? (
@@ -6701,16 +6730,6 @@ if (dt && dt.files && dt.files.length) {
     </button>
   </div>
 </div>
-<div className="matchHdRow" style={{display:'flex',justifyContent:'center',marginTop:8}}>
-  <button
-    className="btn ghost sm"
-    onClick={loadMatchupHdBoth}
-    disabled={matchupLeftHd && matchupRightHd}
-  >
-    {(matchupLeftHd && matchupRightHd) ? 'HD loaded' : 'Load HD'}
-  </button>
-</div>
-
                   <div className="matchMetaRow">
                     <div className="matchMetaBox">
                       <div className="matchMetaTitle">Left image</div>
