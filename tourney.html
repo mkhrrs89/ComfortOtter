@@ -270,6 +270,26 @@
       gap:8px;
       margin-top:4px;
     }
+    .matchControlsRow{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:8px;
+    }
+    .matchControlsLeft{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+      flex:1 1 220px;
+      min-width:0;
+    }
+    .matchControlsHd{
+      margin-left:auto;
+      flex:0 0 auto;
+    }
     .matchActionStatus{
       margin-top:8px;
       text-align:center;
@@ -1752,12 +1772,12 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
             '</div>' +
           '</div>' +
         '</div>' +
-        '<div class="toolbar" style="margin-top:8px;justify-content:center;">' +
-          '<button class="btn ghost sm" type="button" id="tLoadBothHdBtn">Load HD</button>' +
-        '</div>' +
-        '<div class="matchFooter">' +
+        '<div class="matchControlsRow">' +
+          '<div class="matchControlsLeft">' +
 '<button class="btn sm" type="button" id="tLeftWinBtn">Left wins</button>' +
 '<button class="btn sm" type="button" id="tRightWinBtn">Right wins</button>' +
+          '</div>' +
+          '<button class="btn ghost sm matchControlsHd" type="button" id="tLoadBothHdBtn">Load HD</button>' +
         '</div>' +
         '<div class="matchActionStatus" id="tMatchActionStatus" aria-live="polite"></div>';
       setMatchActionStatus(matchActionStatus.message, matchActionStatus.tone);
