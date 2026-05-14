@@ -339,9 +339,24 @@
       margin:10px 0 6px;
     }
     @media (max-width: 768px){
+      .pane.matchupsPane{
+        background:transparent;
+        border:none;
+        box-shadow:none;
+        border-radius:0;
+        padding:6px 2px 10px;
+      }
       .arena{
         grid-template-columns:1fr;
         justify-items:center;
+        gap:8px;
+        margin:8px 0 4px;
+      }
+      .arena .imageStack{
+        width:100%;
+      }
+      .arena .imageCard{
+        width:100%;
       }
       .arena .vs{
         order:2;
@@ -397,7 +412,7 @@
     }
     @media (max-width: 768px) and (orientation: portrait) {
       .imageCard img {
-        height:clamp(220px, 32vh, 300px);
+        height:clamp(250px, 40vh, 360px);
         max-height:none;
       }
     }
@@ -6568,7 +6583,7 @@ if (dt && dt.files && dt.files.length) {
 
           {/* MATCHUPS */}
           {tab==='Matchups' && (
-            <section className="pane">
+            <section className="pane matchupsPane">
               <div className="toolbar matchupControlsRow" style={{justifyContent:'space-between'}}>
                 <div className="matchupControlsLeft">
                   <label className="smallMuted">
