@@ -79,8 +79,8 @@
   font-size: 14px;
   opacity: 0.85;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 12px;
 }
 
 .badgeItem {
@@ -3974,6 +3974,12 @@ const totalUndefeated = Array.from(badgeMap.values())
 // 🌱 "New" = images that have had fewer than 4 matchups
 const totalNew = items.filter(it => matchupsCount(it) < 4).length;
 
+// 🌿 "Growing" = images with 5-9 matchups (strictly >4 and <10)
+const totalGrowing = items.filter(it => {
+  const matchupTotal = matchupsCount(it);
+  return matchupTotal > 4 && matchupTotal < 10;
+}).length;
+
 
 const totalWinless = Array.from(badgeMap.values())
   .filter(b => b.winless).length;
@@ -5897,6 +5903,7 @@ function labelForMatchMode(){
       <span className="badgeItem">💩 {totalWinless}</span>
       <span className="badgeItem">🖼 {items.length}</span>
       <span className="badgeItem">🌱 {totalNew}</span>
+      <span className="badgeItem">🌿 {totalGrowing}</span>
     </div>
   </div>
 
