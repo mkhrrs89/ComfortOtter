@@ -1727,6 +1727,11 @@ async function generateMissingThumbnails(){
       return t===0 ? 0 : (w||0)/t;
     };
     const matchupsCount = it => (it.wins||0)+(it.losses||0);
+    const isFreshMatchupPoolItem = it => matchupsCount(it) < 4;
+    const isGrowingMatchupPoolItem = it => {
+      const matchupTotal = matchupsCount(it);
+      return matchupTotal > 4 && matchupTotal < 10;
+    };
 
     const compareBySort = (a, b, sort) => {
       const dir = sort.dir === 'asc' ? 1 : -1;
@@ -3656,7 +3661,12 @@ function getMatchPool(all,mode){
 } else if(mode.type==='freshLeaf'){
   // Only images that would show the 🌱 icon ("fresh")
   // New = fewer than 4 matchups (M < 4)
-  pool = all.filter(it=> matchupsCount(it) < 4);
+  pool = all.filter(isFreshMatchupPoolItem);
+
+} else if(mode.type==='growingLeaf'){
+  // Only images that would show the 🌿 icon ("growing")
+  // Growing = 5-9 matchups (M > 4 and M < 10)
+  pool = all.filter(isGrowingMatchupPoolItem);
 }
 
   // Fallback safety
@@ -3972,13 +3982,10 @@ const totalUndefeated = Array.from(badgeMap.values())
   .filter(b => b.undefeated).length;
 
 // 🌱 "New" = images that have had fewer than 4 matchups
-const totalNew = items.filter(it => matchupsCount(it) < 4).length;
+const totalNew = items.filter(isFreshMatchupPoolItem).length;
 
 // 🌿 "Growing" = images with 5-9 matchups (strictly >4 and <10)
-const totalGrowing = items.filter(it => {
-  const matchupTotal = matchupsCount(it);
-  return matchupTotal > 4 && matchupTotal < 10;
-}).length;
+const totalGrowing = items.filter(isGrowingMatchupPoolItem).length;
 
 
 const totalWinless = Array.from(badgeMap.values())
@@ -5850,6 +5857,7 @@ function labelForMatchMode(){
   if(matchMode.type==='undefeated') return 'Undefeated images (0 losses)';
   if(matchMode.type==='winless') return 'Winless images (0 wins)';
   if(matchMode.type==='freshLeaf') return 'Fresh images (leaf icon)';
+  if(matchMode.type==='growingLeaf') return '🌿 5-9 matchups';
   if(matchMode.type==='generated') return 'Generated matchup (different generators)';
   if(matchMode.type==='locked' && matchMode.lockedId){
     const lockedItem = items.find(it=>it.id===matchMode.lockedId);
@@ -6627,7 +6635,8 @@ if (dt && dt.files && dt.files.length) {
       'bottomWinPct10',
       'undefeated',
       'winless',
-      'freshLeaf'
+      'freshLeaf',
+      'growingLeaf'
     ];
 
     if(simpleModes.includes(v)){
@@ -6677,6 +6686,7 @@ if (dt && dt.files && dt.files.length) {
 <option value="winless">Winless images (0 wins)</option>
 
 <option value="freshLeaf">Fresh images (leaf icon)</option>
+<option value="growingLeaf">🌿 5-9 matchups</option>
 
 {matchupCollectionOptions
   .map(c=>(
