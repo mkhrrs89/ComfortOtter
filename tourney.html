@@ -545,12 +545,44 @@ function getFullOnlySources(item){
 }
 
 function getDisplaySources(item){
-  return getThumbOnlySources(item);
+  if(!item) return [];
+  return dedupeSources([
+    item.hdUrl,
+    item.fullHdUrl,
+    item.fullResUrl,
+    item.fullUrl,
+    item.dataUrl,
+    item.imageUrl,
+    item.src,
+    item.thumbnail,
+    item.thumbUrl,
+    item.thumbDataUrl,
+    item.objectUrl,
+    item.blobUrl
+  ]);
 }
 
 function getDisplaySrc(item){
   const sources = getDisplaySources(item);
   return sources[0] || "";
+}
+
+function renderMissingMatchSide(label, item){
+  const collections = item ? collectionsToString(item.collections) : 'Unknown';
+  return '' +
+  '<div class="matchSide">' +
+    '<div class="matchMetaBox">' +
+      '<div class="matchMetaStats">' +
+        '<span>0-0</span>' +
+        '<span>0.00%</span>' +
+        '<span>0 pts</span>' +
+      '</div>' +
+      '<div class="matchMetaCollections">Collections: '+escapeHtml(collections)+'</div>' +
+    '</div>' +
+    '<div class="imageCard imageCardBtn imageFailed" role="img" aria-label="'+escapeHtml(label)+' missing image">' +
+      '<div class="imageFailureMsg">Image missing<br>Record exists but image data could not be loaded.</div>' +
+    '</div>' +
+  '</div>';
 }
 
 function isHttpUrl(str){
@@ -1366,9 +1398,6 @@ function formatDisplayTitle(value){
     function isTourneyStateValid(state){
       if(!state) return false;
       if(!Array.isArray(state.participantIds) || state.participantIds.length < 2) return false;
-      for(const id of state.participantIds){
-        if(!itemsById.has(id)) return false;
-      }
       return true;
     }
 
@@ -1765,45 +1794,64 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
       maybeHydrateFullImage(left);
       maybeHydrateFullImage(right);
 
-      if(!left || !right){
-        matchEl.innerHTML =
-          '<div class="hint">One or more images are missing. You may need to reset the tournament.</div>';
-        renderBracket();
-        return;
-      }
+      const leftSources = getDisplaySources(left);
+      const rightSources = getDisplaySources(right);
+      const leftSrc = leftSources[0] || '';
+      const rightSrc = rightSources[0] || '';
+      const hasLeftRecord = !!left;
+      const hasRightRecord = !!right;
+      const missingData = !hasLeftRecord || !hasRightRecord || !leftSrc || !rightSrc;
+      console.log('[TOURNEY RENDER] arena snapshot', {
+        tourneyState: s,
+        roundSize: size,
+        matchIndex,
+        leftParticipantId: idA,
+        rightParticipantId: idB,
+        leftItemExists: hasLeftRecord,
+        rightItemExists: hasRightRecord,
+        leftResolvedSrc: leftSrc || null,
+        rightResolvedSrc: rightSrc || null
+      });
 
-      const leftPts = computePoints(left.wins,left.losses,left.tourneyBonus||0);
-      const rightPts = computePoints(right.wins,right.losses,right.tourneyBonus||0);
+      const leftPts = left ? computePoints(left.wins,left.losses,left.tourneyBonus||0) : 0;
+      const rightPts = right ? computePoints(right.wins,right.losses,right.tourneyBonus||0) : 0;
+      const leftSideHtml = (left && leftSrc)
+        ? '<div class="matchSide">' +
+            '<div class="matchMetaBox">' +
+              '<div class="matchMetaStats">' +
+                '<span>'+left.wins+'-'+left.losses+'</span>' +
+                '<span>'+pct(left.wins,left.losses).toFixed(2)+'%</span>' +
+                '<span>'+leftPts+' pts</span>' +
+              '</div>' +
+              '<div class="matchMetaCollections">Collections: '+escapeHtml(collectionsToString(left.collections))+'</div>' +
+            '</div>' +
+            '<button type="button" class="imageCard imageCardBtn" id="tLeftImgBtn" aria-label="Choose left image">' +
+            '<img id="tLeftImg" src="'+leftSrc+'" data-srcs="'+escapeHtml(serializeSources(leftSources))+'" data-full-srcs="'+escapeHtml(serializeSources(dedupeSources([...getFullOnlySources(left), ...getThumbOnlySources(left)])))+'" data-src-index="0" alt="Left" />' +
+            '</button>' +
+          '</div>'
+        : renderMissingMatchSide('Left participant', left);
+      const rightSideHtml = (right && rightSrc)
+        ? '<div class="matchSide">' +
+            '<div class="matchMetaBox">' +
+              '<div class="matchMetaStats">' +
+                '<span>'+right.wins+'-'+right.losses+'</span>' +
+                '<span>'+pct(right.wins,right.losses).toFixed(2)+'%</span>' +
+                '<span>'+rightPts+' pts</span>' +
+              '</div>' +
+              '<div class="matchMetaCollections">Collections: '+escapeHtml(collectionsToString(right.collections))+'</div>' +
+            '</div>' +
+            '<button type="button" class="imageCard imageCardBtn" id="tRightImgBtn" aria-label="Choose right image">' +
+            '<img id="tRightImg" src="'+rightSrc+'" data-srcs="'+escapeHtml(serializeSources(rightSources))+'" data-full-srcs="'+escapeHtml(serializeSources(dedupeSources([...getFullOnlySources(right), ...getThumbOnlySources(right)])))+'" data-src-index="0" alt="Right" />' +
+            '</button>' +
+          '</div>'
+        : renderMissingMatchSide('Right participant', right);
 
       matchEl.innerHTML =
 '<div class="arena">' +
-  '<div class="matchSide">' +
-    '<div class="matchMetaBox">' +
-      '<div class="matchMetaStats">' +
-        '<span>'+left.wins+'-'+left.losses+'</span>' +
-        '<span>'+pct(left.wins,left.losses).toFixed(2)+'%</span>' +
-        '<span>'+leftPts+' pts</span>' +
-      '</div>' +
-      '<div class="matchMetaCollections">Collections: '+escapeHtml(collectionsToString(left.collections))+'</div>' +
-    '</div>' +
-    '<button type="button" class="imageCard imageCardBtn" id="tLeftImgBtn" aria-label="Choose left image">' +
-    '<img id="tLeftImg" src="'+getDisplaySrc(left)+'" data-srcs="'+escapeHtml(serializeSources(getDisplaySources(left)))+'" data-full-srcs="'+escapeHtml(serializeSources(dedupeSources([...getFullOnlySources(left), ...getThumbOnlySources(left)])))+'" data-src-index="0" alt="Left" />' +
-    '</button>' +
-  '</div>' +
-  '<div class="matchSide">' +
-    '<div class="matchMetaBox">' +
-      '<div class="matchMetaStats">' +
-        '<span>'+right.wins+'-'+right.losses+'</span>' +
-        '<span>'+pct(right.wins,right.losses).toFixed(2)+'%</span>' +
-        '<span>'+rightPts+' pts</span>' +
-      '</div>' +
-      '<div class="matchMetaCollections">Collections: '+escapeHtml(collectionsToString(right.collections))+'</div>' +
-    '</div>' +
-    '<button type="button" class="imageCard imageCardBtn" id="tRightImgBtn" aria-label="Choose right image">' +
-    '<img id="tRightImg" src="'+getDisplaySrc(right)+'" data-srcs="'+escapeHtml(serializeSources(getDisplaySources(right)))+'" data-full-srcs="'+escapeHtml(serializeSources(dedupeSources([...getFullOnlySources(right), ...getThumbOnlySources(right)])))+'" data-src-index="0" alt="Right" />' +
-    '</button>' +
-  '</div>' +
+  leftSideHtml +
+  rightSideHtml +
 '</div>' +
+        (missingData ? '<div class="hint">Tournament matchup could not fully load. Missing image data for one or more participants.</div>' : '') +
         '<div class="matchControlsRow">' +
           '<div class="matchControlsLeft">' +
 '<button class="btn sm" type="button" id="tLeftWinBtn">Left wins</button>' +
@@ -1813,6 +1861,7 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
         '</div>' +
         '<div class="matchActionStatus" id="tMatchActionStatus" aria-live="polite"></div>';
       setMatchActionStatus(matchActionStatus.message, matchActionStatus.tone);
+      console.log('[TOURNEY RENDER] arena inserted', { inserted: !!document.querySelector('#tMatch .arena'), missingData });
       Promise.all([
         hydrateImgEl(document.getElementById('tLeftImg'), idA),
         hydrateImgEl(document.getElementById('tRightImg'), idB),
@@ -1841,8 +1890,8 @@ const fieldInfo = 'Field: '+initialSize+' images' + poolLabel;
       const leftWinBtn = document.getElementById('tLeftWinBtn');
       const rightWinBtn = document.getElementById('tRightWinBtn');
 
-addTap(leftImgBtn, ()=>pickWinner('left'));
-addTap(rightImgBtn, ()=>pickWinner('right'));
+if(leftImgBtn) addTap(leftImgBtn, ()=>pickWinner('left'));
+if(rightImgBtn) addTap(rightImgBtn, ()=>pickWinner('right'));
 addTap(leftWinBtn, ()=>pickWinner('left'));
 addTap(rightWinBtn, ()=>pickWinner('right'));
 
