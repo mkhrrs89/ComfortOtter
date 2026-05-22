@@ -567,6 +567,8 @@ function getDisplaySrc(item){
   return sources[0] || "";
 }
 
+const collectionsToString = arr => (Array.isArray(arr) && arr.length ? arr.join(', ') : '');
+
 function renderMissingMatchSide(label, item){
   const collections = item ? collectionsToString(item.collections) : 'Unknown';
   return '' +
