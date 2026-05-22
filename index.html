@@ -80,13 +80,26 @@
   opacity: 0.85;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px 12px;
+  gap: 6px 10px;
 }
 
 .badgeItem {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+  white-space: nowrap;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.badgeItemEmoji{
+  flex: 0 0 auto;
+  line-height: 1;
+}
+
+.badgeItemCount{
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
     .pane{
@@ -5907,11 +5920,11 @@ function labelForMatchMode(){
     <h1>ModelMatchup</h1>
 
     <div className="badgeSummary">
-      <span className="badgeItem">⭐ {totalUndefeated}</span>
-      <span className="badgeItem">💩 {totalWinless}</span>
-      <span className="badgeItem">🖼 {items.length}</span>
-      <span className="badgeItem">🌱 {totalNew}</span>
-      <span className="badgeItem">🌿 {totalGrowing}</span>
+      <span className="badgeItem"><span className="badgeItemEmoji" aria-hidden="true">⭐</span><span className="badgeItemCount">{totalUndefeated}</span></span>
+      <span className="badgeItem"><span className="badgeItemEmoji" aria-hidden="true">💩</span><span className="badgeItemCount">{totalWinless}</span></span>
+      <span className="badgeItem"><span className="badgeItemEmoji" aria-hidden="true">🖼</span><span className="badgeItemCount">{items.length}</span></span>
+      <span className="badgeItem"><span className="badgeItemEmoji" aria-hidden="true">🌱</span><span className="badgeItemCount">{totalNew}</span></span>
+      <span className="badgeItem"><span className="badgeItemEmoji" aria-hidden="true">🌿</span><span className="badgeItemCount">{totalGrowing}</span></span>
     </div>
   </div>
 
