@@ -1740,6 +1740,15 @@ async function generateMissingThumbnails(){
       return t===0 ? 0 : (w||0)/t;
     };
     const matchupsCount = it => (it.wins||0)+(it.losses||0);
+    const randomSortKey = (it, seed=0) => {
+      const source = `${it.id || it.title || ''}:${seed}`;
+      let hash = 2166136261;
+      for (let i = 0; i < source.length; i++) {
+        hash ^= source.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+      }
+      return hash >>> 0;
+    };
     const isFreshMatchupPoolItem = it => matchupsCount(it) < 4;
     const isGrowingMatchupPoolItem = it => {
       const matchupTotal = matchupsCount(it);
@@ -1759,8 +1768,15 @@ async function generateMissingThumbnails(){
         const pb = computePoints(b.wins, b.losses, b.tourneyBonus || 0);
         if (pb !== pa) return (pb - pa) * dir;
         return (matchupsCount(b) - matchupsCount(a)) * dir;
+      } else if (sort.field === 'winPct') {
+        const pa = pct(a.wins, a.losses);
+        const pb = pct(b.wins, b.losses);
+        if (pb !== pa) return (pb - pa) * dir;
+        return (matchupsCount(b) - matchupsCount(a)) * dir;
       } else if (sort.field === 'matchups') {
         return (matchupsCount(b) - matchupsCount(a)) * dir;
+      } else if (sort.field === 'random') {
+        return randomSortKey(a, sort.randomSeed) - randomSortKey(b, sort.randomSeed);
       }
       return 0;
     };
@@ -6114,12 +6130,18 @@ if (dt && dt.files && dt.files.length) {
                       <select
                         className="select"
                         value={librarySort.field}
-                        onChange={e => setLibrarySort(s => ({ ...s, field: e.target.value }))}
+                        onChange={e => setLibrarySort(s => ({
+                          ...s,
+                          field: e.target.value,
+                          randomSeed: e.target.value === 'random' ? Date.now() : s.randomSeed
+                        }))}
                       >
                         <option value="addedAt">Date added</option>
                         <option value="title">Title</option>
                         <option value="points">Points</option>
+                        <option value="winPct">Win %</option>
                         <option value="matchups"># Matchups</option>
+                        <option value="random">Random</option>
                       </select>
                     </label>
                     <label className="smallMuted">
