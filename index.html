@@ -524,72 +524,6 @@
       border-radius:14px;
       padding:10px;
     }
-    .rankNotice{
-      position:fixed;
-      left:16px;
-      bottom:16px;
-      width:320px;
-      max-width:85vw;
-      background:rgba(9,22,18,0.95);
-      border:1px solid var(--ring);
-      border-radius:14px;
-      box-shadow:0 16px 40px rgba(0,0,0,0.45);
-      padding:10px;
-      display:flex;
-      flex-direction:column;
-      gap:8px;
-      transform:translateY(140%);
-      opacity:0;
-      transition:transform 0.4s ease, opacity 0.4s ease;
-      z-index:30;
-    }
-    .rankNotice.show{
-      transform:translateY(0);
-      opacity:1;
-    }
-    .rankNoticeList{
-      display:flex;
-      flex-direction:column;
-      gap:8px;
-      max-height:320px;
-      overflow-y:auto;
-    }
-    .rankNoticeRow{
-      display:flex;
-      gap:10px;
-      align-items:center;
-      background:var(--panel-soft);
-      border:1px solid var(--border-soft);
-      border-radius:10px;
-      padding:6px;
-    }
-    .rankNoticeThumb{
-      width:64px;
-      height:64px;
-      object-fit:cover;
-      border-radius:8px;
-      border:1px solid var(--ring);
-      background:var(--card);
-      flex-shrink:0;
-    }
-    .rankNoticeThumbPlaceholder{
-      width:64px;
-      height:64px;
-      border-radius:8px;
-      border:1px solid var(--ring);
-      background:var(--card);
-      color:var(--muted);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-size:24px;
-      flex-shrink:0;
-    }
-    .rankNoticeText{
-      font-size:12px;
-      color:var(--text);
-      line-height:1.3;
-    }
     table{
       width:100%;
       border-collapse:collapse;
@@ -1120,37 +1054,15 @@
 
     const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
-    // ---- toast compatibility shim (prevents ReferenceError) ----
+    // ---- toast compatibility shim (intentionally no-op) ----
     (function(){
-      // If it already exists, don’t overwrite
-      if(typeof window.toast !== 'undefined') return;
-
-      function forward(msg, type){
-        try{
-          // Prefer app toast if available
-          if(typeof window.addToast === 'function') return window.addToast(msg, { type });
-          // If addToast exists in local scope, expose it and use it
-          if(typeof addToast === 'function'){
-            window.addToast = addToast;
-            return addToast(msg, { type });
-          }
-        }catch(e){}
-        // Fallbacks (never throw)
-        console.log(`[${type||'info'}]`, msg);
-        if(type === 'error') {
-          try{ window.alert(String(msg)); }catch(e){}
-        }
-      }
-
-      // Make `toast("hi")` work too
-      function toastFn(msg){ return forward(msg, 'info'); }
-      toastFn.success = (msg)=>forward(msg, 'success');
-      toastFn.error   = (msg)=>forward(msg, 'error');
-      toastFn.info    = (msg)=>forward(msg, 'info');
-      toastFn.warn    = (msg)=>forward(msg, 'warning');
-
-      // define globally so identifier `toast` resolves in browser global env
-      window.toast = toastFn;
+      const noop = () => undefined;
+      noop.success = noop;
+      noop.error = noop;
+      noop.info = noop;
+      noop.warn = noop;
+      window.toast = noop;
+      window.addToast = noop;
     })();
     // --------------------------------------------
 
@@ -3101,11 +3013,6 @@ function ProgressOverlay({ job, onCancel }){
       const [collectionPage,setCollectionPage] = useState(1);
       const [collectionPageSize,setCollectionPageSize] = useState(50);
       const [statsPage,setStatsPage] = useState(1);
-      const [rankNotice, setRankNotice] = useState(null);
-      const [rankNoticeVisible, setRankNoticeVisible] = useState(false);
-      const rankNoticeTimers = useRef({hide:null, clear:null});
-      const rankNoticeStorageKey = 'rankNoticeFeed';
-      const topPointsPrevRef = useRef(null);
       const [viewportMode, setViewportMode] = useState(detectViewportMode()); // desktop | mobile-landscape | mobile-portrait
       const [libraryGalleryColumns, setLibraryGalleryColumns] = useState(()=>defaultColumnsForMode(detectViewportMode()));
       const [collectionGalleryColumns, setCollectionGalleryColumns] = useState(()=>defaultColumnsForMode(detectViewportMode()));
@@ -3818,193 +3725,6 @@ async function handleFiles(fileList, forcedCollections = null, forcedGenerator =
           rank: index + 1
         }));
       },[items]);
-
-      function clearRankNoticeTimers(){
-        if(rankNoticeTimers.current.hide){
-          clearTimeout(rankNoticeTimers.current.hide);
-        }
-        if(rankNoticeTimers.current.clear){
-          clearTimeout(rankNoticeTimers.current.clear);
-        }
-        rankNoticeTimers.current.hide = null;
-        rankNoticeTimers.current.clear = null;
-      }
-
-      function showRankNotice(changes){
-        clearRankNoticeTimers();
-        if(!changes.length) return;
-        setRankNotice({changes});
-        setRankNoticeVisible(true);
-        rankNoticeTimers.current.hide = setTimeout(()=>setRankNoticeVisible(false), 10000);
-        rankNoticeTimers.current.clear = setTimeout(()=>setRankNotice(null), 10600);
-      }
-
-      function loadRankNoticeFeed(){
-        if(typeof localStorage === 'undefined') return [];
-        try{
-          const raw = localStorage.getItem(rankNoticeStorageKey);
-          if(!raw) return [];
-          const parsed = JSON.parse(raw);
-          if(Array.isArray(parsed)) return parsed;
-        }catch(err){
-          console.warn('Failed to load rank notice feed', err);
-        }
-        return [];
-      }
-
-      function saveRankNoticeFeed(entries){
-        if(typeof localStorage === 'undefined') return;
-        try{
-          localStorage.setItem(rankNoticeStorageKey, JSON.stringify(entries));
-        }catch(err){
-          console.warn('Failed to save rank notice feed', err);
-        }
-      }
-
-      function appendRankNoticeFeed(changes){
-        const existing = loadRankNoticeFeed();
-        const now = new Date().toISOString();
-        const next = [
-          ...changes.map(change => ({
-            id: change.id,
-            imageId: change.imageId,
-            kind: change.kind,
-            oldRank: change.oldRank,
-            newRank: change.newRank,
-            listLabel: change.listLabel,
-            thumbSrc: change.thumbSrc,
-            createdAt: now
-          })),
-          ...existing
-        ];
-        saveRankNoticeFeed(next.slice(0, 500));
-      }
-
-      function movementText({oldRank, newRank, listLabel}){
-        const label = listLabel || 'the list';
-        if(oldRank == null && newRank != null){
-          return `Entered ${label} at #${newRank}`;
-        }
-        if(oldRank != null && newRank == null){
-          return `Fell out of ${label} (was #${oldRank})`;
-        }
-        if(oldRank != null && newRank != null){
-          if(newRank < oldRank){
-            const diff = oldRank - newRank;
-            return `Moved up ${diff} ${diff===1 ? 'place' : 'places'}`;
-          }
-          if(newRank > oldRank){
-            const diff = newRank - oldRank;
-            return `Moved down ${diff} ${diff===1 ? 'place' : 'places'}`;
-          }
-        }
-        return 'No change';
-      }
-
-      useEffect(()=>{
-        return ()=>clearRankNoticeTimers();
-      },[]);
-
-
-      const RankNoticeThumb = ({change})=>{
-        const [failed, setFailed] = useState(false);
-        const fallbackSources = dedupeSources([
-          change?.thumbSrc,
-          ...getDisplaySources(change?.item)
-        ]);
-        const primarySrc = fallbackSources[0] || '';
-        if(failed || !primarySrc){
-          return <div className="rankNoticeThumbPlaceholder" aria-hidden="true">🖼️</div>;
-        }
-        return (
-          <img
-            className="rankNoticeThumb"
-            src={primarySrc}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            onError={()=>setFailed(true)}
-          />
-        );
-      };
-
-      useEffect(()=>{
-        if(!topPointsRanking.length){
-          topPointsPrevRef.current = null;
-          return;
-        }
-        if(!topPointsPrevRef.current){
-          topPointsPrevRef.current = topPointsRanking;
-          return;
-        }
-        if(!libraryFullyLoaded){
-          // Keep the "previous ranking" in sync while loading,
-          // but don't spam notifications.
-          topPointsPrevRef.current = topPointsRanking;
-          return;
-        }
-        const prev = topPointsPrevRef.current;
-        const prevById = new Map(prev.map(entry=>[entry.id, entry]));
-        const nextById = new Map(topPointsRanking.map(entry=>[entry.id, entry]));
-        const affected = [];
-        const seen = new Set();
-        const rankingChanged = prev.length !== topPointsRanking.length
-          || prev.some((entry, index) => !topPointsRanking[index] || topPointsRanking[index].id !== entry.id);
-
-        const addChange = ({entry, oldRank=null, newRank=null, listLabel='Top 25'})=>{
-          if(!entry || seen.has(entry.id)) return;
-          seen.add(entry.id);
-          affected.push({
-            id: entry.id,
-            imageId: entry.id,
-            item: entry.item,
-            kind: 'rankMove',
-            oldRank,
-            newRank,
-            listLabel,
-            thumbSrc: getDisplaySrc(entry.item)
-          });
-        };
-
-        for(const entry of topPointsRanking){
-          const prevEntry = prevById.get(entry.id);
-          if(prevEntry && prevEntry.rank !== entry.rank){
-            if(entry.rank < prevEntry.rank){
-              const displaced = prev[entry.rank - 1];
-              if(displaced && displaced.id !== entry.id){
-                addChange({entry, oldRank: prevEntry.rank, newRank: entry.rank});
-              }else{
-                addChange({entry, oldRank: prevEntry.rank, newRank: entry.rank});
-              }
-            }else{
-              const usurper = topPointsRanking[prevEntry.rank - 1];
-              if(usurper && usurper.id !== entry.id){
-                addChange({entry, oldRank: prevEntry.rank, newRank: entry.rank});
-              }else{
-                addChange({entry, oldRank: prevEntry.rank, newRank: entry.rank});
-              }
-            }
-          }
-        }
-
-        for(const prevEntry of prev){
-          if(!nextById.has(prevEntry.id)){
-            addChange({entry: prevEntry, oldRank: prevEntry.rank, newRank: null});
-          }
-        }
-
-        for(const entry of topPointsRanking){
-          if(!prevById.has(entry.id)){
-            addChange({entry, oldRank: null, newRank: entry.rank});
-          }
-        }
-
-        if(affected.length && rankingChanged){
-          appendRankNoticeFeed(affected);
-          showRankNotice(affected);
-        }
-        topPointsPrevRef.current = topPointsRanking;
-      },[topPointsRanking, libraryFullyLoaded]);
 
 // ---------- BADGE COUNTS SUMMARY ----------
 const totalUndefeated = Array.from(badgeMap.values())
@@ -5994,19 +5714,6 @@ function labelForMatchMode(){
 
 
           </header>
-
-          {rankNotice && (
-            <div className={`rankNotice ${rankNoticeVisible ? 'show' : ''}`}>
-              <div className="rankNoticeList">
-                {rankNotice.changes.map(change => (
-                  <div className="rankNoticeRow" key={`${change.id}-${change.oldRank}-${change.newRank}-${change.createdAt || ''}`}>
-                    <RankNoticeThumb change={change} />
-                    <div className="rankNoticeText">{movementText(change)}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* LIBRARY */}
           {tab==='Library' && (
