@@ -1066,6 +1066,23 @@
     })();
     // --------------------------------------------
 
+
+    function getSafeLocalStorage(){
+      try{
+        if(typeof window === 'undefined' || !('localStorage' in window)) return null;
+        const storage = window.localStorage;
+        const testKey = '__model_matchup_storage_test__';
+        storage.setItem(testKey, testKey);
+        storage.removeItem(testKey);
+        return storage;
+      }catch(err){
+        console.warn('localStorage is unavailable; preferences will be kept for this session only.', err);
+        return null;
+      }
+    }
+
+    const safeLocalStorage = getSafeLocalStorage();
+
     // ---------- IndexedDB ----------
     const DB_NAME = 'modelMatchupDB';
     const DB_STORE = 'items';
@@ -1528,7 +1545,7 @@ async function generateMissingThumbnails_Safe(updateStatusCallback){
   const MAX_GENERATED_PER_RUN = 5;   // thumbs to create per click
   const MAX_SCANNED_PER_RUN   = 250; // records to inspect per click (keeps it quick)
 
-  let startIndex = Number(localStorage.getItem('thumbGenCursor') || '0');
+  let startIndex = Number(safeLocalStorage ? safeLocalStorage.getItem('thumbGenCursor') || '0' : '0');
   if (!Number.isFinite(startIndex) || startIndex < 0) startIndex = 0;
 
   let scanned = 0;
@@ -1585,7 +1602,7 @@ async function generateMissingThumbnails_Safe(updateStatusCallback){
 
   // Advance cursor so the NEXT click continues where this left off
   if (i >= keys.length) i = 0;
-  localStorage.setItem('thumbGenCursor', String(i));
+  if (safeLocalStorage) safeLocalStorage.setItem('thumbGenCursor', String(i));
 
   console.log(`Thumbnail batch finished. Generated: ${generated}, scanned: ${scanned}, nextIndex: ${i}`);
   return generated;
@@ -1788,9 +1805,9 @@ const normalizeGeneratorCatalog = (value)=>{
 };
 
 const loadGeneratorCatalog = ()=>{
-  if(typeof localStorage==='undefined') return [];
+  if(!safeLocalStorage) return [];
   try{
-    const raw = localStorage.getItem('generatorCatalog');
+    const raw = safeLocalStorage.getItem('generatorCatalog');
     if(raw){
       const parsed = JSON.parse(raw);
       if(parsed && Array.isArray(parsed.names)){
@@ -1804,9 +1821,9 @@ const loadGeneratorCatalog = ()=>{
 };
 
 const persistGeneratorCatalog = (names)=>{
-  if(typeof localStorage==='undefined') return;
+  if(!safeLocalStorage) return;
   try{
-    localStorage.setItem('generatorCatalog', JSON.stringify({names: normalizeGeneratorCatalog(names)}));
+    safeLocalStorage.setItem('generatorCatalog', JSON.stringify({names: normalizeGeneratorCatalog(names)}));
   }catch(err){
     console.warn('Failed to persist generator catalog', err);
   }
@@ -2937,9 +2954,9 @@ function ProgressOverlay({ job, onCancel }){
       const [statsCollectionFilter,setStatsCollectionFilter] = useState({include:[],exclude:[],includeGroups:[],excludeGroups:[],mode:'all'});
       const [libraryCollectionEdits, setLibraryCollectionEdits] = useState({});
       const [collectionGroups, setCollectionGroups] = useState(()=>{
-        if(typeof localStorage==='undefined') return [];
+        if(!safeLocalStorage) return [];
         try{
-          const raw = localStorage.getItem('collectionGroups');
+          const raw = safeLocalStorage.getItem('collectionGroups');
           if(raw){
             const parsed = JSON.parse(raw);
             if(parsed && Array.isArray(parsed.groups)){
@@ -2952,9 +2969,9 @@ function ProgressOverlay({ job, onCancel }){
         return [];
       });
       const [ungroupedCollectionsOpen, setUngroupedCollectionsOpen] = useState(()=>{
-        if(typeof localStorage==='undefined') return false;
+        if(!safeLocalStorage) return false;
         try{
-          const raw = localStorage.getItem('collectionGroups');
+          const raw = safeLocalStorage.getItem('collectionGroups');
           if(raw){
             const parsed = JSON.parse(raw);
             if(typeof parsed?.ungroupedOpen === 'boolean'){
@@ -2967,9 +2984,9 @@ function ProgressOverlay({ job, onCancel }){
         return false;
       });
       const [generatorGroups, setGeneratorGroups] = useState(()=>{
-        if(typeof localStorage==='undefined') return [];
+        if(!safeLocalStorage) return [];
         try{
-          const raw = localStorage.getItem('generatorGroups');
+          const raw = safeLocalStorage.getItem('generatorGroups');
           if(raw){
             const parsed = JSON.parse(raw);
             if(parsed && Array.isArray(parsed.groups)){
@@ -4525,17 +4542,17 @@ for (let idx = 1; idx < files.length; idx++) {
       },[allGeneratorNames, groupedGeneratorNames]);
 
       useEffect(()=>{
-        if(typeof localStorage==='undefined') return;
+        if(!safeLocalStorage) return;
         try{
-          localStorage.setItem('collectionGroups', JSON.stringify({groups: collectionGroups, ungroupedOpen: ungroupedCollectionsOpen}));
+          safeLocalStorage.setItem('collectionGroups', JSON.stringify({groups: collectionGroups, ungroupedOpen: ungroupedCollectionsOpen}));
         }catch(err){
           console.warn('Failed to persist collection groups', err);
         }
       },[collectionGroups, ungroupedCollectionsOpen]);
       useEffect(()=>{
-        if(typeof localStorage==='undefined') return;
+        if(!safeLocalStorage) return;
         try{
-          localStorage.setItem('generatorGroups', JSON.stringify({groups: generatorGroups}));
+          safeLocalStorage.setItem('generatorGroups', JSON.stringify({groups: generatorGroups}));
         }catch(err){
           console.warn('Failed to persist generator groups', err);
         }
