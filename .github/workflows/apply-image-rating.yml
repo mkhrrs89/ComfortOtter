@@ -3,7 +3,7 @@ name: Apply image rating update
 on:
   push:
     branches:
-      - agent/add-image-rating
+      - main
     paths:
       - .github/workflows/apply-image-rating.yml
 
@@ -14,10 +14,10 @@ jobs:
   apply:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out branch
+      - name: Check out main
         uses: actions/checkout@v4
         with:
-          ref: agent/add-image-rating
+          ref: main
           fetch-depth: 0
 
       - name: Apply focused patch
@@ -53,4 +53,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "Add 0-100 image ratings"
-          git push origin HEAD:agent/add-image-rating
+          git push origin HEAD:main
