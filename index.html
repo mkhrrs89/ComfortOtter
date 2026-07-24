@@ -115,13 +115,117 @@
         throw new Error(`Rating patch was incomplete (triple=${tripleCalls}, multi=${replaceNCalls}, inline=${inlineCalls}).`);
       }
 
+      html = applyOnce(
+        html,
+        `        rating: clampRating(sourceItem.rating),
+        points: computePoints(sourceItem.wins,sourceItem.losses,sourceItem.tourneyBonus||0),`,
+        `        rating: clampRating(sourceItem.rating),
+        ratingSeededFromWinPctV1: !!sourceItem.ratingSeededFromWinPctV1,
+        points: computePoints(sourceItem.wins,sourceItem.losses,sourceItem.tourneyBonus||0),`,
+        'export one-time rating marker'
+      );
+
+      html = applyOnce(
+        html,
+        `          rating: incoming.rating != null
+            ? clampRating(incoming.rating)
+            : clampRating(existing.rating),
+
+          // Keep image blobs as-is`,
+        `          rating: incoming.rating != null
+            ? clampRating(incoming.rating)
+            : clampRating(existing.rating),
+
+          ratingSeededFromWinPctV1: incoming.ratingSeededFromWinPctV1 != null
+            ? !!incoming.ratingSeededFromWinPctV1
+            : !!existing.ratingSeededFromWinPctV1,
+
+          // Keep image blobs as-is`,
+        'import one-time rating marker into database'
+      );
+
+      html = applyOnce(
+        html,
+        `          rating: incoming.rating != null
+            ? clampRating(incoming.rating)
+            : clampRating(existing.rating)
+        };`,
+        `          rating: incoming.rating != null
+            ? clampRating(incoming.rating)
+            : clampRating(existing.rating),
+
+          ratingSeededFromWinPctV1: incoming.ratingSeededFromWinPctV1 != null
+            ? !!incoming.ratingSeededFromWinPctV1
+            : !!existing.ratingSeededFromWinPctV1
+        };`,
+        'import one-time rating marker into state'
+      );
+
+      html = applyOnce(
+        html,
+        `      async function handleReplaceImageFile(file, item){`,
+        `      const ratingWinPctSeedRef = useRef(false);
+      useEffect(()=>{
+        if(ratingWinPctSeedRef.current || !libraryFullyLoaded || !items.length) return;
+
+        const seedKey = 'ratingWinPctSeedV1Complete';
+        let localSeedComplete = false;
+        try{
+          localSeedComplete = !!safeLocalStorage && safeLocalStorage.getItem(seedKey) === '1';
+        }catch(err){}
+
+        const librarySeedComplete = items.some(it => it.ratingSeededFromWinPctV1 === true);
+        if(localSeedComplete || librarySeedComplete){
+          ratingWinPctSeedRef.current = true;
+          if(librarySeedComplete && !localSeedComplete && safeLocalStorage){
+            try{ safeLocalStorage.setItem(seedKey, '1'); }catch(err){}
+          }
+          return;
+        }
+
+        ratingWinPctSeedRef.current = true;
+        (async()=>{
+          const seededItems = items.map(it=>{
+            const wins = Math.max(0, Number(it.wins || 0));
+            const losses = Math.max(0, Number(it.losses || 0));
+            const total = wins + losses;
+            const seededRating = total > 0
+              ? Math.floor((wins / total) * 100)
+              : 0;
+
+            return {
+              ...it,
+              rating: clampRating(seededRating),
+              ratingSeededFromWinPctV1: true
+            };
+          });
+
+          await idbBulkPutMerged(seededItems);
+          setItems(seededItems.map(slimItemForState));
+
+          if(safeLocalStorage){
+            try{ safeLocalStorage.setItem(seedKey, '1'); }catch(err){}
+          }
+        })().catch(err=>{
+          ratingWinPctSeedRef.current = false;
+          console.error('One-time rating initialization failed', err);
+        });
+      },[libraryFullyLoaded,items]);
+
+      async function handleReplaceImageFile(file, item){`,
+        'add one-time win percentage rating initialization'
+      );
+
       const required = [
         'function clampRating(value)',
         'rating: 0,',
         'Rating (0-100)',
         'rating: clampRating(sourceItem.rating)',
         'rating: incoming.rating != null',
-        "changeStatsSort('rating')"
+        "changeStatsSort('rating')",
+        "const seedKey = 'ratingWinPctSeedV1Complete'",
+        'Math.floor((wins / total) * 100)',
+        'ratingSeededFromWinPctV1: true'
       ];
       const missing = required.filter(snippet => !html.includes(snippet));
       if(missing.length){
