@@ -1,1 +1,2 @@
 Trigger the one-time image rating patch workflow.
+Retry after opening the pull request.
