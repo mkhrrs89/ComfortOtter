@@ -54,10 +54,33 @@
 
       function applyOnce(text, oldText, newText, label){
         const count = countOccurrences(text, oldText);
-        if(count !== 1){
-          throw new Error(`${label}: expected 1 match, found ${count}`);
+        if(count === 1){
+          return text.replace(oldText, newText);
         }
-        return text.replace(oldText, newText);
+
+        // The original edit-modal markup has one fewer leading space than the
+        // historical patch expected. Fall back to its unique Wins input so the
+        // Rating field is still inserted without weakening any other checks.
+        if(label === 'modal rating input' && count === 0){
+          const winsInputPattern = /<input\s*\n\s*type="number"\s*\n\s*min="0"\s*\n\s*value=\{editedWins\}/g;
+          const matches = text.match(winsInputPattern) || [];
+          if(matches.length === 1){
+            const ratingInput = `<input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={editedRating}
+                  onChange={e=>setEditedRating(e.target.value)}
+                  className="input"
+                  placeholder="Rating (0-100)"
+                />
+                `;
+            return text.replace(winsInputPattern, match => `${ratingInput}${match}`);
+          }
+        }
+
+        throw new Error(`${label}: expected 1 match, found ${count}`);
       }
 
       function applyEvery(text, oldText, newText, expected, label){
