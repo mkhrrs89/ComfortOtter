@@ -54,13 +54,8 @@
 
       function applyOnce(text, oldText, newText, label){
         const count = countOccurrences(text, oldText);
-        if(count === 1){
-          return text.replace(oldText, newText);
-        }
+        if(count === 1) return text.replace(oldText, newText);
 
-        // The original edit-modal markup has one fewer leading space than the
-        // historical patch expected. Fall back to its unique Wins input so the
-        // Rating field is still inserted without weakening any other checks.
         if(label === 'modal rating input' && count === 0){
           const winsInputPattern = /<input\s*\n\s*type="number"\s*\n\s*min="0"\s*\n\s*value=\{editedWins\}/g;
           const matches = text.match(winsInputPattern) || [];
@@ -85,10 +80,20 @@
 
       function applyEvery(text, oldText, newText, expected, label){
         const count = countOccurrences(text, oldText);
-        if(count !== expected){
-          throw new Error(`${label}: expected ${expected} matches, found ${count}`);
+        if(count === expected) return text.split(oldText).join(newText);
+
+        if(label === 'rating sort options'){
+          const pointsOptionPattern = /(^[ \t]*)<option value="points">Points<\/option>/gm;
+          const matches = [...text.matchAll(pointsOptionPattern)];
+          if(matches.length === expected){
+            return text.replace(
+              pointsOptionPattern,
+              (whole, indent) => `${whole}\n${indent}<option value="rating">Rating</option>`
+            );
+          }
         }
-        return text.split(oldText).join(newText);
+
+        throw new Error(`${label}: expected ${expected} matches, found ${count}`);
       }
 
       function decodeSimplePythonString(value){
@@ -253,6 +258,11 @@
       const missing = required.filter(snippet => !html.includes(snippet));
       if(missing.length){
         throw new Error(`Rating validation failed: ${missing.join(', ')}`);
+      }
+
+      const ratingSortOptions = countOccurrences(html, '<option value="rating">Rating</option>');
+      if(ratingSortOptions !== 2){
+        throw new Error(`Rating validation failed: expected 2 rating sort options, found ${ratingSortOptions}`);
       }
 
       document.open();
