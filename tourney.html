@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ModelMatchup — Tournament</title>
+  <title>ModelMatchup — Tournament Mode</title>
   <meta name="theme-color" content="#050c0a" />
   <style>
     html,body{height:100%;margin:0;background:#050c0a;color:#e7f5ef;font:14px/1.4 system-ui,Segoe UI,Roboto,Arial,sans-serif}
@@ -61,8 +61,10 @@
 
       html = replaceOnce(
         html,
-        `    const OPEN_DB_TIMEOUT_MS = 10000;`,
-        `    const OPEN_DB_TIMEOUT_MS = 30000;`,
+        `    const OPEN_DB_TIMEOUT_MS = 10000;
+    const WRITE_TX_TIMEOUT_MS = 10000;`,
+        `    const OPEN_DB_TIMEOUT_MS = 30000;
+    const WRITE_TX_TIMEOUT_MS = 30000;`,
         'IndexedDB timeout extension'
       );
 
@@ -112,9 +114,6 @@
         let settled = false;
         let req;
         try{
-          // Open the database at its existing version first. This avoids an
-          // unnecessary version negotiation, which is a frequent source of
-          // WebKit/iOS IndexedDB stalls when navigating between app pages.
           req = indexedDB.open(name);
         }catch(err){
           reject(err);
@@ -139,8 +138,6 @@
         req.onsuccess = () => {
           const db = req.result;
           if(settled){
-            // An open request can finish after our timeout on iOS. Do not
-            // leave that late connection hanging around and blocking retries.
             closeTrackedDb(db);
             return;
           }
@@ -166,10 +163,6 @@
           lastError = err;
           const message = err && err.message ? err.message : String(err || '');
           console.warn('IndexedDB open attempt ' + (attempt + 1) + ' failed for ' + name, err);
-
-          // If the database exists but the expected store does not, retrying
-          // the same existing-version open cannot repair it. Fall through to
-          // the versioned opener so onupgradeneeded can create the store.
           if(message.indexOf('missing required store') !== -1) break;
           if(attempt < attemptTimeouts.length - 1) await waitMs(500 * (attempt + 1));
         }
@@ -208,6 +201,23 @@
       return promise;
     }
 
+    function resetCachedDbConnection(kind){
+      const promise = kind === 'items' ? itemsDbPromise : tourneyDbPromise;
+      if(kind === 'items') itemsDbPromise = null;
+      else tourneyDbPromise = null;
+      if(promise){
+        Promise.resolve(promise).then(db=>closeTrackedDb(db)).catch(()=>{});
+      }
+    }
+
+    function resetItemsDbConnection(){
+      resetCachedDbConnection('items');
+    }
+
+    function resetTourneyDbConnection(){
+      resetCachedDbConnection('tourney');
+    }
+
     function openItemsDB(){
       return openCachedDB('items', DB_NAME, 2, DB_STORE);
     }
@@ -216,9 +226,6 @@
       return openCachedDB('tourney', TOURNEY_DB_NAME, 2, TOURNEY_STORE);
     }
 
-    // iOS Safari may keep a page in the back-forward cache. Explicitly close
-    // our handles as the page is hidden so a later visit never inherits stale
-    // IndexedDB connections from this tournament page.
     window.addEventListener('pagehide', ()=>{
       for(const db of Array.from(trackedDbConnections)) closeTrackedDb(db);
       itemsDbPromise = null;
@@ -227,12 +234,94 @@
         'resilient IndexedDB openers'
       );
 
+      html = replaceOnce(
+        html,
+        `        await delay(200);`,
+        `        resetItemsDbConnection();
+        await delay(250);`,
+        'fresh IndexedDB connection before write retry'
+      );
+
+      html = replaceOnce(
+        html,
+        `    async function saveTourneyState(state){
+      return runWriteTransaction(openTourneyDB(), TOURNEY_STORE, (st)=>{
+        st.put({...state,id:TOURNEY_STATE_ID});
+      }, 'Saving tournament progress');
+    }`,
+        `    async function saveTourneyState(state){
+      let attempt = 0;
+      while(true){
+        attempt += 1;
+        try{
+          return await runWriteTransaction(openTourneyDB(), TOURNEY_STORE, (st)=>{
+            st.put({...state,id:TOURNEY_STATE_ID});
+          }, 'Saving tournament progress');
+        }catch(err){
+          if(attempt >= 2 || !isRetriableWriteError(err)) throw err;
+          resetTourneyDbConnection();
+          await delay(250);
+        }
+      }
+    }`,
+        'retry tournament-state writes with a fresh connection'
+      );
+
+      html = replaceOnce(
+        html,
+        `  tourneyState = nextTourneyState;
+  renderAll();
+
+  try{
+    await incrementTourneyCountsForParticipants(participantIds);
+  }catch(e){
+    const msg = 'Tournament started, but failed to update participant tournament counts.';
+    console.error(msg, e);
+    alert(msg);
+  }`,
+        `  tourneyState = nextTourneyState;
+  statusEl.textContent = 'Preparing tournament…';
+
+  try{
+    await incrementTourneyCountsForParticipants(participantIds);
+  }catch(e){
+    const msg = 'Tournament started, but failed to update participant tournament counts.';
+    console.error(msg, e);
+    alert(msg);
+  }
+
+  // Do not expose winner buttons until the startup database write is finished.
+  // This prevents a first winner tap from waiting behind that large write.
+  renderAll();`,
+        'prevent winner save from racing tournament startup writes'
+      );
+
+      html = replaceOnce(
+        html,
+        `        await withTimeout(applyWinLoss(winnerId, loserId), 12000, 'Saving winner/loser stats');`,
+        `        await withTimeout(applyWinLoss(winnerId, loserId), 70000, 'Saving winner/loser stats');`,
+        'winner stats timeout budget'
+      );
+
+      html = replaceOnce(
+        html,
+        `        await withTimeout(saveTourneyState(nextState), 12000, 'Saving tournament state');`,
+        `        await withTimeout(saveTourneyState(nextState), 70000, 'Saving tournament state');`,
+        'winner state timeout budget'
+      );
+
       const required = [
         'const OPEN_DB_TIMEOUT_MS = 30000;',
+        'const WRITE_TX_TIMEOUT_MS = 30000;',
         'function openExistingDBWithTimeout',
+        'function resetItemsDbConnection',
+        'function resetTourneyDbConnection',
         "openCachedDB('items', DB_NAME, 2, DB_STORE)",
         "openCachedDB('tourney', TOURNEY_DB_NAME, 2, TOURNEY_STORE)",
         "window.addEventListener('pagehide'",
+        "statusEl.textContent = 'Preparing tournament…';",
+        "70000, 'Saving winner/loser stats'",
+        "70000, 'Saving tournament state'",
         'if(settled){\n            try{ db.close(); }catch(e){}'
       ];
       const missing = required.filter(snippet => !html.includes(snippet));
