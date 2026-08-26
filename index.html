@@ -22,244 +22,29 @@
       <div id="loaderError" class="loaderError"></div>
     </div>
   </div>
-  <script>
-    (async function loadComfortOtter(){
-      const appSources = [
-        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@f602aab7dc142ab280c7480a6f41f5fdc9a942c4/index.html',
-        'https://raw.githubusercontent.com/mkhrrs89/ComfortOtter/f602aab7dc142ab280c7480a6f41f5fdc9a942c4/index.html'
-      ];
-      const patchSources = [
-        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@ed3933d115c3da2438ba1a8f076373727b33cc3f/.github/scripts/add_image_rating.py',
-        'https://raw.githubusercontent.com/mkhrrs89/ComfortOtter/ed3933d115c3da2438ba1a8f076373727b33cc3f/.github/scripts/add_image_rating.py'
-      ];
 
-      async function fetchFirst(urls, label){
-        let lastError = null;
-        for(const url of urls){
-          try{
-            const response = await fetch(url, {cache:'force-cache'});
-            if(!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-            return await response.text();
-          }catch(error){
-            lastError = error;
-          }
-        }
-        throw new Error(`Could not load ${label}: ${lastError && lastError.message ? lastError.message : lastError}`);
-      }
-
-      function countOccurrences(text, search){
-        if(!search) return 0;
-        return text.split(search).length - 1;
-      }
-
-      function applyOnce(text, oldText, newText, label){
-        const count = countOccurrences(text, oldText);
-        if(count === 1) return text.replace(oldText, newText);
-
-        if(label === 'modal rating input' && count === 0){
-          const winsInputPattern = /<input\s*\n\s*type="number"\s*\n\s*min="0"\s*\n\s*value=\{editedWins\}/g;
-          const matches = text.match(winsInputPattern) || [];
-          if(matches.length === 1){
-            const ratingInput = `<input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="1"
-                  value={editedRating}
-                  onChange={e=>setEditedRating(e.target.value)}
-                  className="input"
-                  placeholder="Rating (0-100)"
-                />
-                `;
-            return text.replace(winsInputPattern, match => `${ratingInput}${match}`);
-          }
-        }
-
-        throw new Error(`${label}: expected 1 match, found ${count}`);
-      }
-
-      function applyEvery(text, oldText, newText, expected, label){
-        const count = countOccurrences(text, oldText);
-        if(count === expected) return text.split(oldText).join(newText);
-
-        if(label === 'rating sort options'){
-          const pointsOptionPattern = /(^[ \t]*)<option value="points">Points<\/option>/gm;
-          const matches = [...text.matchAll(pointsOptionPattern)];
-          if(matches.length === expected){
-            return text.replace(
-              pointsOptionPattern,
-              (whole, indent) => `${whole}\n${indent}<option value="rating">Rating</option>`
-            );
-          }
-        }
-
-        throw new Error(`${label}: expected ${expected} matches, found ${count}`);
-      }
-
-      function decodeSimplePythonString(value){
-        return value
-          .replace(/\\n/g, '\n')
-          .replace(/\\r/g, '\r')
-          .replace(/\\t/g, '\t')
-          .replace(/\\"/g, '"')
-          .replace(/\\\\/g, '\\');
-      }
-
-      let [html, patchScript] = await Promise.all([
-        fetchFirst(appSources, 'the app source'),
-        fetchFirst(patchSources, 'the rating update')
-      ]);
-
-      let tripleCalls = 0;
-      let replaceNCalls = 0;
-      const triplePattern = /replace_(once|n)\(\s*\n\s*"""([\s\S]*?)""",\s*\n\s*"""([\s\S]*?)""",\s*\n(?:\s*(\d+),\s*\n)?\s*"([^"]+)",\s*\n\)/g;
-      let match;
-      while((match = triplePattern.exec(patchScript)) !== null){
-        const kind = match[1];
-        const oldText = match[2];
-        const newText = match[3];
-        const expected = match[4] ? Number(match[4]) : 1;
-        const label = match[5];
-        html = kind === 'n'
-          ? applyEvery(html, oldText, newText, expected, label)
-          : applyOnce(html, oldText, newText, label);
-        tripleCalls += 1;
-        if(kind === 'n') replaceNCalls += 1;
-      }
-
-      let inlineCalls = 0;
-      const inlinePattern = /replace_once\("((?:\\.|[^"\\])*)",\s*"((?:\\.|[^"\\])*)",\s*"([^"]+)"\)/g;
-      while((match = inlinePattern.exec(patchScript)) !== null){
-        html = applyOnce(
-          html,
-          decodeSimplePythonString(match[1]),
-          decodeSimplePythonString(match[2]),
-          match[3]
-        );
-        inlineCalls += 1;
-      }
-
-      if(tripleCalls !== 30 || replaceNCalls !== 1 || inlineCalls !== 1){
-        throw new Error(`Rating patch was incomplete (triple=${tripleCalls}, multi=${replaceNCalls}, inline=${inlineCalls}).`);
-      }
-
-      html = applyOnce(
-        html,
-        `        rating: clampRating(sourceItem.rating),
-        points: computePoints(sourceItem.wins,sourceItem.losses,sourceItem.tourneyBonus||0),`,
-        `        rating: clampRating(sourceItem.rating),
-        ratingSeededFromWinPctV1: !!sourceItem.ratingSeededFromWinPctV1,
-        points: computePoints(sourceItem.wins,sourceItem.losses,sourceItem.tourneyBonus||0),`,
-        'export one-time rating marker'
-      );
-
-      html = applyOnce(
-        html,
-        `          rating: incoming.rating != null
-            ? clampRating(incoming.rating)
-            : clampRating(existing.rating),
-
-          // Keep image blobs as-is`,
-        `          rating: incoming.rating != null
-            ? clampRating(incoming.rating)
-            : clampRating(existing.rating),
-
-          ratingSeededFromWinPctV1: incoming.ratingSeededFromWinPctV1 != null
-            ? !!incoming.ratingSeededFromWinPctV1
-            : !!existing.ratingSeededFromWinPctV1,
-
-          // Keep image blobs as-is`,
-        'import one-time rating marker into database'
-      );
-
-      html = applyOnce(
-        html,
-        `          rating: incoming.rating != null
-            ? clampRating(incoming.rating)
-            : clampRating(existing.rating)
-        };`,
-        `          rating: incoming.rating != null
-            ? clampRating(incoming.rating)
-            : clampRating(existing.rating),
-
-          ratingSeededFromWinPctV1: incoming.ratingSeededFromWinPctV1 != null
-            ? !!incoming.ratingSeededFromWinPctV1
-            : !!existing.ratingSeededFromWinPctV1
-        };`,
-        'import one-time rating marker into state'
-      );
-
-      html = applyOnce(
-        html,
-        `      async function handleReplaceImageFile(file, item){`,
-        `      const ratingWinPctSeedRef = useRef(false);
-      useEffect(()=>{
-        if(ratingWinPctSeedRef.current || !libraryFullyLoaded || !items.length) return;
-
-        const seedKey = 'ratingWinPctSeedV1Complete';
-        let localSeedComplete = false;
-        try{
-          localSeedComplete = !!safeLocalStorage && safeLocalStorage.getItem(seedKey) === '1';
-        }catch(err){}
-
-        const librarySeedComplete = items.some(it => it.ratingSeededFromWinPctV1 === true);
-        if(localSeedComplete || librarySeedComplete){
-          ratingWinPctSeedRef.current = true;
-          if(librarySeedComplete && !localSeedComplete && safeLocalStorage){
-            try{ safeLocalStorage.setItem(seedKey, '1'); }catch(err){}
-          }
-          return;
-        }
-
-        ratingWinPctSeedRef.current = true;
-        (async()=>{
-          const seededItems = items.map(it=>{
-            const wins = Math.max(0, Number(it.wins || 0));
-            const losses = Math.max(0, Number(it.losses || 0));
-            const total = wins + losses;
-            const seededRating = total > 0
-              ? Math.floor((wins / total) * 100)
-              : 0;
-
-            return {
-              ...it,
-              rating: clampRating(seededRating),
-              ratingSeededFromWinPctV1: true
-            };
-          });
-
-          await idbBulkPutMerged(seededItems);
-          setItems(seededItems.map(slimItemForState));
-
-          if(safeLocalStorage){
-            try{ safeLocalStorage.setItem(seedKey, '1'); }catch(err){}
-          }
-        })().catch(err=>{
-          ratingWinPctSeedRef.current = false;
-          console.error('One-time rating initialization failed', err);
-        });
-      },[libraryFullyLoaded,items]);
-
-      async function handleReplaceImageFile(file, item){`,
-        'add one-time win percentage rating initialization'
-      );
-
+  <script type="text/plain" id="tourneyIndexPatch">
       html = applyOnce(
         html,
         `    async function idbGetAll(){`,
-        `    const FAST_STATS_DB_NAME = 'modelMatchupStatsDB';
-    const FAST_STATS_STORE = 'stats';
-    let fastStatsDbPromise = null;
+        `    const TOURNEY_INDEX_DB_NAME = 'modelMatchupTourneyIndexDB';
+    const TOURNEY_INDEX_STORE = 'items';
+    const TOURNEY_INDEX_META_ID = '__meta__';
 
-    function openFastStatsDB(){
-      if(fastStatsDbPromise) return fastStatsDbPromise;
-      fastStatsDbPromise = new Promise((resolve,reject)=>{
+    function openTourneyIndexDB(){
+      return new Promise((resolve,reject)=>{
+        if(typeof indexedDB === 'undefined'){
+          reject(new Error('IndexedDB unavailable for tournament index.'));
+          return;
+        }
         let settled = false;
-        const req = indexedDB.open(FAST_STATS_DB_NAME,1);
+        let req;
+        try{ req = indexedDB.open(TOURNEY_INDEX_DB_NAME,1); }
+        catch(err){ reject(err); return; }
         const timeoutId = setTimeout(()=>{
           if(settled) return;
           settled = true;
-          reject(new Error('Timed out opening lightweight stats database.'));
+          reject(new Error('Timed out opening tournament index.'));
         },10000);
         const finish = fn=>{
           if(settled) return;
@@ -269,214 +54,297 @@
         };
         req.onupgradeneeded = ()=>{
           const db = req.result;
-          if(!db.objectStoreNames.contains(FAST_STATS_STORE)){
-            db.createObjectStore(FAST_STATS_STORE,{keyPath:'id'});
+          if(!db.objectStoreNames.contains(TOURNEY_INDEX_STORE)){
+            db.createObjectStore(TOURNEY_INDEX_STORE,{keyPath:'id'});
           }
         };
-        req.onsuccess = ()=>{
-          const db = req.result;
-          if(settled){
-            try{ db.close(); }catch(_e){}
-            return;
-          }
-          db.onversionchange = ()=>{
-            try{ db.close(); }catch(_e){}
-            fastStatsDbPromise = null;
-          };
-          finish(()=>resolve(db));
-        };
-        req.onerror = ()=>finish(()=>reject(req.error || new Error('Failed to open lightweight stats database.')));
-        req.onblocked = ()=>finish(()=>reject(new Error('Lightweight stats database is blocked by another tab.')));
-      }).catch(err=>{
-        fastStatsDbPromise = null;
-        throw err;
-      });
-      return fastStatsDbPromise;
-    }
-
-    function fastStatsPatchFromItem(item){
-      const patch = {id:item.id, updatedAt:Date.now()};
-      if(item.wins !== undefined) patch.wins = Math.max(0,Number(item.wins || 0));
-      if(item.losses !== undefined) patch.losses = Math.max(0,Number(item.losses || 0));
-      if(item.tourneyBonus !== undefined) patch.tourneyBonus = Number(item.tourneyBonus || 0);
-      if(item.tourneyCount !== undefined) patch.tourneyCount = Math.max(0,Number(item.tourneyCount || 0));
-      if(item.rating !== undefined) patch.rating = clampRating(item.rating);
-      if(item.ratingSeededFromWinPctV1 !== undefined) patch.ratingSeededFromWinPctV1 = !!item.ratingSeededFromWinPctV1;
-      return patch;
-    }
-
-    function mergeFastStatsIntoItem(item,stats){
-      if(!item || !stats) return item;
-      const next = {...item};
-      for(const key of ['wins','losses','tourneyBonus','tourneyCount','rating','ratingSeededFromWinPctV1']){
-        if(stats[key] !== undefined) next[key] = stats[key];
-      }
-      return next;
-    }
-
-    async function fastStatsGetAll(){
-      const db = await openFastStatsDB();
-      return new Promise((resolve,reject)=>{
-        const tx = db.transaction(FAST_STATS_STORE,'readonly');
-        const req = tx.objectStore(FAST_STATS_STORE).getAll();
-        req.onsuccess = ()=>resolve(Array.isArray(req.result) ? req.result : []);
-        req.onerror = ()=>reject(req.error || new Error('Failed to read lightweight stats.'));
+        req.onsuccess = ()=>finish(()=>resolve(req.result));
+        req.onerror = ()=>finish(()=>reject(req.error || new Error('Failed to open tournament index.')));
+        req.onblocked = ()=>finish(()=>reject(new Error('Tournament index is blocked by another page.')));
       });
     }
 
-    async function fastStatsPutItems(sourceItems){
-      const valid = (Array.isArray(sourceItems) ? sourceItems : [sourceItems]).filter(item=>item && item.id);
-      if(!valid.length) return;
-      const db = await openFastStatsDB();
+    function tourneyIndexSlim(item){
+      if(!item || !item.id) return null;
+      const hasThumb = !!(item.thumbnail || item.thumbDataUrl || item.hasThumb);
+      const { dataUrl, thumbnail, thumbDataUrl, ...rest } = item;
+      return { ...rest, id:item.id, hasThumb };
+    }
+
+    async function tourneyIndexReplaceAll(sourceItems){
+      const rows = (Array.isArray(sourceItems) ? sourceItems : [])
+        .map(tourneyIndexSlim)
+        .filter(Boolean);
+      const db = await openTourneyIndexDB();
       return new Promise((resolve,reject)=>{
-        const tx = db.transaction(FAST_STATS_STORE,'readwrite');
-        const st = tx.objectStore(FAST_STATS_STORE);
+        let settled = false;
+        const finish = fn=>{
+          if(settled) return;
+          settled = true;
+          try{ db.close(); }catch(_e){}
+          fn();
+        };
+        try{
+          const tx = db.transaction(TOURNEY_INDEX_STORE,'readwrite');
+          const st = tx.objectStore(TOURNEY_INDEX_STORE);
+          st.clear();
+          for(const row of rows) st.put(row);
+          st.put({id:TOURNEY_INDEX_META_ID,complete:true,builtAt:Date.now(),itemCount:rows.length});
+          tx.oncomplete = ()=>finish(resolve);
+          tx.onerror = ()=>finish(()=>reject(tx.error || new Error('Tournament index rebuild failed.')));
+          tx.onabort = ()=>finish(()=>reject(tx.error || new Error('Tournament index rebuild aborted.')));
+        }catch(err){
+          finish(()=>reject(err));
+        }
+      });
+    }
+
+    async function tourneyIndexPutItems(sourceItems){
+      const rows = (Array.isArray(sourceItems) ? sourceItems : [sourceItems])
+        .map(tourneyIndexSlim)
+        .filter(Boolean);
+      if(!rows.length) return;
+      const db = await openTourneyIndexDB();
+      return new Promise((resolve,reject)=>{
         let failed = false;
-        const fail = err=>{
+        const finish = (fn)=>{
           if(failed) return;
           failed = true;
-          try{ tx.abort(); }catch(_e){}
-          reject(err || new Error('Failed to write lightweight stats.'));
+          try{ db.close(); }catch(_e){}
+          fn();
         };
-        for(const item of valid){
-          const getReq = st.get(item.id);
-          getReq.onerror = ()=>fail(getReq.error);
-          getReq.onsuccess = ()=>{
-            if(failed) return;
-            const existing = getReq.result || {id:item.id};
-            const putReq = st.put({...existing,...fastStatsPatchFromItem(item)});
-            putReq.onerror = ()=>fail(putReq.error);
+        try{
+          const tx = db.transaction(TOURNEY_INDEX_STORE,'readwrite');
+          const st = tx.objectStore(TOURNEY_INDEX_STORE);
+          for(const row of rows){
+            const req = st.get(row.id);
+            req.onsuccess = ()=>{
+              const existing = req.result || {};
+              st.put({...existing,...row,hasThumb:!!(existing.hasThumb || row.hasThumb)});
+            };
+            req.onerror = ()=>st.put(row);
+          }
+          const metaReq = st.get(TOURNEY_INDEX_META_ID);
+          metaReq.onsuccess = ()=>{
+            const meta = metaReq.result;
+            if(meta) st.put({...meta,builtAt:Date.now()});
           };
+          tx.oncomplete = ()=>{
+            if(failed) return;
+            failed = true;
+            try{ db.close(); }catch(_e){}
+            resolve();
+          };
+          tx.onerror = ()=>finish(()=>reject(tx.error || new Error('Tournament index update failed.')));
+          tx.onabort = ()=>finish(()=>reject(tx.error || new Error('Tournament index update aborted.')));
+        }catch(err){
+          finish(()=>reject(err));
         }
-        tx.oncomplete = ()=>{ if(!failed) resolve(); };
-        tx.onerror = ()=>fail(tx.error);
-        tx.onabort = ()=>{ if(!failed) fail(tx.error || new Error('Lightweight stats transaction aborted.')); };
       });
     }
 
-    async function fastStatsDelete(id){
+    async function tourneyIndexDelete(id){
       if(!id) return;
-      const db = await openFastStatsDB();
+      const db = await openTourneyIndexDB();
       return new Promise((resolve,reject)=>{
-        const tx = db.transaction(FAST_STATS_STORE,'readwrite');
-        tx.objectStore(FAST_STATS_STORE).delete(id);
-        tx.oncomplete = ()=>resolve();
-        tx.onerror = ()=>reject(tx.error || new Error('Failed to delete lightweight stats.'));
+        let settled = false;
+        const finish = fn=>{
+          if(settled) return;
+          settled = true;
+          try{ db.close(); }catch(_e){}
+          fn();
+        };
+        try{
+          const tx = db.transaction(TOURNEY_INDEX_STORE,'readwrite');
+          const st = tx.objectStore(TOURNEY_INDEX_STORE);
+          st.delete(id);
+          const metaReq = st.get(TOURNEY_INDEX_META_ID);
+          metaReq.onsuccess = ()=>{
+            const meta = metaReq.result;
+            if(meta) st.put({...meta,builtAt:Date.now()});
+          };
+          tx.oncomplete = ()=>finish(resolve);
+          tx.onerror = ()=>finish(()=>reject(tx.error || new Error('Tournament index delete failed.')));
+          tx.onabort = ()=>finish(()=>reject(tx.error || new Error('Tournament index delete aborted.')));
+        }catch(err){
+          finish(()=>reject(err));
+        }
       });
     }
 
-    window.addEventListener('pagehide',()=>{
-      if(!fastStatsDbPromise) return;
-      Promise.resolve(fastStatsDbPromise).then(db=>{
-        try{ db.close(); }catch(_e){}
-      }).catch(()=>{});
-      fastStatsDbPromise = null;
-    });
-
-    async function idbGetAll(){
-      const baseItems = await idbGetAllBase();
-      try{
-        const rows = await fastStatsGetAll();
-        if(!rows.length) return baseItems;
-        const byId = new Map(rows.map(row=>[row.id,row]));
-        return baseItems.map(item=>mergeFastStatsIntoItem(item,byId.get(item.id)));
-      }catch(err){
-        console.warn('Could not apply lightweight stats overlay; using legacy stats.',err);
-        return baseItems;
-      }
-    }
-
-    async function idbGetAllBase(){`,
-        'add lightweight stats overlay to library load'
+    async function idbGetAll(){`,
+        'add lightweight tournament index helpers'
       );
 
       html = applyOnce(
         html,
-        `    async function idbPutMerged(item){`,
-        `    async function idbPutMerged(item){
-      const result = await idbPutMergedBase(item);
-      try{
+        `      const baseItems = await idbGetAllBase();`,
+        `      const baseItems = await idbGetAllBase();
+      tourneyIndexReplaceAll(baseItems).catch(err=>{
+        console.warn('Could not refresh tournament index from library load.',err);
+      });`,
+        'refresh tournament index during library load'
+      );
+
+      html = applyOnce(
+        html,
+        `      try{
         await fastStatsPutItems([item]);
       }catch(err){
         console.warn('Could not mirror item stats to lightweight store.',err);
       }
-      return result;
-    }
-
-    async function idbPutMergedBase(item){`,
-        'mirror single item writes to lightweight stats'
+      return result;`,
+        `      try{
+        await fastStatsPutItems([item]);
+      }catch(err){
+        console.warn('Could not mirror item stats to lightweight store.',err);
+      }
+      try{
+        await tourneyIndexPutItems([item]);
+      }catch(err){
+        console.warn('Could not mirror item to tournament index.',err);
+      }
+      return result;`,
+        'mirror merged item to tournament index'
       );
 
       html = applyOnce(
         html,
-        `    async function idbBulkPutMerged(items){`,
-        `    async function idbBulkPutMerged(items){
-      const result = await idbBulkPutMergedBase(items);
-      try{
+        `      try{
         await fastStatsPutItems(items);
       }catch(err){
         console.warn('Could not mirror bulk item stats to lightweight store.',err);
       }
-      return result;
-    }
-
-    async function idbBulkPutMergedBase(items){`,
-        'mirror bulk item writes to lightweight stats'
+      return result;`,
+        `      try{
+        await fastStatsPutItems(items);
+      }catch(err){
+        console.warn('Could not mirror bulk item stats to lightweight store.',err);
+      }
+      try{
+        await tourneyIndexPutItems(items);
+      }catch(err){
+        console.warn('Could not mirror bulk items to tournament index.',err);
+      }
+      return result;`,
+        'mirror merged bulk items to tournament index'
       );
 
       html = applyOnce(
         html,
-        `    async function idbDelete(id){`,
-        `    async function idbDelete(id){
-      const result = await idbDeleteBase(id);
-      try{
+        `      try{
         await fastStatsDelete(id);
       }catch(err){
         console.warn('Could not remove lightweight stats for deleted item.',err);
       }
-      return result;
-    }
-
-    async function idbDeleteBase(id){`,
-        'remove lightweight stats on item delete'
+      return result;`,
+        `      try{
+        await fastStatsDelete(id);
+      }catch(err){
+        console.warn('Could not remove lightweight stats for deleted item.',err);
+      }
+      try{
+        await tourneyIndexDelete(id);
+      }catch(err){
+        console.warn('Could not remove deleted item from tournament index.',err);
+      }
+      return result;`,
+        'remove deleted item from tournament index'
       );
 
-      const required = [
-        'function clampRating(value)',
-        'rating: 0,',
-        'Rating (0-100)',
-        'rating: clampRating(sourceItem.rating)',
-        'rating: incoming.rating != null',
-        "changeStatsSort('rating')",
-        "const seedKey = 'ratingWinPctSeedV1Complete'",
-        'Math.floor((wins / total) * 100)',
-        'ratingSeededFromWinPctV1: true',
-        "const FAST_STATS_DB_NAME = 'modelMatchupStatsDB'",
-        'async function fastStatsGetAll()',
-        'async function fastStatsPutItems(sourceItems)',
-        'async function idbGetAllBase()',
-        'async function idbPutMergedBase(item)',
-        'async function idbBulkPutMergedBase(items)',
-        'async function idbDeleteBase(id)'
+      html = applyOnce(
+        html,
+        `        tx.oncomplete = () => {
+          res();
+          if (window.saveItemToCloud) window.saveItemToCloud(item);
+        };`,
+        `        tx.oncomplete = () => {
+          tourneyIndexPutItems([item]).catch(err=>console.warn('Could not add item to tournament index.',err));
+          res();
+          if (window.saveItemToCloud) window.saveItemToCloud(item);
+        };`,
+        'mirror direct item put to tournament index'
+      );
+
+      html = applyOnce(
+        html,
+        `        tx.oncomplete = () => {
+          try{ db.close(); }catch(e){}
+          res();
+        };`,
+        `        tx.oncomplete = () => {
+          try{ db.close(); }catch(e){}
+          tourneyIndexPutItems(items).catch(err=>console.warn('Could not add bulk items to tournament index.',err));
+          res();
+        };`,
+        'mirror direct bulk put to tournament index'
+      );
+
+      const tourneyIndexRequired = [
+        "const TOURNEY_INDEX_DB_NAME = 'modelMatchupTourneyIndexDB'",
+        'async function tourneyIndexReplaceAll(sourceItems)',
+        'async function tourneyIndexPutItems(sourceItems)',
+        'async function tourneyIndexDelete(id)',
+        'tourneyIndexReplaceAll(baseItems).catch',
+        'await tourneyIndexPutItems([item]);',
+        'await tourneyIndexDelete(id);'
       ];
-      const missing = required.filter(snippet => !html.includes(snippet));
-      if(missing.length){
-        throw new Error(`App patch validation failed: ${missing.join(', ')}`);
+      const missingTourneyIndex = tourneyIndexRequired.filter(snippet=>!html.includes(snippet));
+      if(missingTourneyIndex.length){
+        throw new Error('Tournament index patch validation failed: ' + missingTourneyIndex.join(', '));
+      }
+  </script>
+
+  <script>
+    (async function loadComfortOtterWithTournamentIndex(){
+      const priorRevision = '6ad55663dc7aaeb6bd9a6e7397f47de7ca672d71';
+      const loaderSources = [
+        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@' + priorRevision + '/index.html',
+        'https://raw.githubusercontent.com/mkhrrs89/ComfortOtter/' + priorRevision + '/index.html'
+      ];
+      const warmUrls = [
+        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@f602aab7dc142ab280c7480a6f41f5fdc9a942c4/index.html',
+        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@ed3933d115c3da2438ba1a8f076373727b33cc3f/.github/scripts/add_image_rating.py'
+      ];
+
+      async function fetchFirst(urls){
+        let lastError = null;
+        for(const url of urls){
+          try{
+            const response = await fetch(url,{cache:'force-cache'});
+            if(!response.ok) throw new Error(response.status + ' ' + response.statusText);
+            return await response.text();
+          }catch(error){
+            lastError = error;
+          }
+        }
+        throw lastError || new Error('Could not load ComfortOtter code.');
       }
 
-      const ratingSortOptions = countOccurrences(html, '<option value="rating">Rating</option>');
-      if(ratingSortOptions !== 2){
-        throw new Error(`Rating validation failed: expected 2 rating sort options, found ${ratingSortOptions}`);
+      const loaderPromise = fetchFirst(loaderSources);
+      for(const url of warmUrls){
+        fetch(url,{cache:'force-cache'}).catch(()=>{});
       }
+      let loader = await loaderPromise;
+
+      const marker = '      const required = [';
+      const count = loader.split(marker).length - 1;
+      if(count !== 1){
+        throw new Error('ComfortOtter tournament-index loader could not find its patch point.');
+      }
+      const patch = document.getElementById('tourneyIndexPatch').textContent;
+      loader = loader.replace(marker,patch + '\n' + marker);
 
       document.open();
-      document.write(html);
+      document.write(loader);
       document.close();
-    })().catch(error => {
-      console.error('ComfortOtter failed to load', error);
+    })().catch(error=>{
+      console.error('ComfortOtter tournament-index loader failed',error);
       const target = document.getElementById('loaderError');
       if(target){
-        target.textContent = `ComfortOtter could not finish loading.\n\n${error && error.message ? error.message : error}\n\nReload the page to try again.`;
+        target.textContent = 'ComfortOtter could not finish loading.\n\n' +
+          (error && error.message ? error.message : error) +
+          '\n\nReload the page to try again.';
       }
     });
   </script>
