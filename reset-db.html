@@ -67,6 +67,7 @@
     ];
     const MIGRATION_RECEIPT_FALLBACK_KEY = 'modelMatchupMigrationReceiptsV1';
     const DURABLE_STATS_STORAGE_KEY = 'modelMatchupDurableStatsV1';
+    const FIRESTORE_STATS_QUEUE_KEY = 'modelMatchupPendingFirestoreStatsV1';
     const logEl = document.getElementById('log');
     const btn   = document.getElementById('wipeBtn');
 
@@ -99,6 +100,7 @@
         }
         try { localStorage.removeItem(MIGRATION_RECEIPT_FALLBACK_KEY); } catch(e){}
         try { localStorage.removeItem(DURABLE_STATS_STORAGE_KEY); } catch(e){}
+        try { localStorage.removeItem(FIRESTORE_STATS_QUEUE_KEY); } catch(e){}
         log('✅ All local ModelMatchup databases deleted successfully.');
       } catch (e) {
         log('❌ ' + (e && e.message ? e.message : e));
