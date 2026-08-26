@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ModelMatchup — AI Image Rater</title>
+  <meta name="theme-color" content="#050c0a" />
+  <style>
+    html,body{height:100%;margin:0;background:#050c0a;color:#e7f5ef;font:14px/1.4 system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    .loader{height:100%;display:grid;place-items:center;padding:24px;text-align:center}
+    .loaderCard{max-width:520px;padding:20px;border:1px solid #1b3a2f;border-radius:14px;background:#091612}
+    .loaderTitle{font-size:18px;font-weight:700;margin-bottom:8px}
+    .loaderDetail{color:#8fb0a1}
+    .loaderError{white-space:pre-wrap;text-align:left;color:#ffb4be;margin-top:12px}
+  </style>
+</head>
+<body>
+  <div class="loader">
+    <div class="loaderCard">
+      <div class="loaderTitle">Loading ComfortOtter…</div>
+      <div class="loaderDetail">Preparing your image library.</div>
+      <div id="loaderError" class="loaderError"></div>
+    </div>
+  </div>
+
+  <script>
+    (async function loadAutoHdComfortOtter(){
+      const priorRevision = '0b016493770db5e35562f97d53c20e1f50aeb579';
+      const sources = [
+        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@' + priorRevision + '/index.html',
+        'https://raw.githubusercontent.com/mkhrrs89/ComfortOtter/' + priorRevision + '/index.html'
+      ];
+      const warmUrls = [
+        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@6ad55663dc7aaeb6bd9a6e7397f47de7ca672d71/index.html',
+        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@f602aab7dc142ab280c7480a6f41f5fdc9a942c4/index.html',
+        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@ed3933d115c3da2438ba1a8f076373727b33cc3f/.github/scripts/add_image_rating.py'
+      ];
+
+      async function fetchFirst(urls){
+        let lastError = null;
+        for(const url of urls){
+          try{
+            const response = await fetch(url,{cache:'force-cache'});
+            if(!response.ok) throw new Error(response.status + ' ' + response.statusText);
+            return await response.text();
+          }catch(error){
+            lastError = error;
+          }
+        }
+        throw lastError || new Error('Could not load ComfortOtter code.');
+      }
+
+      const loaderPromise = fetchFirst(sources);
+      for(const url of warmUrls){
+        fetch(url,{cache:'force-cache'}).catch(()=>{});
+      }
+      let loader = await loaderPromise;
+
+      const marker = '      const tourneyIndexRequired = [';
+      const markerCount = loader.split(marker).length - 1;
+      if(markerCount !== 1){
+        throw new Error('Auto-HD patch could not find the ComfortOtter patch point.');
+      }
+
+      const injection = `
+      const autoHdLeftInit = 'const [matchupLeftHd, setMatchupLeftHd] = useState(false);';
+      const autoHdRightInit = 'const [matchupRightHd, setMatchupRightHd] = useState(false);';
+      const autoHdLoadMarker = 'const loadMatchupHdBoth = useCallback((e)=>{';
+      const matchupLeftImageMarker = '      <SafeImage\\n        item={left}';
+      const matchupRightImageMarker = '      <SafeImage\\n        item={right}';
+      const leftHdMarker = '        onResolved={(url)=>patchItem(left.id,{fullUrl:url})}\\n        allowFull={matchupLeftHd}\\n      />';
+      const rightHdMarker = '        onResolved={(url)=>patchItem(right.id,{fullUrl:url})}\\n        allowFull={matchupRightHd}\\n      />';
+      const autoHdLeftCount = html.split(autoHdLeftInit).length - 1;
+      const autoHdRightCount = html.split(autoHdRightInit).length - 1;
+      const autoHdLoadCount = html.split(autoHdLoadMarker).length - 1;
+      const matchupLeftImageCount = html.split(matchupLeftImageMarker).length - 1;
+      const matchupRightImageCount = html.split(matchupRightImageMarker).length - 1;
+      const leftHdCount = html.split(leftHdMarker).length - 1;
+      const rightHdCount = html.split(rightHdMarker).length - 1;
+      if(autoHdLeftCount < 1 || autoHdRightCount < 1 || autoHdLoadCount < 1 || matchupLeftImageCount < 1 || matchupRightImageCount < 1 || leftHdCount < 1 || rightHdCount < 1){
+        throw new Error('Matchup progressive Auto-HD patch could not find the expected hooks.');
+      }
+      html = html.split(autoHdLeftInit).join('const [matchupLeftHd, setMatchupLeftHd] = useState(true);');
+      html = html.split(autoHdRightInit).join('const [matchupRightHd, setMatchupRightHd] = useState(true);');
+      const autoHdEffect = 'useEffect(() => {\\n  if(matchIds[0] && matchIds[1]){\\n    setMatchupLeftHd(true);\\n    setMatchupRightHd(true);\\n  }\\n}, [matchIds[0], matchIds[1]]);\\n\\n';
+      html = html.split(autoHdLoadMarker).join(autoHdEffect + autoHdLoadMarker);
+
+      // Each new matchup gets fresh image components, so the previous pair is
+      // discarded immediately. The base image is thumbnail-only; a transparent
+      // HD layer hydrates in parallel and naturally replaces it when ready.
+      html = html.split(matchupLeftImageMarker).join('      <SafeImage\\n        key={left.id}\\n        item={left}');
+      html = html.split(matchupRightImageMarker).join('      <SafeImage\\n        key={right.id}\\n        item={right}');
+
+      const leftProgressive = [
+        '        onResolved={(url)=>patchItem(left.id,{fullUrl:url})}',
+        '        allowFull={false}',
+        '      />',
+        '      {matchupLeftHd && (',
+        '        <SafeImage',
+        "          key={'left-hd-'+left.id}",
+        '          item={left}',
+        '          src=""',
+        '          fallbackSrcs={EMPTY_SOURCES}',
+        '          alt="left HD"',
+        '          preferRemote={true}',
+        '          eagerHydrate={true}',
+        '          hydrateThumb={false}',
+        '          onResolved={(url)=>patchItem(left.id,{fullUrl:url})}',
+        '          allowFull={true}',
+        "          style={{position:'absolute',inset:4,width:'calc(100% - 8px)',height:'calc(100% - 8px)',background:'transparent'}}",
+        '        />',
+        '      )}'
+      ].join('\\n');
+      const rightProgressive = [
+        '        onResolved={(url)=>patchItem(right.id,{fullUrl:url})}',
+        '        allowFull={false}',
+        '      />',
+        '      {matchupRightHd && (',
+        '        <SafeImage',
+        "          key={'right-hd-'+right.id}",
+        '          item={right}',
+        '          src=""',
+        '          fallbackSrcs={EMPTY_SOURCES}',
+        '          alt="right HD"',
+        '          preferRemote={true}',
+        '          eagerHydrate={true}',
+        '          hydrateThumb={false}',
+        '          onResolved={(url)=>patchItem(right.id,{fullUrl:url})}',
+        '          allowFull={true}',
+        "          style={{position:'absolute',inset:4,width:'calc(100% - 8px)',height:'calc(100% - 8px)',background:'transparent'}}",
+        '        />',
+        '      )}'
+      ].join('\\n');
+      html = html.split(leftHdMarker).join(leftProgressive);
+      html = html.split(rightHdMarker).join(rightProgressive);
+
+      if(!html.includes('const [matchupLeftHd, setMatchupLeftHd] = useState(true);') ||
+         !html.includes('const [matchupRightHd, setMatchupRightHd] = useState(true);') ||
+         !html.includes('if(matchIds[0] && matchIds[1])') ||
+         !html.includes("key={'left-hd-'+left.id}") ||
+         !html.includes("key={'right-hd-'+right.id}") ||
+         !html.includes('allowFull={false}')){
+        throw new Error('Matchup progressive Auto-HD patch validation failed.');
+      }
+`;
+
+      loader = loader.replace(marker, injection + '\n' + marker);
+      document.open();
+      document.write(loader);
+      document.close();
+    })().catch(error=>{
+      console.error('ComfortOtter Auto-HD loader failed',error);
+      const target = document.getElementById('loaderError');
+      if(target){
+        target.textContent = 'ComfortOtter could not finish loading.\n\n' +
+          (error && error.message ? error.message : error) +
+          '\n\nReload the page to try again.';
+      }
+    });
+  </script>
+</body>
+</html>
