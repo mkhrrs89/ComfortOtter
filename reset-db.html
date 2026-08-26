@@ -58,7 +58,13 @@
   <div class="log" id="log"></div>
 
   <script>
-    const DB_NAMES = ['modelMatchupDB','modelMatchupStatsDB','modelMatchupTourneyDB','modelMatchupMigrationDB'];
+    const DB_NAMES = [
+      'modelMatchupDB',
+      'modelMatchupStatsDB',
+      'modelMatchupTourneyDB',
+      'modelMatchupMigrationDB',
+      'modelMatchupTourneyIndexDB'
+    ];
     const MIGRATION_RECEIPT_FALLBACK_KEY = 'modelMatchupMigrationReceiptsV1';
     const logEl = document.getElementById('log');
     const btn   = document.getElementById('wipeBtn');
