@@ -58,7 +58,8 @@
   <div class="log" id="log"></div>
 
   <script>
-    const DB_NAMES = ['modelMatchupDB','modelMatchupStatsDB','modelMatchupTourneyDB'];
+    const DB_NAMES = ['modelMatchupDB','modelMatchupStatsDB','modelMatchupTourneyDB','modelMatchupMigrationDB'];
+    const MIGRATION_RECEIPT_FALLBACK_KEY = 'modelMatchupMigrationReceiptsV1';
     const logEl = document.getElementById('log');
     const btn   = document.getElementById('wipeBtn');
 
@@ -89,6 +90,7 @@
         for(const name of DB_NAMES){
           await deleteDb(name);
         }
+        try { localStorage.removeItem(MIGRATION_RECEIPT_FALLBACK_KEY); } catch(e){}
         log('✅ All local ModelMatchup databases deleted successfully.');
       } catch (e) {
         log('❌ ' + (e && e.message ? e.message : e));
