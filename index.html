@@ -7,55 +7,48 @@
   <meta name="theme-color" content="#050c0a" />
   <style>
     html,body{height:100%;margin:0;background:#050c0a;color:#e7f5ef;font:14px/1.4 system-ui,Segoe UI,Roboto,Arial,sans-serif}
-    .loader{height:100%;display:grid;place-items:center;padding:24px;text-align:center}.loaderCard{max-width:520px;padding:20px;border:1px solid #1b3a2f;border-radius:14px;background:#091612}.loaderTitle{font-size:18px;font-weight:700;margin-bottom:8px}.loaderDetail{color:#8fb0a1}.loaderError{white-space:pre-wrap;text-align:left;color:#ffb4be;margin-top:12px}
+    .loader{height:100%;display:grid;place-items:center;padding:24px;text-align:center}.loaderCard{max-width:520px;padding:20px;border:1px solid #1b3a2f;border-radius:14px;background:#091612}.loaderTitle{font-size:18px;font-weight:700;margin-bottom:8px}.loaderDetail{color:#8fb0a1}.loaderBuild{margin-top:10px;color:#5f8273;font-size:11px}.loaderError{white-space:pre-wrap;text-align:left;color:#ffb4be;margin-top:12px}
   </style>
 </head>
 <body>
-  <div class="loader"><div class="loaderCard"><div class="loaderTitle">Loading ComfortOtter…</div><div class="loaderDetail">Preparing your image library.</div><div id="loaderError" class="loaderError"></div></div></div>
+  <div class="loader"><div class="loaderCard"><div class="loaderTitle">Loading ComfortOtter…</div><div class="loaderDetail">Preparing your image library.</div><div class="loaderBuild">Recovery build 15:50</div><div id="loaderError" class="loaderError"></div></div></div>
   <script>
-    (async function loadStableComfortOtter(){
-      const stableRevision='6131aebbe099bf09fd3944ec0a780f06941e7a8d';
-      const urls=[
-        'https://raw.githubusercontent.com/mkhrrs89/ComfortOtter/'+stableRevision+'/index.html',
-        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@'+stableRevision+'/index.html'
-      ];
+    (async function loadRecoveryShell(){
+      const nativeFetch = window.fetch.bind(window);
+      const remotePattern = /(?:cdn\.jsdelivr\.net|raw\.githubusercontent\.com)/i;
 
-      async function fetchTimed(url,timeoutMs=8000){
-        const controller=typeof AbortController!=='undefined'?new AbortController():null;
-        const timer=setTimeout(()=>{try{if(controller)controller.abort();}catch(_e){}},timeoutMs);
+      window.fetch = function recoveryFetch(input, init){
+        const url = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+        if(!remotePattern.test(url)) return nativeFetch(input, init);
+        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const timer = setTimeout(()=>{ try{ if(controller) controller.abort(); }catch(_e){} }, 4500);
+        const options = {...(init || {}), cache:'no-cache'};
+        if(controller) options.signal = controller.signal;
+        return nativeFetch(input, options).finally(()=>clearTimeout(timer));
+      };
+
+      async function fetchSameOrigin(url, timeoutMs){
+        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const timer = setTimeout(()=>{ try{ if(controller) controller.abort(); }catch(_e){} }, timeoutMs);
         try{
-          const res=await fetch(url,{cache:'no-cache',signal:controller?controller.signal:undefined});
-          if(!res.ok) throw new Error(res.status+' '+res.statusText);
-          return await res.text();
+          const response = await nativeFetch(url,{cache:'no-store',signal:controller ? controller.signal : undefined});
+          if(!response.ok) throw new Error(response.status+' '+response.statusText);
+          return await response.text();
         }finally{ clearTimeout(timer); }
       }
 
-      let source=null,lastError=null;
-      for(const url of urls){
-        try{ source=await fetchTimed(url); break; }
-        catch(err){ lastError=err; }
+      let shell = await fetchSameOrigin('stable-index-shell.html?v=20260826-1550', 7000);
+      if(!shell.includes('loadDurableStatsComfortOtter')) throw new Error('Stable app shell validation failed.');
+      if(!shell.includes('firestore-sync.js')){
+        shell = shell.replace('</head>','<script type="module" src="firestore-sync.js?v=20260826-1550"><\\/script></head>');
       }
-      if(!source) throw lastError||new Error('Could not load the stable ComfortOtter app source.');
-
-      // Keep the last known-good app loader and inject cloud stat syncing into
-      // the final rendered app without modifying the durable-stats patch itself.
-      const oldLine="      wrapper = wrapper.replace(marker,durablePatch + '\\n' + marker);";
-      const injectedLine=[
-        "      const firestoreInjectPatch = String.raw`",
-        "      if(!html.includes('firestore-sync.js')) html=html.replace('</head>','<script type=\"module\" src=\"firestore-sync.js?v=20260826-1550\"><\\/script></head>');",
-        "`;",
-        "      wrapper = wrapper.replace(marker,durablePatch + '\\n' + firestoreInjectPatch + '\\n' + marker);"
-      ].join('\n');
-      if(source.split(oldLine).length-1!==1) throw new Error('Stable loader cloud-sync injection point was not found exactly once.');
-      source=source.replace(oldLine,injectedLine);
-
       document.open();
-      document.write(source);
+      document.write(shell);
       document.close();
     })().catch(error=>{
-      console.error('ComfortOtter startup failed',error);
+      console.error('ComfortOtter recovery startup failed',error);
       const target=document.getElementById('loaderError');
-      if(target) target.textContent='ComfortOtter could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nReload the page to try again.';
+      if(target) target.textContent='ComfortOtter could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nRecovery build 15:50';
     });
   </script>
 </body>
