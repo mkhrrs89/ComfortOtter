@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ModelMatchup → Firebase Migration</title>
   <link rel="stylesheet" href="app-style.css">
   <style>
@@ -13,10 +14,7 @@
       font-size: 24px;
       line-height: 1.75;
     }
-    h1 {
-      margin-bottom: 0.75rem;
-      font-size: 2.6rem;
-    }
+    h1 { margin-bottom: 0.75rem; font-size: 2.6rem; }
     button {
       padding: 0.85rem 1.6rem;
       border-radius: 999px;
@@ -32,11 +30,7 @@
       box-shadow: 0 8px 18px rgba(20, 184, 166, 0.35);
     }
     #migrateBtn[disabled] { opacity: 0.55; cursor: default; }
-    #status {
-      margin-top: 1.1rem;
-      font-size: 1.2rem;
-      font-weight: 500;
-    }
+    #status { margin-top: 1.1rem; font-size: 1.2rem; font-weight: 500; }
     #log {
       margin-top: 1.25rem;
       padding: 1.25rem;
@@ -49,12 +43,7 @@
       border: 1px solid #123427;
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
     }
-    .toolbar {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      margin-bottom: 16px;
-    }
+    .toolbar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
     .tab {
       background: #0b1224;
       color: #f5f5f5;
@@ -76,44 +65,17 @@
       box-shadow: 0 8px 18px rgba(22, 160, 133, 0.35);
     }
     @media (max-width: 600px) {
-      body {
-        padding: 2.75rem 1.6rem;
-        font-size: 20px;
-        line-height: 1.75;
-      }
+      body { padding: 2.75rem 1.6rem; font-size: 20px; line-height: 1.75; }
       h1 { font-size: 2.4rem; }
       .pageHeader p { font-size: 1.15rem; }
-      button {
-        width: 100%;
-        margin-right: 0;
-        margin-bottom: 1rem;
-        font-size: 1.15rem;
-        padding: 1rem 1.8rem;
-      }
-      #status {
-        display: block;
-        margin-top: 0.5rem;
-        font-size: 1.1rem;
-      }
+      button { width: 100%; margin-right: 0; margin-bottom: 1rem; font-size: 1.15rem; padding: 1rem 1.8rem; }
+      #status { display: block; margin-top: 0.5rem; font-size: 1.1rem; }
       .toolbar { gap: 14px; }
-      .tab {
-        font-size: 1rem;
-        padding: 12px 16px;
-        min-height: 52px;
-      }
-      .navTrigger {
-        font-size: 1rem;
-        padding: 10px 16px;
-      }
+      .tab { font-size: 1rem; padding: 12px 16px; min-height: 52px; }
+      .navTrigger { font-size: 1rem; padding: 10px 16px; }
       .navMenuList { min-width: 220px; }
-      .navItem {
-        font-size: 1rem;
-        padding: 10px 12px;
-      }
-      #log {
-        font-size: 1rem;
-        padding: 1.4rem;
-      }
+      .navItem { font-size: 1rem; padding: 10px 12px; }
+      #log { font-size: 1rem; padding: 1.4rem; }
     }
   </style>
 </head>
@@ -121,7 +83,7 @@
   <header class="pageHeader">
     <div>
       <h1>ModelMatchup → Firebase Migration</h1>
-      <p>This tool uploads any items that still have <code>dataUrl</code> and no <code>fullUrl</code> into Firebase Storage + Firestore.</p>
+      <p>This tool uploads any items that still have <code>dataUrl</code> and no cloud migration receipt into Firebase Storage + Firestore.</p>
     </div>
     <div class="navMenuShell">
       <details class="navDropdown">
@@ -155,7 +117,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
     import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
     const firebaseConfig = {
@@ -168,37 +130,38 @@
       measurementId: "G-2JT31JFGNJ"
     };
 
-    const app     = initializeApp(firebaseConfig);
-    const auth    = getAuth(app);
-    const db      = getFirestore(app);
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const firestore = getFirestore(app);
     const storage = getStorage(app);
 
-    const DB_NAME  = "modelMatchupDB";
+    const DB_NAME = "modelMatchupDB";
     const DB_STORE = "items";
+    const RECEIPT_DB_NAME = "modelMatchupMigrationDB";
+    const RECEIPT_STORE = "receipts";
+    const RECEIPT_FALLBACK_KEY = "modelMatchupMigrationReceiptsV1";
+
     const FIREBASE_STEP_TIMEOUT_MS = 45000;
-    const LOCAL_WRITE_TIMEOUT_MS = 60000;
     const UPLOAD_STALL_TIMEOUT_MS = 60000;
     const UPLOAD_OVERALL_TIMEOUT_MS = 180000;
 
-    let dbPromise = null;
-    let liveDb = null;
+    let mainDbPromise = null;
+    let mainDb = null;
+    let receiptDbPromise = null;
+    let receiptDb = null;
     let migrationRunning = false;
 
     const statusEl = document.getElementById("status");
-    const logEl    = document.getElementById("log");
-    const btn      = document.getElementById("migrateBtn");
+    const logEl = document.getElementById("log");
+    const btn = document.getElementById("migrateBtn");
 
     function setStatus(text){ statusEl.textContent = text; }
-
     function log(text){
       const ts = new Date().toISOString().slice(11, 19);
       logEl.textContent += `[${ts}] ${text}\n`;
       logEl.scrollTop = logEl.scrollHeight;
     }
-
-    function delay(ms){
-      return new Promise(resolve => setTimeout(resolve, ms));
-    }
+    function delay(ms){ return new Promise(resolve => setTimeout(resolve, ms)); }
 
     function withTimeout(promise, ms, label){
       return new Promise((resolve, reject) => {
@@ -247,29 +210,22 @@
       return `${(n / (1024 * 1024)).toFixed(1)} MB`;
     }
 
-    function closeDb(){
-      if (liveDb) {
-        try { liveDb.close(); } catch {}
-      }
-      liveDb = null;
-      dbPromise = null;
+    function closeMainDb(){
+      if (mainDb) { try { mainDb.close(); } catch {} }
+      mainDb = null;
+      mainDbPromise = null;
     }
 
-    function openDbAttempt(timeoutMs){
+    function openMainAttempt(timeoutMs){
       return new Promise((resolve, reject) => {
-        if (typeof indexedDB === 'undefined') {
-          reject(new Error('IndexedDB is unavailable in this browser.'));
+        if (typeof indexedDB === "undefined") {
+          reject(new Error("IndexedDB is unavailable in this browser."));
           return;
         }
-
         let settled = false;
         let req;
-        try {
-          req = indexedDB.open(DB_NAME);
-        } catch (err) {
-          reject(err);
-          return;
-        }
+        try { req = indexedDB.open(DB_NAME); }
+        catch (err) { reject(err); return; }
 
         const timer = setTimeout(() => {
           if (settled) return;
@@ -284,14 +240,11 @@
           fn();
         };
 
-        req.onblocked = () => finish(() => reject(new Error('IndexedDB open was blocked by another page.')));
-        req.onerror = () => finish(() => reject(req.error || new Error('Failed to open IndexedDB.')));
+        req.onblocked = () => finish(() => reject(new Error("IndexedDB open was blocked by another page.")));
+        req.onerror = () => finish(() => reject(req.error || new Error("Failed to open IndexedDB.")));
         req.onsuccess = () => {
           const opened = req.result;
-          if (settled) {
-            try { opened.close(); } catch {}
-            return;
-          }
+          if (settled) { try { opened.close(); } catch {} return; }
           if (!opened.objectStoreNames.contains(DB_STORE)) {
             try { opened.close(); } catch {}
             finish(() => reject(new Error(`IndexedDB is missing the ${DB_STORE} store.`)));
@@ -299,140 +252,186 @@
           }
           opened.onversionchange = () => {
             try { opened.close(); } catch {}
-            if (liveDb === opened) {
-              liveDb = null;
-              dbPromise = null;
-            }
+            if (mainDb === opened) closeMainDb();
           };
-          liveDb = opened;
+          mainDb = opened;
           finish(() => resolve(opened));
         };
       });
     }
 
-    async function openDB(){
-      if (liveDb) return liveDb;
-      if (dbPromise) return dbPromise;
-
-      dbPromise = (async () => {
+    async function openMainDB(){
+      if (mainDb) return mainDb;
+      if (mainDbPromise) return mainDbPromise;
+      mainDbPromise = (async () => {
         const timeouts = [12000, 20000, 30000];
         let lastError = null;
         for (let i = 0; i < timeouts.length; i++) {
-          try {
-            return await openDbAttempt(timeouts[i]);
-          } catch (err) {
+          try { return await openMainAttempt(timeouts[i]); }
+          catch (err) {
             lastError = err;
             console.warn(`IndexedDB open attempt ${i + 1} failed`, err);
             if (i < timeouts.length - 1) await delay(400 * (i + 1));
           }
         }
-        throw lastError || new Error('Could not open IndexedDB.');
+        throw lastError || new Error("Could not open IndexedDB.");
       })().catch(err => {
-        dbPromise = null;
+        mainDbPromise = null;
         throw err;
       });
-
-      return dbPromise;
+      return mainDbPromise;
     }
 
-    function isRetriableDbError(err){
-      const name = err && err.name ? String(err.name) : '';
-      const msg = String(err && err.message ? err.message : err || '').toLowerCase();
-      return name === 'AbortError' ||
-        name === 'InvalidStateError' ||
-        name === 'TransactionInactiveError' ||
-        msg.includes('timed out') ||
-        msg.includes('abort') ||
-        msg.includes('closed');
+    function closeReceiptDb(){
+      if (receiptDb) { try { receiptDb.close(); } catch {} }
+      receiptDb = null;
+      receiptDbPromise = null;
     }
 
-    async function idbPut(item){
-      let attempt = 0;
-      while (true) {
-        attempt += 1;
-        try {
-          const localDb = await openDB();
-          return await new Promise((resolve, reject) => {
-            let settled = false;
-            let tx;
-            let timer;
+    function openReceiptDB(){
+      if (receiptDb) return Promise.resolve(receiptDb);
+      if (receiptDbPromise) return receiptDbPromise;
+      receiptDbPromise = new Promise((resolve, reject) => {
+        let settled = false;
+        let req;
+        try { req = indexedDB.open(RECEIPT_DB_NAME, 1); }
+        catch (err) { reject(err); return; }
 
-            const finish = fn => {
-              if (settled) return;
-              settled = true;
-              if (timer) clearTimeout(timer);
-              fn();
-            };
+        const timer = setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          reject(new Error("Timed out opening migration receipt database."));
+        }, 12000);
+        const finish = fn => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          fn();
+        };
+        req.onupgradeneeded = () => {
+          const opened = req.result;
+          if (!opened.objectStoreNames.contains(RECEIPT_STORE)) {
+            opened.createObjectStore(RECEIPT_STORE, { keyPath: "id" });
+          }
+        };
+        req.onerror = () => finish(() => reject(req.error || new Error("Failed to open migration receipt database.")));
+        req.onblocked = () => finish(() => reject(new Error("Migration receipt database is blocked by another page.")));
+        req.onsuccess = () => {
+          const opened = req.result;
+          if (settled) { try { opened.close(); } catch {} return; }
+          opened.onversionchange = () => {
+            try { opened.close(); } catch {}
+            if (receiptDb === opened) closeReceiptDb();
+          };
+          receiptDb = opened;
+          finish(() => resolve(opened));
+        };
+      }).catch(err => {
+        receiptDbPromise = null;
+        throw err;
+      });
+      return receiptDbPromise;
+    }
 
-            try {
-              tx = localDb.transaction(DB_STORE, "readwrite");
-              tx.objectStore(DB_STORE).put(item);
-            } catch (err) {
-              finish(() => reject(err));
-              return;
-            }
+    function readFallbackReceipts(){
+      try {
+        const parsed = JSON.parse(localStorage.getItem(RECEIPT_FALLBACK_KEY) || "{}");
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch { return {}; }
+    }
 
-            timer = setTimeout(() => {
-              try { tx.abort(); } catch {}
-              finish(() => reject(new Error('Local IndexedDB write timed out.')));
-            }, LOCAL_WRITE_TIMEOUT_MS);
+    function writeFallbackReceipt(id, fullUrl){
+      try {
+        const all = readFallbackReceipts();
+        all[id] = { fullUrl: fullUrl || null, migratedAt: Date.now() };
+        localStorage.setItem(RECEIPT_FALLBACK_KEY, JSON.stringify(all));
+      } catch (err) {
+        console.warn("Could not save fallback migration receipt", err);
+      }
+    }
 
-            tx.oncomplete = () => finish(resolve);
-            tx.onerror = () => finish(() => reject(tx.error || new Error('IndexedDB write failed.')));
-            tx.onabort = () => finish(() => reject(tx.error || new Error('IndexedDB write aborted.')));
+    async function readReceiptMap(){
+      const combined = new Map();
+      const fallback = readFallbackReceipts();
+      for (const [id, value] of Object.entries(fallback)) {
+        if (id) combined.set(id, value || {});
+      }
+      try {
+        const db = await openReceiptDB();
+        const rows = await new Promise((resolve, reject) => {
+          const tx = db.transaction(RECEIPT_STORE, "readonly");
+          const req = tx.objectStore(RECEIPT_STORE).getAll();
+          req.onsuccess = () => resolve(Array.isArray(req.result) ? req.result : []);
+          req.onerror = () => reject(req.error || new Error("Failed reading migration receipts."));
+        });
+        for (const row of rows) if (row && row.id) combined.set(row.id, row);
+      } catch (err) {
+        console.warn("Migration receipt IndexedDB unavailable; using fallback receipts.", err);
+      }
+      return combined;
+    }
+
+    async function saveMigrationReceipt(id, fullUrl, source){
+      writeFallbackReceipt(id, fullUrl);
+      try {
+        const db = await openReceiptDB();
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction(RECEIPT_STORE, "readwrite");
+          tx.objectStore(RECEIPT_STORE).put({
+            id,
+            fullUrl: fullUrl || null,
+            source: source || "migration",
+            migratedAt: Date.now()
           });
-        } catch (err) {
-          if (attempt >= 2 || !isRetriableDbError(err)) throw err;
-          closeDb();
-          await delay(350);
-        }
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error || new Error("Failed saving migration receipt."));
+          tx.onabort = () => reject(tx.error || new Error("Migration receipt write aborted."));
+        });
+      } catch (err) {
+        console.warn("Receipt IndexedDB write failed; localStorage fallback was saved.", err);
+        log(`Receipt database warning for ${id}; fallback receipt saved.`);
       }
     }
 
     async function collectUnmigrated(){
-      const localDb = await openDB();
+      const receipts = await readReceiptMap();
+      const db = await openMainDB();
       return new Promise((resolve, reject) => {
         let tx;
-        try {
-          tx = localDb.transaction(DB_STORE, "readonly");
-        } catch (err) {
-          reject(err);
-          return;
-        }
-        const store = tx.objectStore(DB_STORE);
-        const itemsToMigrate = [];
-        const req = store.openCursor();
+        try { tx = db.transaction(DB_STORE, "readonly"); }
+        catch (err) { reject(err); return; }
 
-        req.onsuccess = e => {
-          const cursor = e.target.result;
+        const store = tx.objectStore(DB_STORE);
+        const items = [];
+        const req = store.openCursor();
+        req.onsuccess = event => {
+          const cursor = event.target.result;
           if (!cursor) return;
           const item = cursor.value;
-          if (item && item.dataUrl && !item.fullUrl) itemsToMigrate.push(item);
+          if (item && item.id && item.dataUrl && !item.fullUrl && !receipts.has(item.id)) {
+            items.push(item);
+          }
           cursor.continue();
         };
-        req.onerror = () => reject(req.error || new Error('Failed reading local image records.'));
-        tx.oncomplete = () => resolve(itemsToMigrate);
-        tx.onerror = () => reject(tx.error || new Error('IndexedDB read transaction failed.'));
-        tx.onabort = () => reject(tx.error || new Error('IndexedDB read transaction aborted.'));
+        req.onerror = () => reject(req.error || new Error("Failed reading local image records."));
+        tx.oncomplete = () => resolve(items);
+        tx.onerror = () => reject(tx.error || new Error("IndexedDB read transaction failed."));
+        tx.onabort = () => reject(tx.error || new Error("IndexedDB read transaction aborted."));
       });
     }
 
     function dataUrlToBlob(dataUrl){
-      if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) {
-        throw new Error('Local image data is not a valid data URL.');
+      if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:")) {
+        throw new Error("Local image data is not a valid data URL.");
       }
-      const comma = dataUrl.indexOf(',');
-      if (comma < 0) throw new Error('Local image data URL is malformed.');
-
+      const comma = dataUrl.indexOf(",");
+      if (comma < 0) throw new Error("Local image data URL is malformed.");
       const header = dataUrl.slice(0, comma);
       const body = dataUrl.slice(comma + 1);
       const mimeMatch = /^data:([^;,]+)/i.exec(header);
-      const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+      const mime = mimeMatch ? mimeMatch[1] : "image/jpeg";
       const isBase64 = /;base64/i.test(header);
-
-      if (!isBase64) {
-        return new Blob([decodeURIComponent(body)], { type: mime });
-      }
+      if (!isBase64) return new Blob([decodeURIComponent(body)], { type: mime });
 
       const binary = atob(body);
       const chunkSize = 1024 * 512;
@@ -453,18 +452,34 @@
 
     async function ensureFirebaseAuth(){
       if (auth.currentUser) return auth.currentUser;
-      setStatus('Signing into Firebase…');
-      log('Signing into Firebase…');
-      const credential = await withTimeout(
-        signInAnonymously(auth),
-        20000,
-        'Firebase sign-in'
-      );
-      log('Firebase sign-in ready.');
+      setStatus("Signing into Firebase…");
+      log("Signing into Firebase…");
+      const credential = await withTimeout(signInAnonymously(auth), 20000, "Firebase sign-in");
+      log("Firebase sign-in ready.");
       return credential.user;
     }
 
-    function uploadBlobWithProgress(storageRef, blob, itemIndex, totalItems){
+    async function findExistingCloudUrl(item, index, total){
+      setStatus(`Checking cloud ${index} of ${total}…`);
+      try {
+        const snap = await retryAsync("Cloud migration check", () =>
+          withTimeout(getDoc(doc(firestore, "images", item.id)), FIREBASE_STEP_TIMEOUT_MS, "Checking Firestore")
+        );
+        if (snap.exists()) {
+          const data = snap.data() || {};
+          if (typeof data.fullUrl === "string" && data.fullUrl) {
+            await saveMigrationReceipt(item.id, data.fullUrl, "reconciled");
+            log(`Already in Firebase: ${item.id}. Saved local migration receipt.`);
+            return data.fullUrl;
+          }
+        }
+      } catch (err) {
+        log(`Cloud pre-check failed for ${item.id}; continuing with upload. ${err?.message || err}`);
+      }
+      return null;
+    }
+
+    function uploadBlobWithProgress(storageRef, blob, index, total){
       return new Promise((resolve, reject) => {
         const task = uploadBytesResumable(storageRef, blob);
         let settled = false;
@@ -472,73 +487,56 @@
         let lastLoggedBucket = -1;
         const startedAt = Date.now();
 
-        const cleanup = () => {
-          clearInterval(watchdog);
-        };
-
         const finish = fn => {
           if (settled) return;
           settled = true;
-          cleanup();
+          clearInterval(watchdog);
           fn();
         };
-
         const watchdog = setInterval(() => {
           const now = Date.now();
           if (now - lastProgressAt > UPLOAD_STALL_TIMEOUT_MS || now - startedAt > UPLOAD_OVERALL_TIMEOUT_MS) {
             try { task.cancel(); } catch {}
-            finish(() => reject(new Error('Firebase Storage upload stalled or timed out.')));
+            finish(() => reject(new Error("Firebase Storage upload stalled or timed out.")));
           }
         }, 3000);
 
-        task.on('state_changed', snapshot => {
+        task.on("state_changed", snapshot => {
           lastProgressAt = Date.now();
-          const total = Number(snapshot.totalBytes || blob.size || 0);
+          const totalBytes = Number(snapshot.totalBytes || blob.size || 0);
           const transferred = Number(snapshot.bytesTransferred || 0);
-          const pct = total > 0 ? Math.floor((transferred / total) * 100) : 0;
-          setStatus(`Uploading ${itemIndex} of ${totalItems}… ${pct}%`);
+          const pct = totalBytes > 0 ? Math.floor((transferred / totalBytes) * 100) : 0;
+          setStatus(`Uploading ${index} of ${total}… ${pct}%`);
           const bucket = Math.floor(pct / 25);
           if (bucket > lastLoggedBucket && pct > 0) {
             lastLoggedBucket = bucket;
-            log(`Upload ${itemIndex}/${totalItems}: ${pct}%`);
+            log(`Upload ${index}/${total}: ${pct}%`);
           }
-        }, err => {
-          finish(() => reject(err));
-        }, () => {
-          finish(() => resolve(task.snapshot));
-        });
+        }, err => finish(() => reject(err)), () => finish(() => resolve(task.snapshot)));
       });
     }
 
     async function migrateItem(item, index, total){
-      if (!item || !item.id) return "skip";
-      if (!item.dataUrl) return "skip";
-      if (item.fullUrl) return "skipAlready";
+      const existingCloudUrl = await findExistingCloudUrl(item, index, total);
+      if (existingCloudUrl) return "reconciled";
 
       setStatus(`Preparing ${index} of ${total}…`);
       log(`Starting ${index}/${total}: ${item.id}`);
 
       let blob;
-      try {
-        blob = dataUrlToBlob(item.dataUrl);
-      } catch (err) {
-        throw new Error(`Could not prepare local image: ${err.message || err}`);
-      }
+      try { blob = dataUrlToBlob(item.dataUrl); }
+      catch (err) { throw new Error(`Could not prepare local image: ${err.message || err}`); }
       log(`Prepared ${item.id} (${formatBytes(blob.size)}).`);
 
-      const path = `images/${item.id}.jpg`;
-      const storageRef = ref(storage, path);
-
+      const storageRef = ref(storage, `images/${item.id}.jpg`);
       setStatus(`Uploading ${index} of ${total}…`);
       log(`Uploading ${item.id} to Firebase Storage…`);
-      const snap = await retryAsync('Storage upload', () =>
-        uploadBlobWithProgress(storageRef, blob, index, total)
-      );
+      const uploadSnap = await retryAsync("Storage upload", () => uploadBlobWithProgress(storageRef, blob, index, total));
       log(`Storage upload complete for ${item.id}.`);
 
       setStatus(`Getting URL ${index} of ${total}…`);
-      const fullUrl = await retryAsync('Download URL lookup', () =>
-        withTimeout(getDownloadURL(snap.ref), FIREBASE_STEP_TIMEOUT_MS, 'Getting Firebase download URL')
+      const fullUrl = await retryAsync("Download URL lookup", () =>
+        withTimeout(getDownloadURL(uploadSnap.ref), FIREBASE_STEP_TIMEOUT_MS, "Getting Firebase download URL")
       );
 
       const meta = {
@@ -549,21 +547,18 @@
 
       setStatus(`Saving metadata ${index} of ${total}…`);
       log(`Saving Firestore metadata for ${item.id}…`);
-      await retryAsync('Firestore metadata save', () =>
+      await retryAsync("Firestore metadata save", () =>
         withTimeout(
-          setDoc(doc(db, "images", item.id), meta, { merge: true }),
+          setDoc(doc(firestore, "images", item.id), meta, { merge: true }),
           FIREBASE_STEP_TIMEOUT_MS,
-          'Saving Firestore metadata'
+          "Saving Firestore metadata"
         )
       );
       log(`Firestore metadata saved for ${item.id}.`);
 
-      setStatus(`Updating local record ${index} of ${total}…`);
-      log(`Updating local fullUrl for ${item.id}…`);
-      item.fullUrl = fullUrl;
-      await idbPut(item);
-      log(`Local record updated for ${item.id}.`);
-
+      setStatus(`Saving migration receipt ${index} of ${total}…`);
+      await saveMigrationReceipt(item.id, fullUrl, "uploaded");
+      log(`Migration receipt saved for ${item.id}. No large local image rewrite needed.`);
       return "migrated";
     }
 
@@ -576,24 +571,23 @@
 
       try {
         let items;
-        try {
-          items = await collectUnmigrated();
-        } catch (err) {
-          console.error('Could not open/read local IndexedDB', err);
-          const detail = err && err.message ? err.message : String(err);
-          throw new Error(`Could not open local IndexedDB: ${detail}`);
+        try { items = await collectUnmigrated(); }
+        catch (err) {
+          console.error("Could not open/read local IndexedDB", err);
+          throw new Error(`Could not open local IndexedDB: ${err?.message || err}`);
         }
 
-        log(`Found ${items.length} items that still need migration.`);
+        log(`Found ${items.length} items that still need migration or cloud reconciliation.`);
         if (!items.length) {
-          setStatus('Done. Nothing needs migration.');
-          log('Migration complete.');
+          setStatus("Done. Nothing needs migration.");
+          log("Migration complete.");
           return;
         }
 
         await ensureFirebaseAuth();
 
         let migrated = 0;
+        let reconciled = 0;
         let skipped = 0;
         let failed = 0;
 
@@ -601,43 +595,34 @@
           const item = items[i];
           try {
             const result = await migrateItem(item, i + 1, items.length);
-            if (result === "migrated") {
-              migrated++;
-              log(`Migrated ${item.id} (${i + 1}/${items.length}).`);
-            } else {
-              skipped++;
-              log(`Skipped ${item && item.id ? item.id : 'unknown item'} (${i + 1}/${items.length}).`);
-            }
+            if (result === "migrated") migrated++;
+            else if (result === "reconciled") reconciled++;
+            else skipped++;
           } catch (err) {
             failed++;
-            const sr = (err && typeof err.serverResponse === 'string') ? err.serverResponse : '';
-            const cd = (err && err.customData) ? JSON.stringify(err.customData) : '';
-            let errJson = '';
-            try { errJson = JSON.stringify(err); } catch { errJson = String(err); }
-            log(`ERROR for ${item.id}: ${err?.message || err} (${err?.code || 'no-code'})`);
-            if (sr) log(`serverResponse: ${sr}`);
-            if (cd) log(`customData: ${cd}`);
-            if (errJson && errJson !== '{}') log(`errorJson: ${errJson}`);
-            console.error('Firebase migration error', err);
+            log(`ERROR for ${item.id}: ${err?.message || err} (${err?.code || "no-code"})`);
+            console.error("Firebase migration error", err);
           }
-
           setStatus(`Processed ${i + 1} of ${items.length}…`);
           await delay(75);
         }
 
-        setStatus(`Done. Migrated ${migrated}, skipped ${skipped}, failed ${failed}.`);
-        log(`Migration complete. Migrated ${migrated}, skipped ${skipped}, failed ${failed}.`);
+        setStatus(`Done. Uploaded ${migrated}, already in cloud ${reconciled}, skipped ${skipped}, failed ${failed}.`);
+        log(`Migration complete. Uploaded ${migrated}, already in cloud ${reconciled}, skipped ${skipped}, failed ${failed}.`);
       } catch (err) {
-        setStatus('Migration could not finish.');
-        log("Unexpected error: " + (err.message || err));
-        console.error('Migration could not finish', err);
+        setStatus("Migration could not finish.");
+        log(`Unexpected error: ${err?.message || err}`);
+        console.error("Migration could not finish", err);
       } finally {
         migrationRunning = false;
         btn.disabled = false;
       }
     }
 
-    window.addEventListener('pagehide', closeDb);
+    window.addEventListener("pagehide", () => {
+      closeMainDb();
+      closeReceiptDb();
+    });
     btn.addEventListener("click", migrateAll);
   </script>
 </body>
