@@ -11,7 +11,7 @@
   </style>
 </head>
 <body>
-  <div class="loader"><div class="loaderCard"><div class="loaderTitle">Loading ComfortOtter…</div><div id="loaderDetail" class="loaderDetail">Starting direct loader…</div><div class="loaderBuild">Direct loader build 16:56</div><div id="loaderError" class="loaderError"></div></div></div>
+  <div class="loader"><div class="loaderCard"><div class="loaderTitle">Loading ComfortOtter…</div><div id="loaderDetail" class="loaderDetail">Starting direct loader…</div><div class="loaderBuild">Direct loader build 17:02</div><div id="loaderError" class="loaderError"></div></div></div>
   <script>
     (async function loadDirectComfortOtter(){
       const detail=(text)=>{ const el=document.getElementById('loaderDetail'); if(el) el.textContent=text; };
@@ -27,8 +27,8 @@
 
       detail('Fetching stable app layers…');
       const [autoHdShell,durableShell]=await Promise.all([
-        fetchText('stable-auto-hd-shell.html?v=20260826-1656'),
-        fetchText('stable-index-shell.html?v=20260826-1656')
+        fetchText('stable-auto-hd-shell.html?v=20260826-1702'),
+        fetchText('stable-index-shell.html?v=20260826-1702')
       ]);
       detail('Stable layers loaded. Preparing app…');
 
@@ -37,7 +37,8 @@
       if(autoPos<0) throw new Error('Could not find the working Auto-HD loader.');
       const autoScriptOpen=autoHdShell.lastIndexOf('<script',autoPos);
       const autoScriptBody=autoHdShell.indexOf('>',autoScriptOpen)+1;
-      const autoScriptClose=autoHdShell.indexOf('</script>',autoPos);
+      const scriptCloseTag='<'+'/script>';
+      const autoScriptClose=autoHdShell.indexOf(scriptCloseTag,autoPos);
       if(autoScriptOpen<0||autoScriptBody<=0||autoScriptClose<0) throw new Error('Could not extract the working Auto-HD loader script.');
       let loaderScript=autoHdShell.slice(autoScriptBody,autoScriptClose);
 
@@ -54,7 +55,7 @@
       window.__comfortOtterDurablePatchText=durablePatchText;
       window.__comfortOtterFirestorePatch=[
         "      if(!html.includes('firestore-sync.js')){",
-        "        const cloudTag='<script type=\"module\" src=\"firestore-sync.js?v=20260826-1656\"><'+'/script>';",
+        "        const cloudTag='<script type=\"module\" src=\"firestore-sync.js?v=20260826-1702\"><'+'/script>';",
         "        html=html.replace('</body>',cloudTag+'</body>');",
         "      }"
       ].join('\n');
@@ -69,7 +70,6 @@
       ].join('\n');
       loaderScript=loaderScript.replace(mergeAnchor,mergeCode);
 
-      // Make every nested GitHub/CDN fetch fail fast instead of hanging forever.
       const nativeFetch=window.fetch.bind(window);
       window.fetch=function(input,init){
         const url=typeof input==='string'?input:(input&&input.url?input.url:'');
@@ -101,7 +101,7 @@
     })().catch(error=>{
       console.error('ComfortOtter direct loader failed',error);
       const target=document.getElementById('loaderError');
-      if(target) target.textContent='ComfortOtter could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nDirect loader build 16:56';
+      if(target) target.textContent='ComfortOtter could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nDirect loader build 17:02';
     });
   </script>
 </body>
