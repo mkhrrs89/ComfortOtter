@@ -45,7 +45,7 @@
   html=html.replace(overlayOld,overlayNew);
 
   const patchItemStart='async function patchItem(id, patch){';
-  const patchItemEnd='\nasync function getMainItem(id)';
+  const patchItemEnd='\nasync function deleteItem(id){';
   const start=html.indexOf(patchItemStart);const end=html.indexOf(patchItemEnd,start);
   if(start<0||end<0)throw new Error('Title Twins patchItem range not found.');
   const patchItemNew=[
