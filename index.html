@@ -20,7 +20,11 @@
         'https://raw.githubusercontent.com/mkhrrs89/ComfortOtter/'+priorRevision+'/index.html'
       ];
       async function fetchFirst(){let last=null;for(const url of urls){try{const r=await fetch(url,{cache:'force-cache'});if(!r.ok)throw new Error(r.status+' '+r.statusText);return await r.text();}catch(e){last=e;}}throw last||new Error('Could not load ComfortOtter code.');}
-      const source=await fetchFirst();
+      let source=await fetchFirst();
+      const oldCall='window.saveItemToCloud(snapshot)';
+      const newCall="window.saveItemToCloud(Object.fromEntries(Object.entries(snapshot).filter(([key])=>key==='id'||DURABLE_STATS_KEYS.includes(key))))";
+      if(source.split(oldCall).length-1!==1) throw new Error('Firestore stat payload patch point not found exactly once.');
+      source=source.replace(oldCall,newCall);
       document.open();document.write(source);document.close();
     })().catch(error=>{
       console.error('ComfortOtter Firestore-sync loader failed',error);
