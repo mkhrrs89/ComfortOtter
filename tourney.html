@@ -40,9 +40,8 @@
     async function readMainItemCount(){
       const db = await openItemsDB();
       return new Promise((resolve,reject)=>{
-        let tx;
         try{
-          tx = db.transaction(DB_STORE,'readonly');
+          const tx = db.transaction(DB_STORE,'readonly');
           const req = tx.objectStore(DB_STORE).count();
           req.onsuccess = ()=>resolve(Number(req.result || 0));
           req.onerror = ()=>reject(req.error || new Error('Failed to count image records.'));
@@ -63,9 +62,8 @@
           try{ db.close(); }catch(_e){}
           fn();
         };
-        let tx;
         try{
-          tx = db.transaction(TOURNEY_INDEX_STORE,'readonly');
+          const tx = db.transaction(TOURNEY_INDEX_STORE,'readonly');
           const req = tx.objectStore(TOURNEY_INDEX_STORE).getAll();
           req.onsuccess = ()=>{ rows = Array.isArray(req.result) ? req.result : []; };
           req.onerror = ()=>finish(()=>reject(req.error || new Error('Failed to read tournament index.')));
@@ -106,9 +104,8 @@
           try{ db.close(); }catch(_e){}
           fn();
         };
-        let tx;
         try{
-          tx = db.transaction(TOURNEY_INDEX_STORE,'readwrite');
+          const tx = db.transaction(TOURNEY_INDEX_STORE,'readwrite');
           const st = tx.objectStore(TOURNEY_INDEX_STORE);
           st.clear();
           for(const item of slimItems) st.put(item);
@@ -189,31 +186,13 @@
         'lightweight tournament item index'
       );
 
-      html = replaceOnce(
-        html,
-        `        items = await idbGetAllItems();
-        items = await overlayFastStatsOnItems(items);`,
-        `        const itemLoadPromise = (async()=>overlayFastStatsOnItems(await idbGetAllItems()))();
-        const stateLoadPromise = loadTourneyState();
-        items = await itemLoadPromise;`,
-        'parallel tournament item/state load'
-      );
-
-      html = replaceOnce(
-        html,
-        `        tourneyState = await loadTourneyState();`,
-        `        tourneyState = await stateLoadPromise;`,
-        'finish parallel tournament state load'
-      );
-
       const fastLoadRequired = [
         "const TOURNEY_INDEX_DB_NAME = 'modelMatchupTourneyIndexDB'",
         'async function readMainItemCount()',
         'async function readTourneyIndexSnapshot()',
         'async function writeTourneyIndexSnapshot(sourceItems)',
         'async function idbGetAllItemsFromMain()',
-        "console.log('[TOURNEY FAST LOAD] using lightweight index'",
-        'const stateLoadPromise = loadTourneyState();'
+        "console.log('[TOURNEY FAST LOAD] using lightweight index'"
       ];
       const missingFastLoad = fastLoadRequired.filter(snippet=>!html.includes(snippet));
       if(missingFastLoad.length){
