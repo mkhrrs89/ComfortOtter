@@ -68,31 +68,79 @@
       const autoHdLoadMarker = 'const loadMatchupHdBoth = useCallback((e)=>{';
       const matchupLeftImageMarker = '      <SafeImage\\n        item={left}';
       const matchupRightImageMarker = '      <SafeImage\\n        item={right}';
+      const leftHdMarker = '        onResolved={(url)=>patchItem(left.id,{fullUrl:url})}\\n        allowFull={matchupLeftHd}\\n      />';
+      const rightHdMarker = '        onResolved={(url)=>patchItem(right.id,{fullUrl:url})}\\n        allowFull={matchupRightHd}\\n      />';
       const autoHdLeftCount = html.split(autoHdLeftInit).length - 1;
       const autoHdRightCount = html.split(autoHdRightInit).length - 1;
       const autoHdLoadCount = html.split(autoHdLoadMarker).length - 1;
       const matchupLeftImageCount = html.split(matchupLeftImageMarker).length - 1;
       const matchupRightImageCount = html.split(matchupRightImageMarker).length - 1;
-      if(autoHdLeftCount < 1 || autoHdRightCount < 1 || autoHdLoadCount < 1 || matchupLeftImageCount < 1 || matchupRightImageCount < 1){
-        throw new Error('Matchup Auto-HD/transition patch could not find the expected hooks.');
+      const leftHdCount = html.split(leftHdMarker).length - 1;
+      const rightHdCount = html.split(rightHdMarker).length - 1;
+      if(autoHdLeftCount < 1 || autoHdRightCount < 1 || autoHdLoadCount < 1 || matchupLeftImageCount < 1 || matchupRightImageCount < 1 || leftHdCount < 1 || rightHdCount < 1){
+        throw new Error('Matchup progressive Auto-HD patch could not find the expected hooks.');
       }
       html = html.split(autoHdLeftInit).join('const [matchupLeftHd, setMatchupLeftHd] = useState(true);');
       html = html.split(autoHdRightInit).join('const [matchupRightHd, setMatchupRightHd] = useState(true);');
       const autoHdEffect = 'useEffect(() => {\\n  if(matchIds[0] && matchIds[1]){\\n    setMatchupLeftHd(true);\\n    setMatchupRightHd(true);\\n  }\\n}, [matchIds[0], matchIds[1]]);\\n\\n';
       html = html.split(autoHdLoadMarker).join(autoHdEffect + autoHdLoadMarker);
 
-      // Force each newly selected matchup image to mount as a fresh SafeImage.
-      // SafeImage starts on its blank/black placeholder, so the previous pair
-      // disappears immediately instead of lingering while HD hydration runs.
+      // Each new matchup gets fresh image components, so the previous pair is
+      // discarded immediately. The base image is thumbnail-only; a transparent
+      // HD layer hydrates in parallel and naturally replaces it when ready.
       html = html.split(matchupLeftImageMarker).join('      <SafeImage\\n        key={left.id}\\n        item={left}');
       html = html.split(matchupRightImageMarker).join('      <SafeImage\\n        key={right.id}\\n        item={right}');
+
+      const leftProgressive = [
+        '        onResolved={(url)=>patchItem(left.id,{fullUrl:url})}',
+        '        allowFull={false}',
+        '      />',
+        '      {matchupLeftHd && (',
+        '        <SafeImage',
+        "          key={'left-hd-'+left.id}",
+        '          item={left}',
+        '          src=""',
+        '          fallbackSrcs={EMPTY_SOURCES}',
+        '          alt="left HD"',
+        '          preferRemote={true}',
+        '          eagerHydrate={true}',
+        '          hydrateThumb={false}',
+        '          onResolved={(url)=>patchItem(left.id,{fullUrl:url})}',
+        '          allowFull={true}',
+        "          style={{position:'absolute',inset:4,width:'calc(100% - 8px)',height:'calc(100% - 8px)',background:'transparent'}}",
+        '        />',
+        '      )}'
+      ].join('\\n');
+      const rightProgressive = [
+        '        onResolved={(url)=>patchItem(right.id,{fullUrl:url})}',
+        '        allowFull={false}',
+        '      />',
+        '      {matchupRightHd && (',
+        '        <SafeImage',
+        "          key={'right-hd-'+right.id}",
+        '          item={right}',
+        '          src=""',
+        '          fallbackSrcs={EMPTY_SOURCES}',
+        '          alt="right HD"',
+        '          preferRemote={true}',
+        '          eagerHydrate={true}',
+        '          hydrateThumb={false}',
+        '          onResolved={(url)=>patchItem(right.id,{fullUrl:url})}',
+        '          allowFull={true}',
+        "          style={{position:'absolute',inset:4,width:'calc(100% - 8px)',height:'calc(100% - 8px)',background:'transparent'}}",
+        '        />',
+        '      )}'
+      ].join('\\n');
+      html = html.split(leftHdMarker).join(leftProgressive);
+      html = html.split(rightHdMarker).join(rightProgressive);
 
       if(!html.includes('const [matchupLeftHd, setMatchupLeftHd] = useState(true);') ||
          !html.includes('const [matchupRightHd, setMatchupRightHd] = useState(true);') ||
          !html.includes('if(matchIds[0] && matchIds[1])') ||
-         !html.includes('key={left.id}') ||
-         !html.includes('key={right.id}')){
-        throw new Error('Matchup Auto-HD/transition patch validation failed.');
+         !html.includes("key={'left-hd-'+left.id}") ||
+         !html.includes("key={'right-hd-'+right.id}") ||
+         !html.includes('allowFull={false}')){
+        throw new Error('Matchup progressive Auto-HD patch validation failed.');
       }
 `;
 
