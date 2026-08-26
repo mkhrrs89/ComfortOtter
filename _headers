@@ -8,5 +8,7 @@
   Cache-Control: no-cache, no-store, must-revalidate
 /stable-index-shell.html
   Cache-Control: no-cache, no-store, must-revalidate
+/stable-auto-hd-shell.html
+  Cache-Control: no-cache, no-store, must-revalidate
 /stable-tourney-shell.html
   Cache-Control: no-cache, no-store, must-revalidate
