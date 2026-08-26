@@ -207,6 +207,9 @@
         'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@' + priorRevision + '/tourney.html',
         'https://raw.githubusercontent.com/mkhrrs89/ComfortOtter/' + priorRevision + '/tourney.html'
       ];
+      const warmUrls = [
+        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@be04f76f96009a52cffeb5dc42333bedfd876110/tourney.html'
+      ];
 
       async function fetchFirst(urls){
         let lastError = null;
@@ -222,7 +225,11 @@
         throw lastError || new Error('Could not load tournament code.');
       }
 
-      let loader = await fetchFirst(sources);
+      const loaderPromise = fetchFirst(sources);
+      for(const url of warmUrls){
+        fetch(url,{cache:'force-cache'}).catch(()=>{});
+      }
+      let loader = await loaderPromise;
       const marker = '      const required = [';
       const count = loader.split(marker).length - 1;
       if(count !== 1){
