@@ -244,6 +244,203 @@
         'add one-time win percentage rating initialization'
       );
 
+      html = applyOnce(
+        html,
+        `    async function idbGetAll(){`,
+        `    const FAST_STATS_DB_NAME = 'modelMatchupStatsDB';
+    const FAST_STATS_STORE = 'stats';
+    let fastStatsDbPromise = null;
+
+    function openFastStatsDB(){
+      if(fastStatsDbPromise) return fastStatsDbPromise;
+      fastStatsDbPromise = new Promise((resolve,reject)=>{
+        let settled = false;
+        const req = indexedDB.open(FAST_STATS_DB_NAME,1);
+        const timeoutId = setTimeout(()=>{
+          if(settled) return;
+          settled = true;
+          reject(new Error('Timed out opening lightweight stats database.'));
+        },10000);
+        const finish = fn=>{
+          if(settled) return;
+          settled = true;
+          clearTimeout(timeoutId);
+          fn();
+        };
+        req.onupgradeneeded = ()=>{
+          const db = req.result;
+          if(!db.objectStoreNames.contains(FAST_STATS_STORE)){
+            db.createObjectStore(FAST_STATS_STORE,{keyPath:'id'});
+          }
+        };
+        req.onsuccess = ()=>{
+          const db = req.result;
+          if(settled){
+            try{ db.close(); }catch(_e){}
+            return;
+          }
+          db.onversionchange = ()=>{
+            try{ db.close(); }catch(_e){}
+            fastStatsDbPromise = null;
+          };
+          finish(()=>resolve(db));
+        };
+        req.onerror = ()=>finish(()=>reject(req.error || new Error('Failed to open lightweight stats database.')));
+        req.onblocked = ()=>finish(()=>reject(new Error('Lightweight stats database is blocked by another tab.')));
+      }).catch(err=>{
+        fastStatsDbPromise = null;
+        throw err;
+      });
+      return fastStatsDbPromise;
+    }
+
+    function fastStatsPatchFromItem(item){
+      const patch = {id:item.id, updatedAt:Date.now()};
+      if(item.wins !== undefined) patch.wins = Math.max(0,Number(item.wins || 0));
+      if(item.losses !== undefined) patch.losses = Math.max(0,Number(item.losses || 0));
+      if(item.tourneyBonus !== undefined) patch.tourneyBonus = Number(item.tourneyBonus || 0);
+      if(item.tourneyCount !== undefined) patch.tourneyCount = Math.max(0,Number(item.tourneyCount || 0));
+      if(item.rating !== undefined) patch.rating = clampRating(item.rating);
+      if(item.ratingSeededFromWinPctV1 !== undefined) patch.ratingSeededFromWinPctV1 = !!item.ratingSeededFromWinPctV1;
+      return patch;
+    }
+
+    function mergeFastStatsIntoItem(item,stats){
+      if(!item || !stats) return item;
+      const next = {...item};
+      for(const key of ['wins','losses','tourneyBonus','tourneyCount','rating','ratingSeededFromWinPctV1']){
+        if(stats[key] !== undefined) next[key] = stats[key];
+      }
+      return next;
+    }
+
+    async function fastStatsGetAll(){
+      const db = await openFastStatsDB();
+      return new Promise((resolve,reject)=>{
+        const tx = db.transaction(FAST_STATS_STORE,'readonly');
+        const req = tx.objectStore(FAST_STATS_STORE).getAll();
+        req.onsuccess = ()=>resolve(Array.isArray(req.result) ? req.result : []);
+        req.onerror = ()=>reject(req.error || new Error('Failed to read lightweight stats.'));
+      });
+    }
+
+    async function fastStatsPutItems(sourceItems){
+      const valid = (Array.isArray(sourceItems) ? sourceItems : [sourceItems]).filter(item=>item && item.id);
+      if(!valid.length) return;
+      const db = await openFastStatsDB();
+      return new Promise((resolve,reject)=>{
+        const tx = db.transaction(FAST_STATS_STORE,'readwrite');
+        const st = tx.objectStore(FAST_STATS_STORE);
+        let failed = false;
+        const fail = err=>{
+          if(failed) return;
+          failed = true;
+          try{ tx.abort(); }catch(_e){}
+          reject(err || new Error('Failed to write lightweight stats.'));
+        };
+        for(const item of valid){
+          const getReq = st.get(item.id);
+          getReq.onerror = ()=>fail(getReq.error);
+          getReq.onsuccess = ()=>{
+            if(failed) return;
+            const existing = getReq.result || {id:item.id};
+            const putReq = st.put({...existing,...fastStatsPatchFromItem(item)});
+            putReq.onerror = ()=>fail(putReq.error);
+          };
+        }
+        tx.oncomplete = ()=>{ if(!failed) resolve(); };
+        tx.onerror = ()=>fail(tx.error);
+        tx.onabort = ()=>{ if(!failed) fail(tx.error || new Error('Lightweight stats transaction aborted.')); };
+      });
+    }
+
+    async function fastStatsDelete(id){
+      if(!id) return;
+      const db = await openFastStatsDB();
+      return new Promise((resolve,reject)=>{
+        const tx = db.transaction(FAST_STATS_STORE,'readwrite');
+        tx.objectStore(FAST_STATS_STORE).delete(id);
+        tx.oncomplete = ()=>resolve();
+        tx.onerror = ()=>reject(tx.error || new Error('Failed to delete lightweight stats.'));
+      });
+    }
+
+    window.addEventListener('pagehide',()=>{
+      if(!fastStatsDbPromise) return;
+      Promise.resolve(fastStatsDbPromise).then(db=>{
+        try{ db.close(); }catch(_e){}
+      }).catch(()=>{});
+      fastStatsDbPromise = null;
+    });
+
+    async function idbGetAll(){
+      const baseItems = await idbGetAllBase();
+      try{
+        const rows = await fastStatsGetAll();
+        if(!rows.length) return baseItems;
+        const byId = new Map(rows.map(row=>[row.id,row]));
+        return baseItems.map(item=>mergeFastStatsIntoItem(item,byId.get(item.id)));
+      }catch(err){
+        console.warn('Could not apply lightweight stats overlay; using legacy stats.',err);
+        return baseItems;
+      }
+    }
+
+    async function idbGetAllBase(){`,
+        'add lightweight stats overlay to library load'
+      );
+
+      html = applyOnce(
+        html,
+        `    async function idbPutMerged(item){`,
+        `    async function idbPutMerged(item){
+      const result = await idbPutMergedBase(item);
+      try{
+        await fastStatsPutItems([item]);
+      }catch(err){
+        console.warn('Could not mirror item stats to lightweight store.',err);
+      }
+      return result;
+    }
+
+    async function idbPutMergedBase(item){`,
+        'mirror single item writes to lightweight stats'
+      );
+
+      html = applyOnce(
+        html,
+        `    async function idbBulkPutMerged(items){`,
+        `    async function idbBulkPutMerged(items){
+      const result = await idbBulkPutMergedBase(items);
+      try{
+        await fastStatsPutItems(items);
+      }catch(err){
+        console.warn('Could not mirror bulk item stats to lightweight store.',err);
+      }
+      return result;
+    }
+
+    async function idbBulkPutMergedBase(items){`,
+        'mirror bulk item writes to lightweight stats'
+      );
+
+      html = applyOnce(
+        html,
+        `    async function idbDelete(id){`,
+        `    async function idbDelete(id){
+      const result = await idbDeleteBase(id);
+      try{
+        await fastStatsDelete(id);
+      }catch(err){
+        console.warn('Could not remove lightweight stats for deleted item.',err);
+      }
+      return result;
+    }
+
+    async function idbDeleteBase(id){`,
+        'remove lightweight stats on item delete'
+      );
+
       const required = [
         'function clampRating(value)',
         'rating: 0,',
@@ -253,11 +450,18 @@
         "changeStatsSort('rating')",
         "const seedKey = 'ratingWinPctSeedV1Complete'",
         'Math.floor((wins / total) * 100)',
-        'ratingSeededFromWinPctV1: true'
+        'ratingSeededFromWinPctV1: true',
+        "const FAST_STATS_DB_NAME = 'modelMatchupStatsDB'",
+        'async function fastStatsGetAll()',
+        'async function fastStatsPutItems(sourceItems)',
+        'async function idbGetAllBase()',
+        'async function idbPutMergedBase(item)',
+        'async function idbBulkPutMergedBase(items)',
+        'async function idbDeleteBase(id)'
       ];
       const missing = required.filter(snippet => !html.includes(snippet));
       if(missing.length){
-        throw new Error(`Rating validation failed: ${missing.join(', ')}`);
+        throw new Error(`App patch validation failed: ${missing.join(', ')}`);
       }
 
       const ratingSortOptions = countOccurrences(html, '<option value="rating">Rating</option>');
