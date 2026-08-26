@@ -4,6 +4,8 @@
   Cache-Control: no-cache, no-store, must-revalidate
 /tourney.html
   Cache-Control: no-cache, no-store, must-revalidate
+/direct-loader.js
+  Cache-Control: no-cache, no-store, must-revalidate
 /firestore-sync.js
   Cache-Control: no-cache, no-store, must-revalidate
 /stable-index-shell.html
