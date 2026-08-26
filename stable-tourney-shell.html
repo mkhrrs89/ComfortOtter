@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ModelMatchup — Tournament Mode</title>
+  <meta name="theme-color" content="#050c0a" />
+  <style>
+    html,body{height:100%;margin:0;background:#050c0a;color:#e7f5ef;font:14px/1.4 system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    .loader{height:100%;display:grid;place-items:center;padding:24px;text-align:center}.loaderCard{max-width:520px;padding:20px;border:1px solid #1b3a2f;border-radius:14px;background:#091612}.loaderTitle{font-size:18px;font-weight:700;margin-bottom:8px}.loaderDetail{color:#8fb0a1}.loaderError{white-space:pre-wrap;text-align:left;color:#ffb4be;margin-top:12px}
+  </style>
+</head>
+<body>
+  <div class="loader"><div class="loaderCard"><div class="loaderTitle">Loading Tournament…</div><div class="loaderDetail">Opening the lightweight tournament index.</div><div id="loaderError" class="loaderError"></div></div></div>
+  <script>
+    (async function loadDurableTournament(){
+      const priorRevision = '2776fe950c6ad4ace35df0c6b1ed3edcdd92b080';
+      const sources = [
+        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@' + priorRevision + '/tourney.html',
+        'https://raw.githubusercontent.com/mkhrrs89/ComfortOtter/' + priorRevision + '/tourney.html'
+      ];
+      const warmUrls = [
+        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@6ad55663dc7aaeb6bd9a6e7397f47de7ca672d71/tourney.html',
+        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@be04f76f96009a52cffeb5dc42333bedfd876110/tourney.html'
+      ];
+      async function fetchFirst(urls){let last=null;for(const url of urls){try{const r=await fetch(url,{cache:'force-cache'});if(!r.ok)throw new Error(r.status+' '+r.statusText);return await r.text();}catch(e){last=e;}}throw last||new Error('Could not load tournament code.');}
+      for(const url of warmUrls) fetch(url,{cache:'force-cache'}).catch(()=>{});
+      let wrapper = await fetchFirst(sources);
+      const marker = '      const fastLoadRequired = [';
+      const count = wrapper.split(marker).length - 1;
+      if(count !== 1) throw new Error('Durable tournament patch could not find its patch point.');
+
+      const durablePatch = String.raw`
+      const durableTournamentNL = String.fromCharCode(10);
+      const durableTournamentStoreMarker = "    const FAST_STATS_STORE = 'stats';";
+      if(html.split(durableTournamentStoreMarker).length - 1 !== 1) throw new Error('Tournament durable stats store marker not found exactly once.');
+      const durableTournamentHelpers = [
+        durableTournamentStoreMarker,
+        "    const DURABLE_STATS_STORAGE_KEY = 'modelMatchupDurableStatsV1';",
+        "    const DURABLE_STATS_KEYS = ['wins','losses','tourneyBonus','tourneyCount','rating','ratingSeededFromWinPctV1'];",
+        '    let durableStatsCache = null;',
+        '',
+        '    function durableStatsReadMap(){',
+        '      if(durableStatsCache) return durableStatsCache;',
+        '      try{ const storage = window.localStorage; const raw = storage ? storage.getItem(DURABLE_STATS_STORAGE_KEY) : null; const parsed = raw ? JSON.parse(raw) : {}; durableStatsCache = parsed && typeof parsed === \'object\' && !Array.isArray(parsed) ? parsed : {}; }catch(err){ durableStatsCache = {}; }',
+        '      return durableStatsCache;',
+        '    }',
+        '    function durableStatsWriteMap(map){ durableStatsCache = map || {}; try{ const storage = window.localStorage; if(!storage) return false; storage.setItem(DURABLE_STATS_STORAGE_KEY,JSON.stringify(durableStatsCache)); return true; }catch(err){ console.warn(\'Tournament durable stats write failed\',err); return false; } }',
+        '    function normalizeDurableStat(key,value){',
+        "      if(key === 'wins' || key === 'losses' || key === 'tourneyCount') return Math.max(0,Number(value || 0));",
+        "      if(key === 'tourneyBonus') return Number(value || 0);",
+        "      if(key === 'rating') return Math.max(0,Math.min(100,Number(value || 0)));",
+        "      if(key === 'ratingSeededFromWinPctV1') return !!value;",
+        '      return value;',
+        '    }',
+        '    function durableStatsPutItems(sourceItems){',
+        '      const valid = (Array.isArray(sourceItems) ? sourceItems : [sourceItems]).filter(item=>item && item.id);',
+        '      if(!valid.length) return false;',
+        '      const map = durableStatsReadMap(); const now = Date.now();',
+        '      for(const item of valid){',
+        '        const existing = map[item.id] && typeof map[item.id] === \'object\' ? map[item.id] : {id:item.id};',
+        '        const next = {...existing,id:item.id}; let changed = false;',
+        '        for(const key of DURABLE_STATS_KEYS){ if(item[key] !== undefined){ next[key] = normalizeDurableStat(key,item[key]); changed = true; } }',
+        '        if(changed){ next.updatedAt = now; map[item.id] = next; }',
+        '      }',
+        '      return durableStatsWriteMap(map);',
+        '    }',
+        '    function durableStatsRows(){ return Object.values(durableStatsReadMap()).filter(row=>row && row.id); }'
+      ].join(durableTournamentNL);
+      html = html.replace(durableTournamentStoreMarker,durableTournamentHelpers);
+
+      const durableOverlayOld = [
+        '    async function overlayFastStatsOnItems(baseItems){',
+        '      try{',
+        '        const rows = await readFastStatsAll();',
+        '        if(!rows.length) return baseItems;',
+        '        const byId = new Map(rows.map(row=>[row.id,row]));',
+        '        return baseItems.map(item=>applyFastStatsRecord(item,byId.get(item.id)));',
+        '      }catch(err){',
+        "        console.warn('Lightweight stats overlay unavailable; using legacy item stats.', err);",
+        '        return baseItems;',
+        '      }',
+        '    }'
+      ].join(durableTournamentNL);
+      const durableOverlayNew = [
+        '    async function overlayFastStatsOnItems(baseItems){',
+        '      let rows = [];',
+        "      try{ rows = await readFastStatsAll(); }catch(err){ console.warn('Lightweight stats unavailable; checking durable journal.',err); }",
+        '      const fastById = new Map(rows.map(row=>[row.id,row]));',
+        '      const durableById = new Map(durableStatsRows().map(row=>[row.id,row]));',
+        '      if(!fastById.size && !durableById.size) return baseItems;',
+        '      return baseItems.map(item=>{ const stats = durableById.get(item.id) || fastById.get(item.id); return stats ? applyFastStatsRecord(item,stats) : item; });',
+        '    }'
+      ].join(durableTournamentNL);
+      if(html.split(durableOverlayOld).length - 1 !== 1) throw new Error('Tournament durable overlay patch point not found exactly once.');
+      html = html.replace(durableOverlayOld,durableOverlayNew);
+
+      const durableWriteOld = [
+        '    async function writeFastStatsForItems(nextItems){',
+        '      if(!Array.isArray(nextItems) || !nextItems.length) return;',
+        '      const db = await openFastStatsDB();'
+      ].join(durableTournamentNL);
+      const durableWriteNew = [
+        '    async function writeFastStatsForItems(nextItems){',
+        '      if(!Array.isArray(nextItems) || !nextItems.length) return;',
+        '      durableStatsPutItems(nextItems);',
+        '      const db = await openFastStatsDB();'
+      ].join(durableTournamentNL);
+      if(html.split(durableWriteOld).length - 1 !== 1) throw new Error('Tournament durable write patch point not found exactly once.');
+      html = html.replace(durableWriteOld,durableWriteNew);
+`;
+
+      wrapper = wrapper.replace(marker,durablePatch + '\n' + marker);
+      document.open();
+      document.write(wrapper);
+      document.close();
+    })().catch(error=>{
+      console.error('Durable tournament loader failed',error);
+      const target=document.getElementById('loaderError');
+      if(target) target.textContent='Tournament could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nReload the page to try again.';
+    });
+  </script>
+</body>
+</html>
