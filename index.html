@@ -13,65 +13,47 @@
 <body>
   <div class="loader"><div class="loaderCard"><div class="loaderTitle">Loading ComfortOtter…</div><div class="loaderDetail">Preparing your image library.</div><div id="loaderError" class="loaderError"></div></div></div>
   <script>
-    (async function loadFirestoreSync(){
-      const priorRevision='65d7e68f2a19fff3941bec454480fb9ec1b784ef';
+    (async function loadStableComfortOtter(){
+      const stableRevision='6131aebbe099bf09fd3944ec0a780f06941e7a8d';
       const urls=[
-        'https://raw.githubusercontent.com/mkhrrs89/ComfortOtter/'+priorRevision+'/index.html',
-        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@'+priorRevision+'/index.html'
+        'https://raw.githubusercontent.com/mkhrrs89/ComfortOtter/'+stableRevision+'/index.html',
+        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@'+stableRevision+'/index.html'
       ];
 
-      async function fetchTimed(url,timeoutMs=7000){
+      async function fetchTimed(url,timeoutMs=8000){
         const controller=typeof AbortController!=='undefined'?new AbortController():null;
-        const timer=setTimeout(()=>{try{controller&&controller.abort();}catch(_e){}},timeoutMs);
+        const timer=setTimeout(()=>{try{if(controller)controller.abort();}catch(_e){}},timeoutMs);
         try{
-          const r=await fetch(url,{cache:'no-cache',signal:controller?controller.signal:undefined});
-          if(!r.ok)throw new Error(r.status+' '+r.statusText);
-          return await r.text();
-        }finally{clearTimeout(timer);}
+          const res=await fetch(url,{cache:'no-cache',signal:controller?controller.signal:undefined});
+          if(!res.ok) throw new Error(res.status+' '+res.statusText);
+          return await res.text();
+        }finally{ clearTimeout(timer); }
       }
-      async function fetchFirst(){let last=null;for(const url of urls){try{return await fetchTimed(url);}catch(e){last=e;}}throw last||new Error('Could not load ComfortOtter code.');}
 
-      let source=await fetchFirst();
+      let source=null,lastError=null;
+      for(const url of urls){
+        try{ source=await fetchTimed(url); break; }
+        catch(err){ lastError=err; }
+      }
+      if(!source) throw lastError||new Error('Could not load the stable ComfortOtter app source.');
 
-      // Make the next loader layer fail over instead of hanging forever on iOS.
-      const oldInnerFetch="async function fetchFirst(){let last=null;for(const url of urls){try{const r=await fetch(url,{cache:'force-cache'});if(!r.ok)throw new Error(r.status+' '+r.statusText);return await r.text();}catch(e){last=e;}}throw last||new Error('Could not load ComfortOtter code.');}";
-      const newInnerFetch="async function fetchFirst(){let last=null;for(const url of urls){try{const c=typeof AbortController!=='undefined'?new AbortController():null;const t=setTimeout(()=>{try{c&&c.abort();}catch(_e){}},7000);try{const r=await fetch(url,{cache:'no-cache',signal:c?c.signal:undefined});if(!r.ok)throw new Error(r.status+' '+r.statusText);return await r.text();}finally{clearTimeout(t);}}catch(e){last=e;}}throw last||new Error('Could not load ComfortOtter code.');}";
-      if(source.split(oldInnerFetch).length-1===1) source=source.replace(oldInnerFetch,newInnerFetch);
-
-      // Prefer GitHub raw before jsDelivr in that loader layer as well.
-      const oldUrlOrder="        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@'+priorRevision+'/index.html',\n        'https://raw.githubusercontent.com/mkhrrs89/ComfortOtter/'+priorRevision+'/index.html'";
-      const newUrlOrder="        'https://raw.githubusercontent.com/mkhrrs89/ComfortOtter/'+priorRevision+'/index.html',\n        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@'+priorRevision+'/index.html'";
-      if(source.includes(oldUrlOrder)) source=source.replace(oldUrlOrder,newUrlOrder);
-
-      // The Firestore wrapper appends another patch to durablePatch. The prior
-      // loader declared durablePatch with const, so rewrite that declaration in
-      // the source it fetches before the appended patch executes.
-      const priorSourceMarker="      let source=await fetchFirst();\n      const marker=";
-      const injectedPriorSource=[
-        '      let source=await fetchFirst();',
-        '      const durableTick=String.fromCharCode(96);',
-        "      const durableConstDecl='      const durablePatch = String.raw'+durableTick;",
-        "      const durableLetDecl='      let durablePatch = String.raw'+durableTick;",
-        "      if(source.split(durableConstDecl).length-1!==1) throw new Error('Durable stats declaration patch point not found exactly once.');",
-        '      source=source.replace(durableConstDecl,durableLetDecl);',
-        '      const nestedFetchOld="async function fetchFirst(urls){let last=null;for(const url of urls){try{const r=await fetch(url,{cache:\'force-cache\'});if(!r.ok)throw new Error(r.status+\' \'+r.statusText);return await r.text();}catch(e){last=e;}}throw last||new Error(\'Could not load ComfortOtter code.\');}";',
-        '      const nestedFetchNew="async function fetchFirst(urls){let last=null;for(const url of urls){try{const c=typeof AbortController!==\'undefined\'?new AbortController():null;const t=setTimeout(()=>{try{c&&c.abort();}catch(_e){}},7000);try{const r=await fetch(url,{cache:\'no-cache\',signal:c?c.signal:undefined});if(!r.ok)throw new Error(r.status+\' \'+r.statusText);return await r.text();}finally{clearTimeout(t);}}catch(e){last=e;}}throw last||new Error(\'Could not load ComfortOtter code.\');}";',
-        '      if(source.includes(nestedFetchOld)) source=source.replace(nestedFetchOld,nestedFetchNew);',
-        '      const marker='
+      // Keep the last known-good app loader and inject cloud stat syncing into
+      // the final rendered app without modifying the durable-stats patch itself.
+      const oldLine="      wrapper = wrapper.replace(marker,durablePatch + '\\n' + marker);";
+      const injectedLine=[
+        "      const firestoreInjectPatch = String.raw`",
+        "      if(!html.includes('firestore-sync.js')) html=html.replace('</head>','<script type=\"module\" src=\"firestore-sync.js?v=20260826-1550\"><\\/script></head>');",
+        "`;",
+        "      wrapper = wrapper.replace(marker,durablePatch + '\\n' + firestoreInjectPatch + '\\n' + marker);"
       ].join('\n');
-      if(source.split(priorSourceMarker).length-1!==1) throw new Error('Startup patch could not find the prior loader patch point.');
-      source=source.replace(priorSourceMarker,injectedPriorSource);
+      if(source.split(oldLine).length-1!==1) throw new Error('Stable loader cloud-sync injection point was not found exactly once.');
+      source=source.replace(oldLine,injectedLine);
 
-      // Cloud-stat queue entries contain bookkeeping such as queuedAt. Only send
-      // actual image stat fields to the existing Firestore metadata mirror.
-      const oldCall='window.saveItemToCloud(snapshot)';
-      const newCall='window.saveItemToCloud(Object.fromEntries(Object.entries(snapshot).filter(([key])=>key==="id"||DURABLE_STATS_KEYS.includes(key))))';
-      if(source.split(oldCall).length-1!==1) throw new Error('Firestore stat payload patch point not found exactly once.');
-      source=source.replace(oldCall,newCall);
-
-      document.open();document.write(source);document.close();
+      document.open();
+      document.write(source);
+      document.close();
     })().catch(error=>{
-      console.error('ComfortOtter Firestore-sync loader failed',error);
+      console.error('ComfortOtter startup failed',error);
       const target=document.getElementById('loaderError');
       if(target) target.textContent='ComfortOtter could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nReload the page to try again.';
     });
