@@ -66,20 +66,33 @@
       const autoHdLeftInit = 'const [matchupLeftHd, setMatchupLeftHd] = useState(false);';
       const autoHdRightInit = 'const [matchupRightHd, setMatchupRightHd] = useState(false);';
       const autoHdLoadMarker = 'const loadMatchupHdBoth = useCallback((e)=>{';
+      const matchupLeftImageMarker = '      <SafeImage\\n        item={left}';
+      const matchupRightImageMarker = '      <SafeImage\\n        item={right}';
       const autoHdLeftCount = html.split(autoHdLeftInit).length - 1;
       const autoHdRightCount = html.split(autoHdRightInit).length - 1;
       const autoHdLoadCount = html.split(autoHdLoadMarker).length - 1;
-      if(autoHdLeftCount < 1 || autoHdRightCount < 1 || autoHdLoadCount < 1){
-        throw new Error('Matchup Auto-HD patch could not find the HD state/load hooks.');
+      const matchupLeftImageCount = html.split(matchupLeftImageMarker).length - 1;
+      const matchupRightImageCount = html.split(matchupRightImageMarker).length - 1;
+      if(autoHdLeftCount < 1 || autoHdRightCount < 1 || autoHdLoadCount < 1 || matchupLeftImageCount < 1 || matchupRightImageCount < 1){
+        throw new Error('Matchup Auto-HD/transition patch could not find the expected hooks.');
       }
       html = html.split(autoHdLeftInit).join('const [matchupLeftHd, setMatchupLeftHd] = useState(true);');
       html = html.split(autoHdRightInit).join('const [matchupRightHd, setMatchupRightHd] = useState(true);');
       const autoHdEffect = 'useEffect(() => {\\n  if(matchIds[0] && matchIds[1]){\\n    setMatchupLeftHd(true);\\n    setMatchupRightHd(true);\\n  }\\n}, [matchIds[0], matchIds[1]]);\\n\\n';
       html = html.split(autoHdLoadMarker).join(autoHdEffect + autoHdLoadMarker);
+
+      // Force each newly selected matchup image to mount as a fresh SafeImage.
+      // SafeImage starts on its blank/black placeholder, so the previous pair
+      // disappears immediately instead of lingering while HD hydration runs.
+      html = html.split(matchupLeftImageMarker).join('      <SafeImage\\n        key={left.id}\\n        item={left}');
+      html = html.split(matchupRightImageMarker).join('      <SafeImage\\n        key={right.id}\\n        item={right}');
+
       if(!html.includes('const [matchupLeftHd, setMatchupLeftHd] = useState(true);') ||
          !html.includes('const [matchupRightHd, setMatchupRightHd] = useState(true);') ||
-         !html.includes('if(matchIds[0] && matchIds[1])')){
-        throw new Error('Matchup Auto-HD patch validation failed.');
+         !html.includes('if(matchIds[0] && matchIds[1])') ||
+         !html.includes('key={left.id}') ||
+         !html.includes('key={right.id}')){
+        throw new Error('Matchup Auto-HD/transition patch validation failed.');
       }
 `;
 
