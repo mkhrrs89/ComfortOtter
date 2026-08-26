@@ -11,121 +11,61 @@
 <div class="loader"><div class="card"><div style="font-size:18px;font-weight:700">Loading Title Twins…</div><div class="muted">Opening the lightweight image index.</div><div id="err" class="err"></div></div></div>
 <script>
 (async()=>{
-  const rev='4e864ae0c4fccf4b2c33586fccc4ecc492f5c670';
+  const priorRevision='0b016493770db5e35562f97d53c20e1f50aeb579';
   const urls=[
-    'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@'+rev+'/duplicates.html',
-    'https://raw.githubusercontent.com/mkhrrs89/ComfortOtter/'+rev+'/duplicates.html'
+    'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@'+priorRevision+'/duplicates.html',
+    'https://raw.githubusercontent.com/mkhrrs89/ComfortOtter/'+priorRevision+'/duplicates.html'
   ];
+  const warm=['https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@4e864ae0c4fccf4b2c33586fccc4ecc492f5c670/duplicates.html'];
   async function fetchFirst(){let last;for(const u of urls){try{const r=await fetch(u,{cache:'force-cache'});if(!r.ok)throw new Error(r.status+' '+r.statusText);return await r.text();}catch(e){last=e;}}throw last||new Error('Could not load Title Twins source.');}
-  function once(text,oldText,newText,label){const n=text.split(oldText).length-1;if(n!==1)throw new Error(label+': expected 1 match, found '+n);return text.replace(oldText,newText);}
-  let html=await fetchFirst();
+  for(const u of warm)fetch(u,{cache:'force-cache'}).catch(()=>{});
+  let wrapper=await fetchFirst();
+  const marker="  const required=['FAST_STATS_DB'";
+  if(wrapper.split(marker).length-1!==1)throw new Error('Durable Title Twins patch point not found.');
+  const patch=String.raw`
+  const durableTwinNL=String.fromCharCode(10);
+  const twinMapMarker='let fastStatsById=new Map();';
+  if(html.split(twinMapMarker).length-1!==1)throw new Error('Title Twins stats map marker not found exactly once.');
+  const twinMapReplacement=[
+    "const DURABLE_STATS_STORAGE_KEY='modelMatchupDurableStatsV1';",
+    "const TWIN_STAT_KEYS=['wins','losses','tourneyBonus','tourneyCount','rating','ratingSeededFromWinPctV1'];",
+    'let fastStatsById=new Map();',
+    'let durableStatsById=readDurableTwinStats();',
+    "function readDurableTwinStats(){try{const s=window.localStorage;const raw=s?s.getItem(DURABLE_STATS_STORAGE_KEY):null;const parsed=raw?JSON.parse(raw):{};return new Map(Object.values(parsed&&typeof parsed==='object'?parsed:{}).filter(x=>x&&x.id).map(x=>[x.id,x]));}catch(e){return new Map();}}",
+    "function writeDurableTwinStats(){try{const s=window.localStorage;if(!s)return false;const obj={};for(const [id,row] of durableStatsById)obj[id]=row;s.setItem(DURABLE_STATS_STORAGE_KEY,JSON.stringify(obj));return true;}catch(e){console.warn('Title Twins durable stats write failed',e);return false;}}",
+    "function normalizeTwinStat(k,v){if(k==='wins'||k==='losses'||k==='tourneyCount')return Math.max(0,Number(v||0));if(k==='tourneyBonus')return Number(v||0);if(k==='rating')return Math.max(0,Math.min(100,Number(v||0)));if(k==='ratingSeededFromWinPctV1')return !!v;return v;}",
+    "function putDurableTwinStatPatch(id,p){if(!id||!p)return;const next={...(durableStatsById.get(id)||{id}),id};let changed=false;for(const k of TWIN_STAT_KEYS){if(Object.prototype.hasOwnProperty.call(p,k)&&p[k]!==undefined){next[k]=normalizeTwinStat(k,p[k]);changed=true;}}if(!changed)return;next.updatedAt=Date.now();durableStatsById.set(id,next);writeDurableTwinStats();}",
+    "function deleteDurableTwinStat(id){if(durableStatsById.delete(id))writeDurableTwinStats();}"
+  ].join(durableTwinNL);
+  html=html.replace(twinMapMarker,twinMapReplacement);
 
-  html=once(html,
-`async function loadAll(){
-  const db = await openDB();
-  const tx = db.transaction(DB_STORE,'readonly');
-  const st = tx.objectStore(DB_STORE);
-  const all = [];
-  return await new Promise((resolve)=>{
-    const req = st.openCursor();
-    req.onsuccess = e=>{
-      const c = e.target.result;
-      if(!c){ resolve(all); return; }
-      all.push(c.value);
-      c.continue();
-    };
-  });
-}`,
-`const FAST_STATS_DB='modelMatchupStatsDB';
-const FAST_STATS_STORE='stats';
-const TWIN_INDEX_DB='modelMatchupTourneyIndexDB';
-const TWIN_INDEX_STORE='items';
-const TWIN_INDEX_META='__meta__';
-const TWIN_INDEX_MAX_AGE=12*60*60*1000;
-let fastStatsById=new Map();
+  const overlayOld="function overlayFastStats(it){const s=it&&fastStatsById.get(it.id);if(!s)return it;const out={...it};for(const k of ['wins','losses','tourneyBonus','tourneyCount','rating','ratingSeededFromWinPctV1'])if(s[k]!==undefined)out[k]=s[k];return out;}";
+  const overlayNew="function overlayFastStats(it){const s=it&&(durableStatsById.get(it.id)||fastStatsById.get(it.id));if(!s)return it;const out={...it};for(const k of ['wins','losses','tourneyBonus','tourneyCount','rating','ratingSeededFromWinPctV1'])if(s[k]!==undefined)out[k]=s[k];return out;}";
+  if(html.split(overlayOld).length-1!==1)throw new Error('Title Twins durable overlay point not found exactly once.');
+  html=html.replace(overlayOld,overlayNew);
 
-function openNamedDB(name,version,store){
-  return new Promise((resolve,reject)=>{
-    let done=false;const req=indexedDB.open(name,version);const timer=setTimeout(()=>{if(done)return;done=true;reject(new Error('Timed out opening '+name));},12000);
-    const finish=fn=>{if(done)return;done=true;clearTimeout(timer);fn();};
-    req.onupgradeneeded=()=>{const db=req.result;if(store&&!db.objectStoreNames.contains(store))db.createObjectStore(store,{keyPath:'id'});};
-    req.onsuccess=()=>finish(()=>resolve(req.result));req.onerror=()=>finish(()=>reject(req.error));req.onblocked=()=>finish(()=>reject(new Error(name+' is blocked')));
-  });
-}
-async function getAllFrom(name,version,store){const db=await openNamedDB(name,version,store);try{return await new Promise((resolve,reject)=>{const tx=db.transaction(store,'readonly');const q=tx.objectStore(store).getAll();q.onsuccess=()=>resolve(Array.isArray(q.result)?q.result:[]);q.onerror=()=>reject(q.error);});}finally{try{db.close();}catch(e){}}}
-async function mainCount(){const db=await openDB();try{return await new Promise((resolve,reject)=>{const tx=db.transaction(DB_STORE,'readonly');const q=tx.objectStore(DB_STORE).count();q.onsuccess=()=>resolve(Number(q.result||0));q.onerror=()=>reject(q.error);});}finally{try{db.close();}catch(e){}}}
-function overlayFastStats(it){const s=it&&fastStatsById.get(it.id);if(!s)return it;const out={...it};for(const k of ['wins','losses','tourneyBonus','tourneyCount','rating','ratingSeededFromWinPctV1'])if(s[k]!==undefined)out[k]=s[k];return out;}
-async function loadAll(){
-  const [idxRes,countRes,statsRes]=await Promise.allSettled([getAllFrom(TWIN_INDEX_DB,1,TWIN_INDEX_STORE),mainCount(),getAllFrom(FAST_STATS_DB,1,FAST_STATS_STORE)]);
-  if(statsRes.status==='fulfilled')fastStatsById=new Map(statsRes.value.map(x=>[x.id,x]));
-  if(idxRes.status==='fulfilled'){
-    const meta=idxRes.value.find(x=>x&&x.id===TWIN_INDEX_META);const rows=idxRes.value.filter(x=>x&&x.id&&x.id!==TWIN_INDEX_META);const count=countRes.status==='fulfilled'?countRes.value:null;const age=meta?Date.now()-Number(meta.builtAt||0):Infinity;
-    if(meta&&meta.complete&&age>=0&&age<TWIN_INDEX_MAX_AGE&&(count==null||rows.length===count))return rows.map(overlayFastStats);
-  }
-  const db=await openDB();const all=[];
-  try{await new Promise((resolve,reject)=>{const tx=db.transaction(DB_STORE,'readonly');const st=tx.objectStore(DB_STORE);const cur=st.openCursor();cur.onsuccess=e=>{const c=e.target.result;if(!c){resolve();return;}const v=c.value||{};const {dataUrl,thumbnail,thumbDataUrl,...rest}=v;all.push({...rest,hasThumb:!!(thumbnail||thumbDataUrl)});c.continue();};cur.onerror=()=>reject(cur.error);});}finally{try{db.close();}catch(e){}}
-  return all.map(overlayFastStats);
-}
-async function getMainItem(id){const db=await openDB();try{return await new Promise((resolve,reject)=>{const tx=db.transaction(DB_STORE,'readonly');const q=tx.objectStore(DB_STORE).get(id);q.onsuccess=()=>resolve(q.result||null);q.onerror=()=>reject(q.error);});}finally{try{db.close();}catch(e){}}}
-async function putFastStatPatch(id,patch){const db=await openNamedDB(FAST_STATS_DB,1,FAST_STATS_STORE);try{await new Promise((resolve,reject)=>{const tx=db.transaction(FAST_STATS_STORE,'readwrite');const st=tx.objectStore(FAST_STATS_STORE);const q=st.get(id);q.onsuccess=()=>st.put({...q.result,id,...patch,updatedAt:Date.now()});q.onerror=()=>st.put({id,...patch,updatedAt:Date.now()});tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}finally{try{db.close();}catch(e){}}}
-async function putTwinIndexItem(item){const db=await openNamedDB(TWIN_INDEX_DB,1,TWIN_INDEX_STORE);try{await new Promise((resolve,reject)=>{const tx=db.transaction(TWIN_INDEX_STORE,'readwrite');const st=tx.objectStore(TWIN_INDEX_STORE);const {dataUrl,thumbnail,thumbDataUrl,...rest}=item;st.put({...rest,hasThumb:!!(thumbnail||thumbDataUrl||item.hasThumb)});const q=st.get(TWIN_INDEX_META);q.onsuccess=()=>{if(q.result)st.put({...q.result,builtAt:Date.now()});};tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}finally{try{db.close();}catch(e){}}}
-async function hydrateTwinThumb(img,id){if(!img||!id||img.dataset.hydrated)return;img.dataset.hydrated='1';try{const full=await getMainItem(id);const src=full&&(full.thumbnail||full.thumbDataUrl||full.fullUrl||full.dataUrl);if(src)img.src=src;}catch(e){console.warn('Title Twins image hydration failed',id,e);}}
-`, 'fast Title Twins load');
+  const patchItemStart='async function patchItem(id, patch){';
+  const patchItemEnd='\nasync function getMainItem(id)';
+  const start=html.indexOf(patchItemStart);const end=html.indexOf(patchItemEnd,start);
+  if(start<0||end<0)throw new Error('Title Twins patchItem range not found.');
+  const patchItemNew=[
+    'async function patchItem(id, patch){',
+    '  const idx=allItems.findIndex(it=>it.id===id);if(idx===-1)return;',
+    "  const statPatch={};for(const k of TWIN_STAT_KEYS)if(patch[k]!==undefined)statPatch[k]=patch[k];",
+    '  if(Object.keys(statPatch).length){putDurableTwinStatPatch(id,statPatch);try{await putFastStatPatch(id,statPatch);}catch(e){console.warn(\'Title Twins lightweight stat write failed; durable journal kept the edit.\',e);}fastStatsById.set(id,{...(fastStatsById.get(id)||{id}),...statPatch});}',
+    '  const hasNonStat=Object.keys(patch||{}).some(k=>!TWIN_STAT_KEYS.includes(k));',
+    "  if(hasNonStat){const full=await getMainItem(id);if(!full)throw new Error('Image record not found.');const updated={...full,...patch};const db=await openDB();try{await new Promise((resolve,reject)=>{const tx=db.transaction(DB_STORE,'readwrite');tx.objectStore(DB_STORE).put(updated);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}finally{try{db.close();}catch(e){}}}",
+    '  allItems[idx]=overlayFastStats({...allItems[idx],...patch});await putTwinIndexItem(allItems[idx]);buildAndRenderGroups();',
+    '}'
+  ].join(durableTwinNL);
+  html=html.slice(0,start)+patchItemNew+html.slice(end);
 
-  html=once(html,
-`async function patchItem(id, patch){
-  const idx = allItems.findIndex(it => it.id === id);
-  if(idx === -1) return;
-
-  const updated = Object.assign({}, allItems[idx], patch);
-  allItems[idx] = updated;
-
-  const db = await openDB();
-  await new Promise((resolve, reject)=>{
-    const tx = db.transaction(DB_STORE,'readwrite');
-    tx.objectStore(DB_STORE).put(updated);
-    tx.oncomplete = ()=>resolve();
-    tx.onerror = ()=>reject(tx.error);
-  });
-
-  buildAndRenderGroups();
-}`,
-`async function patchItem(id, patch){
-  const idx=allItems.findIndex(it=>it.id===id);if(idx===-1)return;
-  const full=await getMainItem(id);if(!full)throw new Error('Image record not found.');
-  const updated={...full,...patch};const db=await openDB();try{await new Promise((resolve,reject)=>{const tx=db.transaction(DB_STORE,'readwrite');tx.objectStore(DB_STORE).put(updated);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}finally{try{db.close();}catch(e){}}
-  const statPatch={};for(const k of ['wins','losses','tourneyBonus','tourneyCount','rating','ratingSeededFromWinPctV1'])if(patch[k]!==undefined)statPatch[k]=patch[k];if(Object.keys(statPatch).length){await putFastStatPatch(id,statPatch);fastStatsById.set(id,{...(fastStatsById.get(id)||{id}),...statPatch});}
-  allItems[idx]=overlayFastStats({...allItems[idx],...patch});await putTwinIndexItem(allItems[idx]);buildAndRenderGroups();
-}`, 'safe Title Twins edits');
-
-  html=once(html,`function openPreview(item){`,`async function openPreview(item){
-  const full=await getMainItem(item.id).catch(()=>null);
-  item=overlayFastStats({...item,...(full||{})});`,'preview hydration');
-  html=once(html,`const d = item.createdAt ? new Date(item.createdAt) : null;`,`const rawDate=item.createdAt||item.addedAt;
-const d=rawDate?new Date(rawDate):null;`,'date fallback');
-  html=once(html,
-`      img.src =
-        it.thumbnail ||
-        it.thumbDataUrl ||
-        it.fullUrl ||
-        it.dataUrl ||
-        '';`,
-`      img.src = it.thumbnail || it.thumbDataUrl || it.fullUrl || it.dataUrl || '';
-      img.dataset.itemId=it.id;
-      if(!img.src) setTimeout(()=>hydrateTwinThumb(img,it.id),0);`, 'lazy duplicate thumbnails');
-
-  html=once(html,
-`  allItems = allItems.filter(it => it.id !== id);
-  buildAndRenderGroups();`,
-`  allItems = allItems.filter(it => it.id !== id);
-  try{const sdb=await openNamedDB(FAST_STATS_DB,1,FAST_STATS_STORE);await new Promise((resolve,reject)=>{const tx=sdb.transaction(FAST_STATS_STORE,'readwrite');tx.objectStore(FAST_STATS_STORE).delete(id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});sdb.close();}catch(e){}
-  try{const idb=await openNamedDB(TWIN_INDEX_DB,1,TWIN_INDEX_STORE);await new Promise((resolve,reject)=>{const tx=idb.transaction(TWIN_INDEX_STORE,'readwrite');tx.objectStore(TWIN_INDEX_STORE).delete(id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});idb.close();}catch(e){}
-  fastStatsById.delete(id);
-  buildAndRenderGroups();`, 'delete companion records');
-
-  const required=['FAST_STATS_DB','TWIN_INDEX_DB','overlayFastStats','hydrateTwinThumb','const full=await getMainItem(id)','async function openPreview(item)'];
-  const missing=required.filter(x=>!html.includes(x));if(missing.length)throw new Error('Title Twins patch incomplete: '+missing.join(', '));
-  document.open();document.write(html);document.close();
+  const deleteMarker='  fastStatsById.delete(id);';
+  if(html.split(deleteMarker).length-1!==1)throw new Error('Title Twins durable delete point not found exactly once.');
+  html=html.replace(deleteMarker,deleteMarker+durableTwinNL+'  deleteDurableTwinStat(id);');
+`;
+  wrapper=wrapper.replace(marker,patch+'\n'+marker);
+  document.open();document.write(wrapper);document.close();
 })().catch(err=>{console.error(err);const el=document.getElementById('err');if(el)el.textContent=String(err&&err.message||err);});
 </script>
 </body>
