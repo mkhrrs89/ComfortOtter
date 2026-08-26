@@ -2,193 +2,26 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Title Twins – Duplicates</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="app-style.css">
-  <style>
-    .groupCard{
-      border:1px solid var(--borderSoft);
-      border-radius:16px;
-      padding:12px;
-      margin-bottom:16px;
-      background:rgba(15,23,42,.6);
-    }
-    .groupTitle{
-      font-size:15px;
-      font-weight:600;
-      margin-bottom:8px;
-      color:var(--text);
-    }
-    .imgRow{
-      display:flex;
-      flex-wrap:wrap;
-      gap:12px;
-    }
-    .imgCard{
-      width:90px;
-      border:1px solid var(--borderSoft);
-      border-radius:12px;
-      padding:6px;
-      background:rgba(15,23,42,.9);
-      cursor:pointer;
-      text-align:center;
-    }
-    .imgCard:hover{
-      background:rgba(30,64,175,.5);
-    }
-    .imgThumb{
-      width:100%;
-      height:80px;
-      object-fit:cover;
-      border-radius:8px;
-      margin-bottom:6px;
-    }
-    .imgMeta{
-      font-size:10px;
-      color:var(--muted);
-    }
-
-    /* Modal styles copied from main app so editor feels consistent */
-    .modal{
-      position:fixed;
-      inset:0;
-      background:rgba(0,0,0,0.78);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding:20px;
-      z-index:1000;
-    }
-    .modalInner{
-      background:#050c0a;
-      border:1px solid var(--ring);
-      border-radius:12px;
-      width:min(680px,96vw);
-      max-height:96vh;
-      padding:16px;
-      display:flex;
-      flex-direction:column;
-      gap:12px;
-      overflow-y:auto;
-    }
-    .previewImgWrap{
-      position:relative;
-      max-width:92vw;
-      max-height:70vh;
-      margin:0 auto;
-    }
-    .previewImgWrap img{
-      max-width:100%;
-      max-height:70vh;
-      display:block;
-      margin:0 auto;
-      border-radius:10px;
-    }
-    @media (max-width:700px){
-      .previewImgWrap,
-      .previewImgWrap img{
-        max-height:60vh;
-      }
-    }
-    .modalFields{
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      font-size:12px;
-      color:var(--muted);
-      align-items:flex-start;
-    }
-    .modalField{
-      width:min(100%, 340px);
-    }
-    .modalFieldLabel{
-      margin-bottom:4px;
-    }
-    .modalFields input{
-      width:100%;
-      background:#050c0a;
-      border:1px solid var(--ring);
-      color:var(--text);
-      border-radius:8px;
-      padding:6px 7px;
-      font-size:13px;
-    }
-    .dateValue{
-      color:var(--text);
-      font-size:13px;
-      padding:6px 0;
-    }
-    .modalFooter{
-      display:flex;
-      justify-content:flex-start;
-      gap:8px;
-      margin-top:4px;
-    }
-    @media (max-width:700px){
-      .modalField{
-        width:100%;
-      }
-      .modalFooter{
-        width:100%;
-        justify-content:center;
-      }
-    }
-  </style>
+  <title>Title Twins</title>
+  <meta name="theme-color" content="#050c0a" />
+  <style>html,body{height:100%;margin:0;background:#050c0a;color:#e7f5ef;font:14px/1.4 system-ui,Segoe UI,Roboto,Arial,sans-serif}.loader{height:100%;display:grid;place-items:center;padding:24px;text-align:center}.card{max-width:520px;padding:20px;border:1px solid #1b3a2f;border-radius:14px;background:#091612}.muted{color:#8fb0a1}.err{white-space:pre-wrap;color:#ffb4be;margin-top:12px}</style>
 </head>
 <body>
-  <header class="pageHeader">
-    <div>
-      <h1>Title Twins</h1>
-      <div class="subhead">Images that share the same exact title</div>
-    </div>
-    <div class="navMenuShell">
-      <details class="navDropdown">
-        <summary class="navTrigger">Menu ▾</summary>
-        <div class="navMenuList">
-          <a class="navItem" href="index.html?tab=Library">Library</a>
-          <a class="navItem" href="index.html?tab=Matchups">Matchups</a>
-          <a class="navItem" href="index.html?tab=Stats">Stats</a>
-          <a class="navItem" href="index.html?tab=Collections">Collections</a>
-          <div class="navSpacer"></div>
-          <a class="navItem" href="tourney.html">Tournament</a>
-          <a class="navItem" href="settings.html">Settings</a>
-        </div>
-      </details>
-    </div>
-  </header>
-
-  <div style="margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap;">
-    <a href="index.html" class="tab">← Back to Library</a>
-    <a href="sizes.html" class="tab">Image Sizes</a>
-    <a href="duplicates.html" class="tab active">Title Twins</a>
-    <a href="normalize-urls.html" class="tab">Normalize URLs</a>
-    <a href="unmigrated-report.html" class="tab">Unmigrated Report</a>
-    <a href="migrate.html" class="tab">Firebase Migration</a>
-  </div>
-
-  <div id="summary" class="pill" style="margin-bottom:12px;"></div>
-
-  <div id="container"></div>
-
+<div class="loader"><div class="card"><div style="font-size:18px;font-weight:700">Loading Title Twins…</div><div class="muted">Opening the lightweight image index.</div><div id="err" class="err"></div></div></div>
 <script>
-const DB_NAME = 'modelMatchupDB';
-const DB_STORE = 'items';
+(async()=>{
+  const rev='4e864ae0c4fccf4b2c33586fccc4ecc492f5c670';
+  const urls=[
+    'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@'+rev+'/duplicates.html',
+    'https://raw.githubusercontent.com/mkhrrs89/ComfortOtter/'+rev+'/duplicates.html'
+  ];
+  async function fetchFirst(){let last;for(const u of urls){try{const r=await fetch(u,{cache:'force-cache'});if(!r.ok)throw new Error(r.status+' '+r.statusText);return await r.text();}catch(e){last=e;}}throw last||new Error('Could not load Title Twins source.');}
+  function once(text,oldText,newText,label){const n=text.split(oldText).length-1;if(n!==1)throw new Error(label+': expected 1 match, found '+n);return text.replace(oldText,newText);}
+  let html=await fetchFirst();
 
-function openDB(){
-  return new Promise((resolve,reject)=>{
-    const req = indexedDB.open(DB_NAME);
-    req.onupgradeneeded = ()=> {
-      const db = req.result;
-      if(!db.objectStoreNames.contains(DB_STORE)){
-        db.createObjectStore(DB_STORE,{keyPath:'id'});
-      }
-    };
-    req.onsuccess = ()=> resolve(req.result);
-    req.onerror = ()=> reject(req.error);
-  });
-}
-
-async function loadAll(){
+  html=once(html,
+`async function loadAll(){
   const db = await openDB();
   const tx = db.transaction(DB_STORE,'readonly');
   const st = tx.objectStore(DB_STORE);
@@ -202,42 +35,45 @@ async function loadAll(){
       c.continue();
     };
   });
+}`,
+`const FAST_STATS_DB='modelMatchupStatsDB';
+const FAST_STATS_STORE='stats';
+const TWIN_INDEX_DB='modelMatchupTourneyIndexDB';
+const TWIN_INDEX_STORE='items';
+const TWIN_INDEX_META='__meta__';
+const TWIN_INDEX_MAX_AGE=12*60*60*1000;
+let fastStatsById=new Map();
+
+function openNamedDB(name,version,store){
+  return new Promise((resolve,reject)=>{
+    let done=false;const req=indexedDB.open(name,version);const timer=setTimeout(()=>{if(done)return;done=true;reject(new Error('Timed out opening '+name));},12000);
+    const finish=fn=>{if(done)return;done=true;clearTimeout(timer);fn();};
+    req.onupgradeneeded=()=>{const db=req.result;if(store&&!db.objectStoreNames.contains(store))db.createObjectStore(store,{keyPath:'id'});};
+    req.onsuccess=()=>finish(()=>resolve(req.result));req.onerror=()=>finish(()=>reject(req.error));req.onblocked=()=>finish(()=>reject(new Error(name+' is blocked')));
+  });
 }
-
-// ----- Helpers shared with main app -----
-const normalizeCollectionName = (value)=>String(value || '').trim().toLowerCase();
-const normalizeCollections = (value)=>{
-  if(!value) return [];
-  const parts = Array.isArray(value) ? value : String(value).split(',');
-  return Array.from(new Set(
-    parts.map(normalizeCollectionName).filter(Boolean)
-  ));
-};
-const collectionsToString = arr => (arr && arr.length ? arr.join(', ') : '');
-
-// ----- In-memory cache + render pipeline -----
-let allItems = [];
-
-function buildAndRenderGroups(){
-  const map = new Map();
-  for(const it of allItems){
-    const t = (it.title || '').trim();
-    if(!map.has(t)) map.set(t, []);
-    map.get(t).push(it);
+async function getAllFrom(name,version,store){const db=await openNamedDB(name,version,store);try{return await new Promise((resolve,reject)=>{const tx=db.transaction(store,'readonly');const q=tx.objectStore(store).getAll();q.onsuccess=()=>resolve(Array.isArray(q.result)?q.result:[]);q.onerror=()=>reject(q.error);});}finally{try{db.close();}catch(e){}}}
+async function mainCount(){const db=await openDB();try{return await new Promise((resolve,reject)=>{const tx=db.transaction(DB_STORE,'readonly');const q=tx.objectStore(DB_STORE).count();q.onsuccess=()=>resolve(Number(q.result||0));q.onerror=()=>reject(q.error);});}finally{try{db.close();}catch(e){}}}
+function overlayFastStats(it){const s=it&&fastStatsById.get(it.id);if(!s)return it;const out={...it};for(const k of ['wins','losses','tourneyBonus','tourneyCount','rating','ratingSeededFromWinPctV1'])if(s[k]!==undefined)out[k]=s[k];return out;}
+async function loadAll(){
+  const [idxRes,countRes,statsRes]=await Promise.allSettled([getAllFrom(TWIN_INDEX_DB,1,TWIN_INDEX_STORE),mainCount(),getAllFrom(FAST_STATS_DB,1,FAST_STATS_STORE)]);
+  if(statsRes.status==='fulfilled')fastStatsById=new Map(statsRes.value.map(x=>[x.id,x]));
+  if(idxRes.status==='fulfilled'){
+    const meta=idxRes.value.find(x=>x&&x.id===TWIN_INDEX_META);const rows=idxRes.value.filter(x=>x&&x.id&&x.id!==TWIN_INDEX_META);const count=countRes.status==='fulfilled'?countRes.value:null;const age=meta?Date.now()-Number(meta.builtAt||0):Infinity;
+    if(meta&&meta.complete&&age>=0&&age<TWIN_INDEX_MAX_AGE&&(count==null||rows.length===count))return rows.map(overlayFastStats);
   }
-
-  const groups = [];
-  for(const [title, arr] of map){
-    if(arr.length > 1){
-      groups.push({title, items: arr});
-    }
-  }
-
-  groups.sort((a,b)=> a.title.localeCompare(b.title));
-  render(groups);
+  const db=await openDB();const all=[];
+  try{await new Promise((resolve,reject)=>{const tx=db.transaction(DB_STORE,'readonly');const st=tx.objectStore(DB_STORE);const cur=st.openCursor();cur.onsuccess=e=>{const c=e.target.result;if(!c){resolve();return;}const v=c.value||{};const {dataUrl,thumbnail,thumbDataUrl,...rest}=v;all.push({...rest,hasThumb:!!(thumbnail||thumbDataUrl)});c.continue();};cur.onerror=()=>reject(cur.error);});}finally{try{db.close();}catch(e){}}
+  return all.map(overlayFastStats);
 }
+async function getMainItem(id){const db=await openDB();try{return await new Promise((resolve,reject)=>{const tx=db.transaction(DB_STORE,'readonly');const q=tx.objectStore(DB_STORE).get(id);q.onsuccess=()=>resolve(q.result||null);q.onerror=()=>reject(q.error);});}finally{try{db.close();}catch(e){}}}
+async function putFastStatPatch(id,patch){const db=await openNamedDB(FAST_STATS_DB,1,FAST_STATS_STORE);try{await new Promise((resolve,reject)=>{const tx=db.transaction(FAST_STATS_STORE,'readwrite');const st=tx.objectStore(FAST_STATS_STORE);const q=st.get(id);q.onsuccess=()=>st.put({...q.result,id,...patch,updatedAt:Date.now()});q.onerror=()=>st.put({id,...patch,updatedAt:Date.now()});tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}finally{try{db.close();}catch(e){}}}
+async function putTwinIndexItem(item){const db=await openNamedDB(TWIN_INDEX_DB,1,TWIN_INDEX_STORE);try{await new Promise((resolve,reject)=>{const tx=db.transaction(TWIN_INDEX_STORE,'readwrite');const st=tx.objectStore(TWIN_INDEX_STORE);const {dataUrl,thumbnail,thumbDataUrl,...rest}=item;st.put({...rest,hasThumb:!!(thumbnail||thumbDataUrl||item.hasThumb)});const q=st.get(TWIN_INDEX_META);q.onsuccess=()=>{if(q.result)st.put({...q.result,builtAt:Date.now()});};tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}finally{try{db.close();}catch(e){}}}
+async function hydrateTwinThumb(img,id){if(!img||!id||img.dataset.hydrated)return;img.dataset.hydrated='1';try{const full=await getMainItem(id);const src=full&&(full.thumbnail||full.thumbDataUrl||full.fullUrl||full.dataUrl);if(src)img.src=src;}catch(e){console.warn('Title Twins image hydration failed',id,e);}}
+`, 'fast Title Twins load');
 
-async function patchItem(id, patch){
+  html=once(html,
+`async function patchItem(id, patch){
   const idx = allItems.findIndex(it => it.id === id);
   if(idx === -1) return;
 
@@ -253,223 +89,41 @@ async function patchItem(id, patch){
   });
 
   buildAndRenderGroups();
-}
+}`,
+`async function patchItem(id, patch){
+  const idx=allItems.findIndex(it=>it.id===id);if(idx===-1)return;
+  const full=await getMainItem(id);if(!full)throw new Error('Image record not found.');
+  const updated={...full,...patch};const db=await openDB();try{await new Promise((resolve,reject)=>{const tx=db.transaction(DB_STORE,'readwrite');tx.objectStore(DB_STORE).put(updated);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}finally{try{db.close();}catch(e){}}
+  const statPatch={};for(const k of ['wins','losses','tourneyBonus','tourneyCount','rating','ratingSeededFromWinPctV1'])if(patch[k]!==undefined)statPatch[k]=patch[k];if(Object.keys(statPatch).length){await putFastStatPatch(id,statPatch);fastStatsById.set(id,{...(fastStatsById.get(id)||{id}),...statPatch});}
+  allItems[idx]=overlayFastStats({...allItems[idx],...patch});await putTwinIndexItem(allItems[idx]);buildAndRenderGroups();
+}`, 'safe Title Twins edits');
 
-async function deleteItem(id){
-  const db = await openDB();
-  await new Promise((resolve, reject)=>{
-    const tx = db.transaction(DB_STORE,'readwrite');
-    tx.objectStore(DB_STORE).delete(id);
-    tx.oncomplete = ()=>resolve();
-    tx.onerror = ()=>reject(tx.error);
-  });
-
-  allItems = allItems.filter(it => it.id !== id);
-  buildAndRenderGroups();
-}
-
-// ----- Preview modal -----
-function openPreview(item){
-  // remove any existing modal first
-  const existing = document.querySelector('.modal');
-  if(existing) existing.remove();
-
-  const overlay = document.createElement('div');
-  overlay.className = 'modal';
-  overlay.onclick = ()=>overlay.remove();
-
-  const inner = document.createElement('div');
-  inner.className = 'modalInner';
-  inner.onclick = e=>e.stopPropagation();
-
-  const showImagePreview = window.matchMedia('(max-width: 700px)').matches;
-  if(showImagePreview){
-    const imgWrap = document.createElement('div');
-    imgWrap.className = 'previewImgWrap';
-    const img = document.createElement('img');
-    img.src = item.fullUrl || item.thumbnail || item.thumbDataUrl || item.dataUrl || '';
-    img.alt = item.title || 'Image';
-    imgWrap.appendChild(img);
-    inner.appendChild(imgWrap);
-  }
-
-  const fields = document.createElement('div');
-  fields.className = 'modalFields';
-
-  // Title field
-  const titleBlock = document.createElement('div');
-  titleBlock.className = 'modalField';
-  const titleLabel = document.createElement('div');
-  titleLabel.className = 'modalFieldLabel';
-  titleLabel.textContent = 'Title';
-  const titleInput = document.createElement('input');
-  titleInput.value = item.title || '';
-  titleInput.addEventListener('blur', ()=>{
-    const val = titleInput.value.trim();
-    patchItem(item.id, { title: val });
-  });
-  titleBlock.appendChild(titleLabel);
-  titleBlock.appendChild(titleInput);
-  fields.appendChild(titleBlock);
-
-  // Collections field
-  const collBlock = document.createElement('div');
-  collBlock.className = 'modalField';
-  const collLabel = document.createElement('div');
-  collLabel.className = 'modalFieldLabel';
-  collLabel.textContent = 'Collections';
-  const collInput = document.createElement('input');
-  collInput.value = collectionsToString(item.collections);
-  collInput.addEventListener('blur', ()=>{
-    const arr = normalizeCollections(collInput.value);
-    patchItem(item.id, { collections: arr });
-    collInput.value = collectionsToString(arr);
-  });
-  collBlock.appendChild(collLabel);
-  collBlock.appendChild(collInput);
-  fields.appendChild(collBlock);
-
-  // Record fields
-  const winsBlock = document.createElement('div');
-  winsBlock.className = 'modalField';
-  const winsLabel = document.createElement('div');
-  winsLabel.className = 'modalFieldLabel';
-  winsLabel.textContent = 'Wins';
-  const winsInput = document.createElement('input');
-  winsInput.type = 'number';
-  winsInput.min = '0';
-  winsInput.step = '1';
-  winsInput.value = String(item.wins || 0);
-  winsInput.addEventListener('blur', ()=>{
-    const next = Math.max(0, Number(winsInput.value || 0));
-    winsInput.value = String(next);
-    patchItem(item.id, { wins: next });
-  });
-  winsBlock.appendChild(winsLabel);
-  winsBlock.appendChild(winsInput);
-  fields.appendChild(winsBlock);
-
-  const lossesBlock = document.createElement('div');
-  lossesBlock.className = 'modalField';
-  const lossesLabel = document.createElement('div');
-  lossesLabel.className = 'modalFieldLabel';
-  lossesLabel.textContent = 'Losses';
-  const lossesInput = document.createElement('input');
-  lossesInput.type = 'number';
-  lossesInput.min = '0';
-  lossesInput.step = '1';
-  lossesInput.value = String(item.losses || 0);
-  lossesInput.addEventListener('blur', ()=>{
-    const next = Math.max(0, Number(lossesInput.value || 0));
-    lossesInput.value = String(next);
-    patchItem(item.id, { losses: next });
-  });
-  lossesBlock.appendChild(lossesLabel);
-  lossesBlock.appendChild(lossesInput);
-  fields.appendChild(lossesBlock);
-
-// Date Added
-const dateBlock = document.createElement('div');
-dateBlock.className = 'modalField';
-const dateLabel = document.createElement('div');
-dateLabel.className = 'modalFieldLabel';
-dateLabel.textContent = 'Date Added';
-
-const dateValue = document.createElement('div');
-dateValue.className = 'dateValue';
-
-const d = item.createdAt ? new Date(item.createdAt) : null;
-dateValue.textContent = d ? d.toLocaleString() : 'Unknown';
-
-dateBlock.appendChild(dateLabel);
-dateBlock.appendChild(dateValue);
-fields.appendChild(dateBlock);
-
-
-  inner.appendChild(fields);
-
-  const footer = document.createElement('div');
-  footer.className = 'modalFooter';
-
-  const deleteBtn = document.createElement('button');
-  deleteBtn.className = 'btn danger';
-  deleteBtn.textContent = 'Delete';
-  deleteBtn.onclick = async ()=>{
-    if(!confirm('Delete this image? This cannot be undone unless you have an export.')) return;
-    await deleteItem(item.id);
-    overlay.remove();
-  };
-
-  const closeBtn = document.createElement('button');
-  closeBtn.className = 'btn';
-  closeBtn.textContent = 'Close';
-  closeBtn.onclick = ()=>overlay.remove();
-
-  footer.appendChild(deleteBtn);
-  footer.appendChild(closeBtn);
-  inner.appendChild(footer);
-
-  overlay.appendChild(inner);
-  document.body.appendChild(overlay);
-}
-
-function render(groups){
-  const container = document.getElementById('container');
-  container.innerHTML='';
-
-  const titleCount = groups.length;
-  const imgCount = groups.reduce((a,g)=>a+g.items.length,0);
-
-  document.getElementById('summary').textContent =
-    `${titleCount} titles • ${imgCount} images with duplicates`;
-
-  for(const g of groups){
-    const card = document.createElement('div');
-    card.className='groupCard';
-
-    const title = document.createElement('div');
-    title.className='groupTitle';
-    title.textContent = g.title || '(Untitled)';
-    card.appendChild(title);
-
-    const row = document.createElement('div');
-    row.className='imgRow';
-
-    for (const it of g.items) {
-      const div = document.createElement('div');
-      div.className = 'imgCard';
-      div.onclick = () => openPreview(it);
-
-      const img = document.createElement('img');
-      img.className = 'imgThumb';
-      img.src =
+  html=once(html,`function openPreview(item){`,`async function openPreview(item){\n  const full=await getMainItem(item.id).catch(()=>null);\n  item=overlayFastStats({...item,...(full||{})});`,'preview hydration');
+  html=once(html,`const d = item.createdAt ? new Date(item.createdAt) : null;`,`const rawDate=item.createdAt||item.addedAt;\nconst d=rawDate?new Date(rawDate):null;`,'date fallback');
+  html=once(html,
+`      img.src =
         it.thumbnail ||
         it.thumbDataUrl ||
         it.fullUrl ||
         it.dataUrl ||
-        '';
+        '';`,
+`      img.src = it.thumbnail || it.thumbDataUrl || it.fullUrl || it.dataUrl || '';
+      img.dataset.itemId=it.id;
+      if(!img.src) setTimeout(()=>hydrateTwinThumb(img,it.id),0);`, 'lazy duplicate thumbnails');
 
-      div.appendChild(img);
+  html=once(html,
+`  allItems = allItems.filter(it => it.id !== id);
+  buildAndRenderGroups();`,
+`  allItems = allItems.filter(it => it.id !== id);
+  try{const sdb=await openNamedDB(FAST_STATS_DB,1,FAST_STATS_STORE);await new Promise((resolve,reject)=>{const tx=sdb.transaction(FAST_STATS_STORE,'readwrite');tx.objectStore(FAST_STATS_STORE).delete(id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});sdb.close();}catch(e){}
+  try{const idb=await openNamedDB(TWIN_INDEX_DB,1,TWIN_INDEX_STORE);await new Promise((resolve,reject)=>{const tx=idb.transaction(TWIN_INDEX_STORE,'readwrite');tx.objectStore(TWIN_INDEX_STORE).delete(id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});idb.close();}catch(e){}
+  fastStatsById.delete(id);
+  buildAndRenderGroups();`, 'delete companion records');
 
-      const meta = document.createElement('div');
-      meta.className = 'imgMeta';
-      meta.textContent = `ID: ${it.id.slice(0, 6)}…`;
-      div.appendChild(meta);
-
-      row.appendChild(div);
-    }
-
-    card.appendChild(row);
-    container.appendChild(card);
-  }
-}
-
-async function init(){
-  allItems = await loadAll();
-  buildAndRenderGroups();
-}
-
-init();
+  const required=['FAST_STATS_DB','TWIN_INDEX_DB','overlayFastStats','hydrateTwinThumb','const full=await getMainItem(id)','async function openPreview(item)'];
+  const missing=required.filter(x=>!html.includes(x));if(missing.length)throw new Error('Title Twins patch incomplete: '+missing.join(', '));
+  document.open();document.write(html);document.close();
+})().catch(err=>{console.error(err);const el=document.getElementById('err');if(el)el.textContent=String(err&&err.message||err);});
 </script>
 </body>
 </html>
