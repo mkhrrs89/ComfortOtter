@@ -40,7 +40,8 @@
       let shell = await fetchSameOrigin('stable-index-shell.html?v=20260826-1550', 7000);
       if(!shell.includes('loadDurableStatsComfortOtter')) throw new Error('Stable app shell validation failed.');
       if(!shell.includes('firestore-sync.js')){
-        shell = shell.replace('</head>','<script type="module" src="firestore-sync.js?v=20260826-1550"><\\/script></head>');
+        const cloudTag='<script type="module" src="firestore-sync.js?v=20260826-1550"><'+'/script>';
+        shell = shell.replace('</head>',cloudTag+'</head>');
       }
       document.open();
       document.write(shell);
