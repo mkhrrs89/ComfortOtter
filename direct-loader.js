@@ -15,8 +15,8 @@
 
   detail('Fetching stable app layers…');
   let [autoHdShell,durableShell]=await Promise.all([
-    fetchText('stable-auto-hd-shell.html?v=20260826-v5'),
-    fetchText('stable-index-shell.html?v=20260826-v5')
+    fetchText('stable-auto-hd-shell.html?v=20260826-v6'),
+    fetchText('stable-index-shell.html?v=20260826-v6')
   ]);
   detail('Stable layers loaded. Preparing app…');
 
@@ -33,9 +33,9 @@
     throw new Error('Durable-stat patch validation failed.');
   }
 
-  // The tournament-index layer adds a refresh call inside idbGetAll before the
-  // durable-stat patch runs. The original durable patch expected the pre-index
-  // function byte-for-byte, so make this one patch structural instead.
+  // The tournament-index layer changes idbGetAll before the durable patch runs.
+  // Replace the old byte-for-byte matcher with a function-boundary matcher so
+  // both the tournament index refresh and durable stat overlay are preserved.
   const brittleGetAll=[
     "      if(html.split(durableGetAllOld).length - 1 !== 1) throw new Error('Durable idbGetAll patch point not found exactly once.');",
     '      html = html.replace(durableGetAllOld,durableGetAllNew);'
@@ -69,6 +69,42 @@
   }
   durablePatchRaw=durablePatchRaw.replace(brittleGetAll,robustGetAll);
 
+  // patchItem has also drifted across the rating/index layers. Replace the
+  // original exact three-line matcher with a scoped edit inside patchItem only.
+  // This keeps non-stat metadata writes intact while routing stat changes to the
+  // synchronous durable journal + lightweight stats DB.
+  const patchItemSectionStart=durablePatchRaw.indexOf('      const patchItemOld = [');
+  const patchItemSectionEnd=patchItemSectionStart>=0
+    ? durablePatchRaw.indexOf('      const replaceAllOld = [',patchItemSectionStart)
+    : -1;
+  if(patchItemSectionStart<0||patchItemSectionEnd<0){
+    throw new Error('Could not locate the durable patchItem patch section.');
+  }
+
+  const robustPatchItem=[
+    "      const durablePatchItemStart = '      async function patchItem(id,patch){';",
+    "      const durablePatchItemEnd = '      async function addNewItems(';",
+    '      const durablePatchItemStartPos = html.indexOf(durablePatchItemStart);',
+    '      const durablePatchItemEndPos = durablePatchItemStartPos >= 0 ? html.indexOf(durablePatchItemEnd,durablePatchItemStartPos + durablePatchItemStart.length) : -1;',
+    "      if(durablePatchItemStartPos < 0 || durablePatchItemEndPos < 0) throw new Error('patchItem durable function boundary not found.');",
+    '      const durableCurrentPatchItem = html.slice(durablePatchItemStartPos,durablePatchItemEndPos);',
+    "      const durablePatchItemWrite = 'idbPutMerged(updated);';",
+    "      if(durableCurrentPatchItem.split(durablePatchItemWrite).length - 1 !== 1) throw new Error('patchItem durable write point not found exactly once.');",
+    '      const durablePatchItemWriteReplacement = [',
+    "        'const patchKeys = Object.keys(patch || {});',",
+    "        '            const hasStatPatch = patchKeys.some(key=>DURABLE_STATS_KEYS.includes(key));',",
+    "        \"            if(hasStatPatch){ persistStatPatch(id,patch).catch(err=>console.warn('Stat persistence failed',err)); }\",",
+    "        '            const hasNonStatPatch = patchKeys.some(key=>!DURABLE_STATS_KEYS.includes(key));',",
+    "        \"            if(hasNonStatPatch){ idbPutMerged(updated).catch(err=>console.warn('Item metadata write failed',err)); }\"",
+    '      ].join(durableNL);',
+    '      const durablePatchedPatchItem = durableCurrentPatchItem.replace(durablePatchItemWrite,durablePatchItemWriteReplacement);',
+    '      html = html.slice(0,durablePatchItemStartPos) + durablePatchedPatchItem + html.slice(durablePatchItemEndPos);'
+  ].join('\n');
+
+  durablePatchRaw = durablePatchRaw.slice(0,patchItemSectionStart) +
+    robustPatchItem + '\n\n' +
+    durablePatchRaw.slice(patchItemSectionEnd);
+
   // This source is inserted into the Auto-HD loader's template literal. Double
   // backslashes so one level survives into the generated core loader.
   const durablePatchText=durablePatchRaw.replace(/\\/g,'\\\\');
@@ -80,7 +116,7 @@
 
   const cloudPatch=[
     "      if(!html.includes('firestore-sync.js')){",
-    "        const cloudTag='<script type=\"module\" src=\"firestore-sync.js?v=20260826-v5\"><'+'/script>';",
+    "        const cloudTag='<script type=\"module\" src=\"firestore-sync.js?v=20260826-v6\"><'+'/script>';",
     "        html=html.replace('</body>',cloudTag+'</body>');",
     '      }'
   ].join('\n');
@@ -113,8 +149,6 @@
     return nativeFetch(input,opts).finally(()=>clearTimeout(timer));
   };
 
-  // Add one useful status update before the Auto-HD shell hands off to the
-  // tournament/core layers.
   loaderScript=loaderScript.replace(
     '      const loaderPromise = fetchFirst(sources);',
     "      try{const d=document.getElementById('loaderDetail');if(d)d.textContent='Loading Auto-HD app layer…';}catch(_e){}\n      const loaderPromise = fetchFirst(sources);"
@@ -134,6 +168,6 @@
   console.error('ComfortOtter direct loader failed',error);
   const target=document.getElementById('loaderError');
   if(target){
-    target.textContent='ComfortOtter could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nDirect loader build v5';
+    target.textContent='ComfortOtter could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nDirect loader build v6';
   }
 });
