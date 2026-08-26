@@ -11,7 +11,7 @@
   </style>
 </head>
 <body>
-  <div class="loader"><div class="loaderCard"><div class="loaderTitle">Loading ComfortOtter…</div><div id="loaderDetail" class="loaderDetail">Starting direct loader…</div><div class="loaderBuild">Direct loader build v3</div><div id="loaderError" class="loaderError"></div></div></div>
+  <div class="loader"><div class="loaderCard"><div class="loaderTitle">Loading ComfortOtter…</div><div id="loaderDetail" class="loaderDetail">Starting direct loader…</div><div class="loaderBuild">Direct loader build v4</div><div id="loaderError" class="loaderError"></div></div></div>
   <script>
     (async function loadDirectComfortOtter(){
       const detail=(text)=>{ const el=document.getElementById('loaderDetail'); if(el) el.textContent=text; };
@@ -27,8 +27,8 @@
 
       detail('Fetching stable app layers…');
       let [autoHdShell,durableShell]=await Promise.all([
-        fetchText('stable-auto-hd-shell.html?v=20260826-v3'),
-        fetchText('stable-index-shell.html?v=20260826-v3')
+        fetchText('stable-auto-hd-shell.html?v=20260826-v4'),
+        fetchText('stable-index-shell.html?v=20260826-v4')
       ]);
       detail('Stable layers loaded. Preparing app…');
 
@@ -37,14 +37,19 @@
       const durableUse=durableShell.indexOf('      wrapper = wrapper.replace(marker,durablePatch',durableStart);
       const durableEnd=durableShell.lastIndexOf('\n`;',durableUse);
       if(durableStart<0||durableUse<0||durableEnd<0) throw new Error('Could not extract the durable-stat patch.');
-      const durablePatchText=durableShell.slice(durableStart+durableStartToken.length,durableEnd);
-      if(!durablePatchText.includes('DURABLE_STATS_STORAGE_KEY')||!durablePatchText.includes('persistStatPatch')) throw new Error('Durable-stat patch validation failed.');
+      const durablePatchRaw=durableShell.slice(durableStart+durableStartToken.length,durableEnd);
+      if(!durablePatchRaw.includes('DURABLE_STATS_STORAGE_KEY')||!durablePatchRaw.includes('persistStatPatch')) throw new Error('Durable-stat patch validation failed.');
+
+      // This patch is injected into the Auto-HD loader's template literal before
+      // that loader runs. Preserve one backslash for the generated core loader
+      // by doubling source backslashes before the template literal consumes them.
+      const durablePatchText=durablePatchRaw.replace(/\\/g,'\\\\');
 
       const durableMarker="      if(!html.includes('const [matchupLeftHd, setMatchupLeftHd] = useState(true);') ||";
       if(autoHdShell.split(durableMarker).length-1!==1) throw new Error('Auto-HD durable insertion point not found exactly once.');
       const cloudPatch=[
         "      if(!html.includes('firestore-sync.js')){",
-        "        const cloudTag='<script type=\"module\" src=\"firestore-sync.js?v=20260826-v3\"><'+'/script>';",
+        "        const cloudTag='<script type=\"module\" src=\"firestore-sync.js?v=20260826-v4\"><'+'/script>';",
         "        html=html.replace('</body>',cloudTag+'</body>');",
         "      }"
       ].join('\n');
@@ -79,7 +84,7 @@
         "      const nestedCode=[",
         "        '      try{',",
         "        \"        const generic='<div class=\\\"loaderDetail\\\">Preparing your image library.</div>';\",",
-        "        \"        if(loader.includes(generic)) loader=loader.replace(generic,'<div id=\\\"loaderDetail\\\" class=\\\"loaderDetail\\\">Core patch layer starting…</div><div class=\\\"loaderBuild\\\" style=\\\"margin-top:10px;color:#5f8273;font-size:11px\\\">Core layer v3</div>');\",",
+        "        \"        if(loader.includes(generic)) loader=loader.replace(generic,'<div id=\\\"loaderDetail\\\" class=\\\"loaderDetail\\\">Core patch layer starting…</div><div class=\\\"loaderBuild\\\" style=\\\"margin-top:10px;color:#5f8273;font-size:11px\\\">Core layer v4</div>');\",",
         "        \"        const coreFetch=[\\\"      let [html, patchScript] = await Promise.all([\\\",\\\"        fetchFirst(appSources, 'the app source'),\\\",\\\"        fetchFirst(patchSources, 'the rating update')\\\",\\\"      ]);\\\"].join('\\\\n');\",",
         "        \"        const coreFetchNew=[\\\"      try{const d=document.getElementById('loaderDetail');if(d)d.textContent='Fetching core app sources…';}catch(_e){}\\\",coreFetch,\\\"      try{const d=document.getElementById('loaderDetail');if(d)d.textContent='Core sources loaded. Applying patches…';}catch(_e){}\\\"].join('\\\\n');\",",
         "        \"        if(loader.split(coreFetch).length-1===1) loader=loader.replace(coreFetch,coreFetchNew);\",",
@@ -120,7 +125,7 @@
     })().catch(error=>{
       console.error('ComfortOtter direct loader failed',error);
       const target=document.getElementById('loaderError');
-      if(target) target.textContent='ComfortOtter could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nDirect loader build v3';
+      if(target) target.textContent='ComfortOtter could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nDirect loader build v4';
     });
   </script>
 </body>
