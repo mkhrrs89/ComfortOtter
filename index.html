@@ -23,258 +23,15 @@
     </div>
   </div>
 
-  <script type="text/plain" id="tourneyIndexPatch">
-      html = applyOnce(
-        html,
-        `    async function idbGetAll(){`,
-        `    const TOURNEY_INDEX_DB_NAME = 'modelMatchupTourneyIndexDB';
-    const TOURNEY_INDEX_STORE = 'items';
-    const TOURNEY_INDEX_META_ID = '__meta__';
-
-    function openTourneyIndexDB(){
-      return new Promise((resolve,reject)=>{
-        if(typeof indexedDB === 'undefined'){
-          reject(new Error('IndexedDB unavailable for tournament index.'));
-          return;
-        }
-        let settled = false;
-        let req;
-        try{ req = indexedDB.open(TOURNEY_INDEX_DB_NAME,1); }
-        catch(err){ reject(err); return; }
-        const timeoutId = setTimeout(()=>{
-          if(settled) return;
-          settled = true;
-          reject(new Error('Timed out opening tournament index.'));
-        },10000);
-        const finish = fn=>{
-          if(settled) return;
-          settled = true;
-          clearTimeout(timeoutId);
-          fn();
-        };
-        req.onupgradeneeded = ()=>{
-          const db = req.result;
-          if(!db.objectStoreNames.contains(TOURNEY_INDEX_STORE)){
-            db.createObjectStore(TOURNEY_INDEX_STORE,{keyPath:'id'});
-          }
-        };
-        req.onsuccess = ()=>finish(()=>resolve(req.result));
-        req.onerror = ()=>finish(()=>reject(req.error || new Error('Failed to open tournament index.')));
-        req.onblocked = ()=>finish(()=>reject(new Error('Tournament index is blocked by another page.')));
-      });
-    }
-
-    function tourneyIndexSlim(item){
-      if(!item || !item.id) return null;
-      const hasThumb = !!(item.thumbnail || item.thumbDataUrl || item.hasThumb);
-      const { dataUrl, thumbnail, thumbDataUrl, ...rest } = item;
-      return { ...rest, id:item.id, hasThumb };
-    }
-
-    async function tourneyIndexReplaceAll(sourceItems){
-      const rows = (Array.isArray(sourceItems) ? sourceItems : [])
-        .map(tourneyIndexSlim)
-        .filter(Boolean);
-      const db = await openTourneyIndexDB();
-      return new Promise((resolve,reject)=>{
-        let settled = false;
-        const finish = fn=>{
-          if(settled) return;
-          settled = true;
-          try{ db.close(); }catch(_e){}
-          fn();
-        };
-        try{
-          const tx = db.transaction(TOURNEY_INDEX_STORE,'readwrite');
-          const st = tx.objectStore(TOURNEY_INDEX_STORE);
-          st.clear();
-          for(const row of rows) st.put(row);
-          st.put({id:TOURNEY_INDEX_META_ID,complete:true,builtAt:Date.now(),itemCount:rows.length});
-          tx.oncomplete = ()=>finish(resolve);
-          tx.onerror = ()=>finish(()=>reject(tx.error || new Error('Tournament index rebuild failed.')));
-          tx.onabort = ()=>finish(()=>reject(tx.error || new Error('Tournament index rebuild aborted.')));
-        }catch(err){
-          finish(()=>reject(err));
-        }
-      });
-    }
-
-    async function tourneyIndexPutItems(sourceItems){
-      const rows = (Array.isArray(sourceItems) ? sourceItems : [sourceItems])
-        .map(tourneyIndexSlim)
-        .filter(Boolean);
-      if(!rows.length) return;
-      const db = await openTourneyIndexDB();
-      return new Promise((resolve,reject)=>{
-        let failed = false;
-        const finish = fn=>{
-          if(failed) return;
-          failed = true;
-          try{ db.close(); }catch(_e){}
-          fn();
-        };
-        try{
-          const tx = db.transaction(TOURNEY_INDEX_STORE,'readwrite');
-          const st = tx.objectStore(TOURNEY_INDEX_STORE);
-          for(const row of rows){
-            const req = st.get(row.id);
-            req.onsuccess = ()=>{
-              const existing = req.result || {};
-              st.put({...existing,...row,hasThumb:!!(existing.hasThumb || row.hasThumb)});
-            };
-            req.onerror = ()=>st.put(row);
-          }
-          const metaReq = st.get(TOURNEY_INDEX_META_ID);
-          metaReq.onsuccess = ()=>{
-            const meta = metaReq.result;
-            if(meta) st.put({...meta,builtAt:Date.now()});
-          };
-          tx.oncomplete = ()=>{
-            if(failed) return;
-            failed = true;
-            try{ db.close(); }catch(_e){}
-            resolve();
-          };
-          tx.onerror = ()=>finish(()=>reject(tx.error || new Error('Tournament index update failed.')));
-          tx.onabort = ()=>finish(()=>reject(tx.error || new Error('Tournament index update aborted.')));
-        }catch(err){
-          finish(()=>reject(err));
-        }
-      });
-    }
-
-    async function tourneyIndexDelete(id){
-      if(!id) return;
-      const db = await openTourneyIndexDB();
-      return new Promise((resolve,reject)=>{
-        let settled = false;
-        const finish = fn=>{
-          if(settled) return;
-          settled = true;
-          try{ db.close(); }catch(_e){}
-          fn();
-        };
-        try{
-          const tx = db.transaction(TOURNEY_INDEX_STORE,'readwrite');
-          const st = tx.objectStore(TOURNEY_INDEX_STORE);
-          st.delete(id);
-          const metaReq = st.get(TOURNEY_INDEX_META_ID);
-          metaReq.onsuccess = ()=>{
-            const meta = metaReq.result;
-            if(meta) st.put({...meta,builtAt:Date.now()});
-          };
-          tx.oncomplete = ()=>finish(resolve);
-          tx.onerror = ()=>finish(()=>reject(tx.error || new Error('Tournament index delete failed.')));
-          tx.onabort = ()=>finish(()=>reject(tx.error || new Error('Tournament index delete aborted.')));
-        }catch(err){
-          finish(()=>reject(err));
-        }
-      });
-    }
-
-    async function idbGetAll(){`,
-        'add lightweight tournament index helpers'
-      );
-
-      html = applyOnce(
-        html,
-        `      const baseItems = await idbGetAllBase();`,
-        `      const baseItems = await idbGetAllBase();
-      tourneyIndexReplaceAll(baseItems).catch(err=>{
-        console.warn('Could not refresh tournament index from library load.',err);
-      });`,
-        'refresh tournament index during library load'
-      );
-
-      html = applyOnce(
-        html,
-        `      try{
-        await fastStatsPutItems([item]);
-      }catch(err){
-        console.warn('Could not mirror item stats to lightweight store.',err);
-      }
-      return result;`,
-        `      try{
-        await fastStatsPutItems([item]);
-      }catch(err){
-        console.warn('Could not mirror item stats to lightweight store.',err);
-      }
-      try{
-        await tourneyIndexPutItems([item]);
-      }catch(err){
-        console.warn('Could not mirror item to tournament index.',err);
-      }
-      return result;`,
-        'mirror merged item to tournament index'
-      );
-
-      html = applyOnce(
-        html,
-        `      try{
-        await fastStatsPutItems(items);
-      }catch(err){
-        console.warn('Could not mirror bulk item stats to lightweight store.',err);
-      }
-      return result;`,
-        `      try{
-        await fastStatsPutItems(items);
-      }catch(err){
-        console.warn('Could not mirror bulk item stats to lightweight store.',err);
-      }
-      try{
-        await tourneyIndexPutItems(items);
-      }catch(err){
-        console.warn('Could not mirror bulk items to tournament index.',err);
-      }
-      return result;`,
-        'mirror merged bulk items to tournament index'
-      );
-
-      html = applyOnce(
-        html,
-        `      try{
-        await fastStatsDelete(id);
-      }catch(err){
-        console.warn('Could not remove lightweight stats for deleted item.',err);
-      }
-      return result;`,
-        `      try{
-        await fastStatsDelete(id);
-      }catch(err){
-        console.warn('Could not remove lightweight stats for deleted item.',err);
-      }
-      try{
-        await tourneyIndexDelete(id);
-      }catch(err){
-        console.warn('Could not remove deleted item from tournament index.',err);
-      }
-      return result;`,
-        'remove deleted item from tournament index'
-      );
-
-      const tourneyIndexRequired = [
-        "const TOURNEY_INDEX_DB_NAME = 'modelMatchupTourneyIndexDB'",
-        'async function tourneyIndexReplaceAll(sourceItems)',
-        'async function tourneyIndexPutItems(sourceItems)',
-        'async function tourneyIndexDelete(id)',
-        'tourneyIndexReplaceAll(baseItems).catch',
-        'await tourneyIndexPutItems([item]);',
-        'await tourneyIndexDelete(id);'
-      ];
-      const missingTourneyIndex = tourneyIndexRequired.filter(snippet=>!html.includes(snippet));
-      if(missingTourneyIndex.length){
-        throw new Error('Tournament index patch validation failed: ' + missingTourneyIndex.join(', '));
-      }
-  </script>
-
   <script>
-    (async function loadComfortOtterWithTournamentIndex(){
-      const priorRevision = '6ad55663dc7aaeb6bd9a6e7397f47de7ca672d71';
-      const loaderSources = [
+    (async function loadAutoHdComfortOtter(){
+      const priorRevision = '0b016493770db5e35562f97d53c20e1f50aeb579';
+      const sources = [
         'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@' + priorRevision + '/index.html',
         'https://raw.githubusercontent.com/mkhrrs89/ComfortOtter/' + priorRevision + '/index.html'
       ];
       const warmUrls = [
+        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@6ad55663dc7aaeb6bd9a6e7397f47de7ca672d71/index.html',
         'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@f602aab7dc142ab280c7480a6f41f5fdc9a942c4/index.html',
         'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@ed3933d115c3da2438ba1a8f076373727b33cc3f/.github/scripts/add_image_rating.py'
       ];
@@ -293,25 +50,45 @@
         throw lastError || new Error('Could not load ComfortOtter code.');
       }
 
-      const loaderPromise = fetchFirst(loaderSources);
+      const loaderPromise = fetchFirst(sources);
       for(const url of warmUrls){
         fetch(url,{cache:'force-cache'}).catch(()=>{});
       }
       let loader = await loaderPromise;
 
-      const marker = '      const required = [';
-      const count = loader.split(marker).length - 1;
-      if(count !== 1){
-        throw new Error('ComfortOtter tournament-index loader could not find its patch point.');
+      const marker = '      const tourneyIndexRequired = [';
+      const markerCount = loader.split(marker).length - 1;
+      if(markerCount !== 1){
+        throw new Error('Auto-HD patch could not find the ComfortOtter patch point.');
       }
-      const patch = document.getElementById('tourneyIndexPatch').textContent;
-      loader = loader.replace(marker,patch + '\n' + marker);
 
+      const injection = `
+      const autoHdLeftInit = 'const [matchupLeftHd, setMatchupLeftHd] = useState(false);';
+      const autoHdRightInit = 'const [matchupRightHd, setMatchupRightHd] = useState(false);';
+      const autoHdLoadMarker = 'const loadMatchupHdBoth = useCallback((e)=>{';
+      const autoHdLeftCount = html.split(autoHdLeftInit).length - 1;
+      const autoHdRightCount = html.split(autoHdRightInit).length - 1;
+      const autoHdLoadCount = html.split(autoHdLoadMarker).length - 1;
+      if(autoHdLeftCount < 1 || autoHdRightCount < 1 || autoHdLoadCount < 1){
+        throw new Error('Matchup Auto-HD patch could not find the HD state/load hooks.');
+      }
+      html = html.split(autoHdLeftInit).join('const [matchupLeftHd, setMatchupLeftHd] = useState(true);');
+      html = html.split(autoHdRightInit).join('const [matchupRightHd, setMatchupRightHd] = useState(true);');
+      const autoHdEffect = 'useEffect(() => {\\n  if(matchIds[0] && matchIds[1]){\\n    setMatchupLeftHd(true);\\n    setMatchupRightHd(true);\\n  }\\n}, [matchIds[0], matchIds[1]]);\\n\\n';
+      html = html.split(autoHdLoadMarker).join(autoHdEffect + autoHdLoadMarker);
+      if(!html.includes('const [matchupLeftHd, setMatchupLeftHd] = useState(true);') ||
+         !html.includes('const [matchupRightHd, setMatchupRightHd] = useState(true);') ||
+         !html.includes('if(matchIds[0] && matchIds[1])')){
+        throw new Error('Matchup Auto-HD patch validation failed.');
+      }
+`;
+
+      loader = loader.replace(marker, injection + '\n' + marker);
       document.open();
       document.write(loader);
       document.close();
     })().catch(error=>{
-      console.error('ComfortOtter tournament-index loader failed',error);
+      console.error('ComfortOtter Auto-HD loader failed',error);
       const target = document.getElementById('loaderError');
       if(target){
         target.textContent = 'ComfortOtter could not finish loading.\n\n' +
