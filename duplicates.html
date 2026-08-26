@@ -98,8 +98,11 @@ async function hydrateTwinThumb(img,id){if(!img||!id||img.dataset.hydrated)retur
   allItems[idx]=overlayFastStats({...allItems[idx],...patch});await putTwinIndexItem(allItems[idx]);buildAndRenderGroups();
 }`, 'safe Title Twins edits');
 
-  html=once(html,`function openPreview(item){`,`async function openPreview(item){\n  const full=await getMainItem(item.id).catch(()=>null);\n  item=overlayFastStats({...item,...(full||{})});`,'preview hydration');
-  html=once(html,`const d = item.createdAt ? new Date(item.createdAt) : null;`,`const rawDate=item.createdAt||item.addedAt;\nconst d=rawDate?new Date(rawDate):null;`,'date fallback');
+  html=once(html,`function openPreview(item){`,`async function openPreview(item){
+  const full=await getMainItem(item.id).catch(()=>null);
+  item=overlayFastStats({...item,...(full||{})});`,'preview hydration');
+  html=once(html,`const d = item.createdAt ? new Date(item.createdAt) : null;`,`const rawDate=item.createdAt||item.addedAt;
+const d=rawDate?new Date(rawDate):null;`,'date fallback');
   html=once(html,
 `      img.src =
         it.thumbnail ||
