@@ -13,195 +13,126 @@
 <body>
   <div class="loader"><div class="loaderCard"><div class="loaderTitle">Loading ComfortOtter…</div><div class="loaderDetail">Preparing your image library.</div><div id="loaderError" class="loaderError"></div></div></div>
   <script>
-    (async function loadDurableStatsComfortOtter(){
-      const priorRevision = '2776fe950c6ad4ace35df0c6b1ed3edcdd92b080';
-      const sources = [
-        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@' + priorRevision + '/index.html',
-        'https://raw.githubusercontent.com/mkhrrs89/ComfortOtter/' + priorRevision + '/index.html'
+    (async function loadFirestoreSyncedComfortOtter(){
+      const priorRevision='6131aebbe099bf09fd3944ec0a780f06941e7a8d';
+      const urls=[
+        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@'+priorRevision+'/index.html',
+        'https://raw.githubusercontent.com/mkhrrs89/ComfortOtter/'+priorRevision+'/index.html'
       ];
-      const warmUrls = [
-        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@0b016493770db5e35562f97d53c20e1f50aeb579/index.html',
-        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@6ad55663dc7aaeb6bd9a6e7397f47de7ca672d71/index.html',
-        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@f602aab7dc142ab280c7480a6f41f5fdc9a942c4/index.html',
-        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@ed3933d115c3da2438ba1a8f076373727b33cc3f/.github/scripts/add_image_rating.py'
-      ];
-      async function fetchFirst(urls){let last=null;for(const url of urls){try{const r=await fetch(url,{cache:'force-cache'});if(!r.ok)throw new Error(r.status+' '+r.statusText);return await r.text();}catch(e){last=e;}}throw last||new Error('Could not load ComfortOtter code.');}
-      for(const url of warmUrls) fetch(url,{cache:'force-cache'}).catch(()=>{});
-      let wrapper = await fetchFirst(sources);
-      const marker = "      if(!html.includes('const [matchupLeftHd, setMatchupLeftHd] = useState(true);') ||";
-      const count = wrapper.split(marker).length - 1;
-      if(count !== 1) throw new Error('Durable-stats patch could not find the current Matchups patch point.');
-
-      const durablePatch = String.raw`
-      const durableNL = String.fromCharCode(10);
-      const durableStatsStoreMarker = "    const FAST_STATS_STORE = 'stats';";
-      const durableStatsStoreCount = html.split(durableStatsStoreMarker).length - 1;
-      if(durableStatsStoreCount !== 1) throw new Error('Durable stats store marker count: ' + durableStatsStoreCount);
-      const durableStatsHelpers = [
-        durableStatsStoreMarker,
-        "    const DURABLE_STATS_STORAGE_KEY = 'modelMatchupDurableStatsV1';",
-        "    const DURABLE_STATS_KEYS = ['wins','losses','tourneyBonus','tourneyCount','rating','ratingSeededFromWinPctV1'];",
-        '    let durableStatsCache = null;',
+      async function fetchFirst(){let last=null;for(const url of urls){try{const r=await fetch(url,{cache:'force-cache'});if(!r.ok)throw new Error(r.status+' '+r.statusText);return await r.text();}catch(e){last=e;}}throw last||new Error('Could not load ComfortOtter code.');}
+      let source=await fetchFirst();
+      const marker="      wrapper = wrapper.replace(marker,durablePatch + '\\n' + marker);";
+      if(source.split(marker).length-1!==1) throw new Error('Firestore stat-sync patch point not found exactly once.');
+      const replacement=`      durablePatch += String.raw\`
+      const cloudSyncNL = String.fromCharCode(10);
+      const durableRowsMarker = '    function durableStatsRows(){ return Object.values(durableStatsReadMap()).filter(row=>row && row.id); }';
+      if(html.split(durableRowsMarker).length - 1 !== 1) throw new Error('Firestore queue durable-row marker not found exactly once.');
+      const cloudQueueHelpers = [
+        durableRowsMarker,
+        "    const CLOUD_STATS_QUEUE_KEY = 'modelMatchupPendingFirestoreStatsV1';",
+        '    let cloudStatsFlushTimer = null;',
+        '    let cloudStatsFlushRunning = false;',
         '',
-        '    function durableStatsReadMap(){',
-        '      if(durableStatsCache) return durableStatsCache;',
+        '    window.getAuthoritativeLocalStatsForCloud = function(id){',
+        '      const row = id ? durableStatsReadMap()[id] : null;',
+        '      return row ? {...row} : null;',
+        '    };',
+        '',
+        '    function readCloudStatsQueue(){',
+        "      try{ const storage=window.localStorage; const raw=storage?storage.getItem(CLOUD_STATS_QUEUE_KEY):null; const parsed=raw?JSON.parse(raw):{}; return parsed&&typeof parsed==='object'&&!Array.isArray(parsed)?parsed:{}; }catch(err){ return {}; }",
+        '    }',
+        '    function writeCloudStatsQueue(queue){',
+        "      try{ const storage=window.localStorage; if(!storage)return false; storage.setItem(CLOUD_STATS_QUEUE_KEY,JSON.stringify(queue||{})); return true; }catch(err){ console.warn('Firestore stats queue write failed',err); return false; }",
+        '    }',
+        '    function queueFirestoreStatPatch(id,patch){',
+        '      if(!id||!patch)return;',
+        '      const queue=readCloudStatsQueue();',
+        "      const existing=queue[id]&&typeof queue[id]==='object'?queue[id]:{id:id};",
+        '      const next={...existing,id:id};',
+        '      let changed=false;',
+        '      for(const key of DURABLE_STATS_KEYS){ if(Object.prototype.hasOwnProperty.call(patch,key)&&patch[key]!==undefined){ next[key]=normalizeDurableStat(key,patch[key]); changed=true; } }',
+        '      if(!changed)return;',
+        '      next.queuedAt=Date.now();',
+        '      queue[id]=next;',
+        '      writeCloudStatsQueue(queue);',
+        '      scheduleFirestoreStatsFlush(50);',
+        '    }',
+        '    function scheduleFirestoreStatsFlush(delayMs){',
+        '      if(cloudStatsFlushTimer||cloudStatsFlushRunning)return;',
+        '      cloudStatsFlushTimer=setTimeout(()=>{ cloudStatsFlushTimer=null; flushFirestoreStatsQueue().catch(err=>console.warn(\\'Firestore stats flush failed\\',err)); },Math.max(0,Number(delayMs||0)));',
+        '    }',
+        '    async function flushFirestoreStatsQueue(){',
+        '      if(cloudStatsFlushRunning)return;',
+        '      const queue=readCloudStatsQueue();',
+        '      const ids=Object.keys(queue);',
+        '      if(!ids.length)return;',
+        "      if(typeof window.saveItemToCloud!=='function'){ scheduleFirestoreStatsFlush(1000); return; }",
+        '      cloudStatsFlushRunning=true;',
+        '      let hadFailure=false;',
         '      try{',
-        '        const storage = window.localStorage;',
-        '        const raw = storage ? storage.getItem(DURABLE_STATS_STORAGE_KEY) : null;',
-        "        const parsed = raw ? JSON.parse(raw) : {};",
-        "        durableStatsCache = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};",
-        '      }catch(err){ durableStatsCache = {}; }',
-        '      return durableStatsCache;',
-        '    }',
-        '',
-        '    function durableStatsWriteMap(map){',
-        '      durableStatsCache = map || {};',
-        '      try{ const storage = window.localStorage; if(!storage) return false; storage.setItem(DURABLE_STATS_STORAGE_KEY,JSON.stringify(durableStatsCache)); return true; }catch(err){ console.warn(\'Durable stats localStorage write failed\',err); return false; }',
-        '    }',
-        '',
-        '    function normalizeDurableStat(key,value){',
-        "      if(key === 'wins' || key === 'losses' || key === 'tourneyCount') return Math.max(0,Number(value || 0));",
-        "      if(key === 'tourneyBonus') return Number(value || 0);",
-        "      if(key === 'rating') return Math.max(0,Math.min(100,Number(value || 0)));",
-        "      if(key === 'ratingSeededFromWinPctV1') return !!value;",
-        '      return value;',
-        '    }',
-        '',
-        '    function durableStatsPatch(id,patch){',
-        '      if(!id || !patch) return null;',
-        '      const map = durableStatsReadMap();',
-        "      const existing = map[id] && typeof map[id] === 'object' ? map[id] : {id:id};",
-        '      const next = {...existing,id:id};',
-        '      let changed = false;',
-        '      for(const key of DURABLE_STATS_KEYS){',
-        '        if(Object.prototype.hasOwnProperty.call(patch,key) && patch[key] !== undefined){ next[key] = normalizeDurableStat(key,patch[key]); changed = true; }',
+        '        for(const id of ids.slice(0,24)){',
+        '          const currentQueue=readCloudStatsQueue();',
+        '          const snapshot=currentQueue[id];',
+        '          if(!snapshot)continue;',
+        '          let ok=false;',
+        '          try{ ok=(await window.saveItemToCloud(snapshot))===true; }catch(err){ console.warn(\\'Firestore stat update failed\\',id,err); }',
+        '          const latest=readCloudStatsQueue();',
+        '          if(ok&&latest[id]&&latest[id].queuedAt===snapshot.queuedAt){ delete latest[id]; writeCloudStatsQueue(latest); }',
+        '          else if(!ok){ hadFailure=true; }',
+        '        }',
+        '      }finally{',
+        '        cloudStatsFlushRunning=false;',
+        '        if(Object.keys(readCloudStatsQueue()).length) scheduleFirestoreStatsFlush(hadFailure?5000:100);',
         '      }',
-        '      if(!changed) return null;',
-        '      next.updatedAt = Date.now();',
-        '      map[id] = next;',
-        '      durableStatsWriteMap(map);',
-        '      return next;',
         '    }',
-        '',
-        '    function durableStatsPutItems(sourceItems){',
-        '      const valid = (Array.isArray(sourceItems) ? sourceItems : [sourceItems]).filter(item=>item && item.id);',
-        '      if(!valid.length) return false;',
-        '      const map = durableStatsReadMap();',
-        '      const now = Date.now();',
-        '      for(const item of valid){',
-        "        const existing = map[item.id] && typeof map[item.id] === 'object' ? map[item.id] : {id:item.id};",
-        '        const next = {...existing,id:item.id};',
-        '        let changed = false;',
-        '        for(const key of DURABLE_STATS_KEYS){ if(item[key] !== undefined){ next[key] = normalizeDurableStat(key,item[key]); changed = true; } }',
-        '        if(changed){ next.updatedAt = now; map[item.id] = next; }',
-        '      }',
-        '      return durableStatsWriteMap(map);',
-        '    }',
-        '',
-        '    function durableStatsRows(){ return Object.values(durableStatsReadMap()).filter(row=>row && row.id); }',
-        '    function durableStatsDelete(id){ if(!id) return; const map = durableStatsReadMap(); if(Object.prototype.hasOwnProperty.call(map,id)){ delete map[id]; durableStatsWriteMap(map); } }',
-        '',
+        "    window.addEventListener('online',()=>scheduleFirestoreStatsFlush(0));",
+        "    window.addEventListener('pageshow',()=>scheduleFirestoreStatsFlush(250));",
+        '    setTimeout(()=>scheduleFirestoreStatsFlush(500),500);'
+      ].join(cloudSyncNL);
+      html=html.replace(durableRowsMarker,cloudQueueHelpers);
+
+      const cloudSaveStart = '  async function saveItemToCloud(item) {' + cloudSyncNL + '    const meta = stripBigFields(item);';
+      const cloudSaveNew = [
+        '  async function saveItemToCloud(item) {',
+        "    const authoritative = item && item.id && window.getAuthoritativeLocalStatsForCloud ? window.getAuthoritativeLocalStatsForCloud(item.id) : null;",
+        '    const sourceItem = authoritative ? {...item,...authoritative} : item;',
+        '    const meta = stripBigFields(sourceItem);'
+      ].join(cloudSyncNL);
+      if(html.split(cloudSaveStart).length - 1 !== 1) throw new Error('Firestore cloud-save overlay patch point not found exactly once.');
+      html=html.replace(cloudSaveStart,cloudSaveNew);
+
+      const cloudSuccess = '      await setDoc(ref, meta, { merge: true });' + cloudSyncNL + '      // console.log(\"☁️ mirrored to Firestore\", meta.id);';
+      const cloudSuccessNew = '      await setDoc(ref, meta, { merge: true });' + cloudSyncNL + '      // console.log(\"☁️ mirrored to Firestore\", meta.id);' + cloudSyncNL + '      return true;';
+      if(html.split(cloudSuccess).length - 1 !== 1) throw new Error('Firestore cloud-save success patch point not found exactly once.');
+      html=html.replace(cloudSuccess,cloudSuccessNew);
+      const cloudFailure = '      // don\\'t throw – local save should still succeed' + cloudSyncNL + '    }' + cloudSyncNL + '  }';
+      const cloudFailureNew = '      // don\\'t throw – local save should still succeed' + cloudSyncNL + '      return false;' + cloudSyncNL + '    }' + cloudSyncNL + '  }';
+      if(html.split(cloudFailure).length - 1 !== 1) throw new Error('Firestore cloud-save failure patch point not found exactly once.');
+      html=html.replace(cloudFailure,cloudFailureNew);
+
+      const persistOld = [
         '    async function persistStatPatch(id,patch){',
         '      const row = durableStatsPatch(id,patch);',
         '      if(!row) return;',
-        '      try{ await fastStatsPutItems([{id:id,...patch}]); }catch(err){ console.warn(\'Lightweight stat write failed; durable journal kept the result.\',err); }',
+        "      try{ await fastStatsPutItems([{id:id,...patch}]); }catch(err){ console.warn('Lightweight stat write failed; durable journal kept the result.',err); }",
         '    }'
-      ].join(durableNL);
-      html = html.replace(durableStatsStoreMarker,durableStatsHelpers);
-
-      const durableGetAllOld = [
-        '    async function idbGetAll(){',
-        '      const baseItems = await idbGetAllBase();',
-        '      try{',
-        '        const rows = await fastStatsGetAll();',
-        '        if(!rows.length) return baseItems;',
-        '        const byId = new Map(rows.map(row=>[row.id,row]));',
-        '        return baseItems.map(item=>mergeFastStatsIntoItem(item,byId.get(item.id)));',
-        '      }catch(err){',
-        "        console.warn('Could not apply lightweight stats overlay; using legacy stats.',err);",
-        '        return baseItems;',
-        '      }',
+      ].join(cloudSyncNL);
+      const persistNew = [
+        '    async function persistStatPatch(id,patch){',
+        '      const row = durableStatsPatch(id,patch);',
+        '      if(!row) return;',
+        '      queueFirestoreStatPatch(id,row);',
+        "      try{ await fastStatsPutItems([{id:id,...patch}]); }catch(err){ console.warn('Lightweight stat write failed; durable journal kept the result.',err); }",
         '    }'
-      ].join(durableNL);
-      const durableGetAllNew = [
-        '    async function idbGetAll(){',
-        '      const baseItems = await idbGetAllBase();',
-        '      let rows = [];',
-        "      try{ rows = await fastStatsGetAll(); }catch(err){ console.warn('Could not read lightweight stats; checking durable journal.',err); }",
-        '      const fastById = new Map(rows.map(row=>[row.id,row]));',
-        '      const durableById = new Map(durableStatsRows().map(row=>[row.id,row]));',
-        '      if(!fastById.size && !durableById.size) return baseItems;',
-        '      return baseItems.map(item=>{',
-        '        const stats = durableById.get(item.id) || fastById.get(item.id);',
-        '        return stats ? mergeFastStatsIntoItem(item,stats) : item;',
-        '      });',
-        '    }'
-      ].join(durableNL);
-      if(html.split(durableGetAllOld).length - 1 !== 1) throw new Error('Durable idbGetAll patch point not found exactly once.');
-      html = html.replace(durableGetAllOld,durableGetAllNew);
-
-      const staleSingleMirror = [
-        '      try{',
-        '        await fastStatsPutItems([item]);',
-        '      }catch(err){',
-        "        console.warn('Could not mirror item stats to lightweight store.',err);",
-        '      }'
-      ].join(durableNL);
-      if(html.split(staleSingleMirror).length - 1 !== 1) throw new Error('Single-item stale stats mirror patch point not found exactly once.');
-      html = html.replace(staleSingleMirror,"      // Stats are persisted only when a stat field actually changes.");
-
-      const patchItemOld = [
-        '            const updated = {...it,...patch};',
-        '            idbPutMerged(updated);',
-        '            return slimItemForState(updated);'
-      ].join(durableNL);
-      const patchItemNew = [
-        '            const updated = {...it,...patch};',
-        '            const patchKeys = Object.keys(patch || {});',
-        '            const hasStatPatch = patchKeys.some(key=>DURABLE_STATS_KEYS.includes(key));',
-        '            if(hasStatPatch){ persistStatPatch(id,patch).catch(err=>console.warn(\'Stat persistence failed\',err)); }',
-        '            const hasNonStatPatch = patchKeys.some(key=>!DURABLE_STATS_KEYS.includes(key));',
-        '            if(hasNonStatPatch){ idbPutMerged(updated).catch(err=>console.warn(\'Item metadata write failed\',err)); }',
-        '            return slimItemForState(updated);'
-      ].join(durableNL);
-      if(html.split(patchItemOld).length - 1 !== 1) throw new Error('patchItem durable stat patch point not found exactly once.');
-      html = html.replace(patchItemOld,patchItemNew);
-
-      const replaceAllOld = [
-        '      async function replaceAllItems(next){',
-        '        setItems(next);',
-        '        await idbBulkPutMerged(next);',
-        '      }'
-      ].join(durableNL);
-      const replaceAllNew = [
-        '      async function replaceAllItems(next){',
-        '        setItems(next);',
-        '        durableStatsPutItems(next);',
-        "        try{ await fastStatsPutItems(next); }catch(err){ console.warn('Could not persist replacement stats to lightweight DB.',err); }",
-        '        await idbBulkPutMerged(next);',
-        '      }'
-      ].join(durableNL);
-      if(html.split(replaceAllOld).length - 1 !== 1) throw new Error('replaceAllItems durable patch point not found exactly once.');
-      html = html.replace(replaceAllOld,replaceAllNew);
-
-      const deleteFastOld = [
-        '      try{',
-        '        await fastStatsDelete(id);',
-        '      }catch(err){',
-        "        console.warn('Could not remove lightweight stats for deleted item.',err);",
-        '      }'
-      ].join(durableNL);
-      const deleteFastNew = deleteFastOld + durableNL + '      durableStatsDelete(id);';
-      if(html.split(deleteFastOld).length - 1 !== 1) throw new Error('durable stats delete patch point not found exactly once.');
-      html = html.replace(deleteFastOld,deleteFastNew);
-`;
-
-      wrapper = wrapper.replace(marker,durablePatch + '\n' + marker);
-      document.open();
-      document.write(wrapper);
-      document.close();
+      ].join(cloudSyncNL);
+      if(html.split(persistOld).length - 1 !== 1) throw new Error('Firestore persistStatPatch point not found exactly once.');
+      html=html.replace(persistOld,persistNew);
+\`;
+      wrapper = wrapper.replace(marker,durablePatch + '\\n' + marker);`;
+      source=source.replace(marker,replacement);
+      document.open();document.write(source);document.close();
     })().catch(error=>{
-      console.error('ComfortOtter durable-stats loader failed',error);
+      console.error('ComfortOtter Firestore-sync loader failed',error);
       const target=document.getElementById('loaderError');
       if(target) target.textContent='ComfortOtter could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nReload the page to try again.';
     });
