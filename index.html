@@ -21,6 +21,25 @@
       ];
       async function fetchFirst(){let last=null;for(const url of urls){try{const r=await fetch(url,{cache:'force-cache'});if(!r.ok)throw new Error(r.status+' '+r.statusText);return await r.text();}catch(e){last=e;}}throw last||new Error('Could not load ComfortOtter code.');}
       let source=await fetchFirst();
+
+      // The Firestore wrapper appends another patch to durablePatch. The prior
+      // loader declared durablePatch with const, which Safari reports as
+      // "Attempted to assign to readonly property" when += runs. Rewrite that
+      // declaration inside the prior loader before it executes.
+      const priorSourceMarker="      let source=await fetchFirst();\n      const marker=";
+      const tick=String.fromCharCode(96);
+      const injectedPriorSource=[
+        '      let source=await fetchFirst();',
+        '      const durableTick=String.fromCharCode(96);',
+        "      const durableConstDecl='      const durablePatch = String.raw'+durableTick;",
+        "      const durableLetDecl='      let durablePatch = String.raw'+durableTick;",
+        "      if(source.split(durableConstDecl).length-1!==1) throw new Error('Durable stats declaration patch point not found exactly once.');",
+        '      source=source.replace(durableConstDecl,durableLetDecl);',
+        '      const marker='
+      ].join('\n');
+      if(source.split(priorSourceMarker).length-1!==1) throw new Error('Readonly startup fix could not find the prior loader patch point.');
+      source=source.replace(priorSourceMarker,injectedPriorSource);
+
       const oldCall='window.saveItemToCloud(snapshot)';
       const newCall='window.saveItemToCloud(Object.fromEntries(Object.entries(snapshot).filter(([key])=>key==="id"||DURABLE_STATS_KEYS.includes(key))))';
       if(source.split(oldCall).length-1!==1) throw new Error('Firestore stat payload patch point not found exactly once.');
