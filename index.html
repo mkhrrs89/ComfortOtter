@@ -7,126 +7,23 @@
   <meta name="theme-color" content="#050c0a" />
   <style>
     html,body{height:100%;margin:0;background:#050c0a;color:#e7f5ef;font:14px/1.4 system-ui,Segoe UI,Roboto,Arial,sans-serif}
-    .loader{height:100%;display:grid;place-items:center;padding:24px;text-align:center}.loaderCard{max-width:520px;padding:20px;border:1px solid #1b3a2f;border-radius:14px;background:#091612}.loaderTitle{font-size:18px;font-weight:700;margin-bottom:8px}.loaderDetail{color:#8fb0a1}.loaderBuild{margin-top:10px;color:#5f8273;font-size:11px}.loaderError{white-space:pre-wrap;text-align:left;color:#ffb4be;margin-top:12px}
+    .loader{height:100%;display:grid;place-items:center;padding:24px;text-align:center}
+    .loaderCard{max-width:520px;padding:20px;border:1px solid #1b3a2f;border-radius:14px;background:#091612}
+    .loaderTitle{font-size:18px;font-weight:700;margin-bottom:8px}
+    .loaderDetail{color:#8fb0a1}
+    .loaderBuild{margin-top:10px;color:#5f8273;font-size:11px}
+    .loaderError{white-space:pre-wrap;text-align:left;color:#ffb4be;margin-top:12px}
   </style>
 </head>
 <body>
-  <div class="loader"><div class="loaderCard"><div class="loaderTitle">Loading ComfortOtter…</div><div id="loaderDetail" class="loaderDetail">Starting direct loader…</div><div class="loaderBuild">Direct loader build v4</div><div id="loaderError" class="loaderError"></div></div></div>
-  <script>
-    (async function loadDirectComfortOtter(){
-      const detail=(text)=>{ const el=document.getElementById('loaderDetail'); if(el) el.textContent=text; };
-      async function fetchText(url,timeoutMs=8000){
-        const controller=typeof AbortController!=='undefined'?new AbortController():null;
-        const timer=setTimeout(()=>{try{if(controller)controller.abort();}catch(_e){}},timeoutMs);
-        try{
-          const response=await fetch(url,{cache:'no-store',signal:controller?controller.signal:undefined});
-          if(!response.ok) throw new Error(response.status+' '+response.statusText+' for '+url);
-          return await response.text();
-        }finally{clearTimeout(timer);}
-      }
-
-      detail('Fetching stable app layers…');
-      let [autoHdShell,durableShell]=await Promise.all([
-        fetchText('stable-auto-hd-shell.html?v=20260826-v4'),
-        fetchText('stable-index-shell.html?v=20260826-v4')
-      ]);
-      detail('Stable layers loaded. Preparing app…');
-
-      const durableStartToken='      const durablePatch = String.raw`';
-      const durableStart=durableShell.indexOf(durableStartToken);
-      const durableUse=durableShell.indexOf('      wrapper = wrapper.replace(marker,durablePatch',durableStart);
-      const durableEnd=durableShell.lastIndexOf('\n`;',durableUse);
-      if(durableStart<0||durableUse<0||durableEnd<0) throw new Error('Could not extract the durable-stat patch.');
-      const durablePatchRaw=durableShell.slice(durableStart+durableStartToken.length,durableEnd);
-      if(!durablePatchRaw.includes('DURABLE_STATS_STORAGE_KEY')||!durablePatchRaw.includes('persistStatPatch')) throw new Error('Durable-stat patch validation failed.');
-
-      // This patch is injected into the Auto-HD loader's template literal before
-      // that loader runs. Preserve one backslash for the generated core loader
-      // by doubling source backslashes before the template literal consumes them.
-      const durablePatchText=durablePatchRaw.replace(/\\/g,'\\\\');
-
-      const durableMarker="      if(!html.includes('const [matchupLeftHd, setMatchupLeftHd] = useState(true);') ||";
-      if(autoHdShell.split(durableMarker).length-1!==1) throw new Error('Auto-HD durable insertion point not found exactly once.');
-      const cloudPatch=[
-        "      if(!html.includes('firestore-sync.js')){",
-        "        const cloudTag='<script type=\"module\" src=\"firestore-sync.js?v=20260826-v4\"><'+'/script>';",
-        "        html=html.replace('</body>',cloudTag+'</body>');",
-        "      }"
-      ].join('\n');
-      autoHdShell=autoHdShell.replace(durableMarker,durablePatchText+'\n'+cloudPatch+'\n'+durableMarker);
-
-      const autoMarker='(async function loadAutoHdComfortOtter(){';
-      const autoPos=autoHdShell.indexOf(autoMarker);
-      if(autoPos<0) throw new Error('Could not find the working Auto-HD loader.');
-      const autoScriptOpen=autoHdShell.lastIndexOf('<script',autoPos);
-      const autoScriptBody=autoHdShell.indexOf('>',autoScriptOpen)+1;
-      const scriptCloseTag='<'+'/script>';
-      const autoScriptClose=autoHdShell.indexOf(scriptCloseTag,autoPos);
-      if(autoScriptOpen<0||autoScriptBody<=0||autoScriptClose<0) throw new Error('Could not extract the working Auto-HD loader script.');
-      let loaderScript=autoHdShell.slice(autoScriptBody,autoScriptClose);
-
-      const nativeFetch=window.fetch.bind(window);
-      window.fetch=function(input,init){
-        const url=typeof input==='string'?input:(input&&input.url?input.url:'');
-        if(!/(?:cdn\.jsdelivr\.net|raw\.githubusercontent\.com)/i.test(url)) return nativeFetch(input,init);
-        const controller=typeof AbortController!=='undefined'?new AbortController():null;
-        const timer=setTimeout(()=>{try{if(controller)controller.abort();}catch(_e){}},6000);
-        const opts={...(init||{}),cache:'no-cache'};
-        if(controller) opts.signal=controller.signal;
-        return nativeFetch(input,opts).finally(()=>clearTimeout(timer));
-      };
-
-      const autoAwait='      let loader = await loaderPromise;';
-      const nestedInstrumentation=[
-        autoAwait,
-        "      try{const d=document.getElementById('loaderDetail');if(d)d.textContent='Auto-HD layer loaded. Instrumenting next layer…';}catch(_e){}",
-        "      const nestedWrite=['      document.open();','      document.write(loader);','      document.close();'].join('\\n');",
-        "      const nestedCode=[",
-        "        '      try{',",
-        "        \"        const generic='<div class=\\\"loaderDetail\\\">Preparing your image library.</div>';\",",
-        "        \"        if(loader.includes(generic)) loader=loader.replace(generic,'<div id=\\\"loaderDetail\\\" class=\\\"loaderDetail\\\">Core patch layer starting…</div><div class=\\\"loaderBuild\\\" style=\\\"margin-top:10px;color:#5f8273;font-size:11px\\\">Core layer v4</div>');\",",
-        "        \"        const coreFetch=[\\\"      let [html, patchScript] = await Promise.all([\\\",\\\"        fetchFirst(appSources, 'the app source'),\\\",\\\"        fetchFirst(patchSources, 'the rating update')\\\",\\\"      ]);\\\"].join('\\\\n');\",",
-        "        \"        const coreFetchNew=[\\\"      try{const d=document.getElementById('loaderDetail');if(d)d.textContent='Fetching core app sources…';}catch(_e){}\\\",coreFetch,\\\"      try{const d=document.getElementById('loaderDetail');if(d)d.textContent='Core sources loaded. Applying patches…';}catch(_e){}\\\"].join('\\\\n');\",",
-        "        \"        if(loader.split(coreFetch).length-1===1) loader=loader.replace(coreFetch,coreFetchNew);\",",
-        "        \"        const coreWrite=['      document.open();','      document.write(html);','      document.close();'].join('\\\\n');\",",
-        "        \"        const coreWriteNew=[\\\"      try{const d=document.getElementById('loaderDetail');if(d)d.textContent='Core patches complete. Launching app…';}catch(_e){}\\\",coreWrite].join('\\\\n');\",",
-        "        \"        if(loader.split(coreWrite).length-1===1) loader=loader.replace(coreWrite,coreWriteNew);\",",
-        "        \"        const coreMarker='(async function loadComfortOtter(){';\",",
-        "        '        const corePos=loader.indexOf(coreMarker);',",
-        "        \"        const closeTag='<'+'/script>';\",",
-        "        \"        const coreOpen=loader.lastIndexOf('<script',corePos);\",",
-        "        \"        const coreBody=loader.indexOf('>',coreOpen)+1;\",",
-        "        '        const coreClose=loader.indexOf(closeTag,corePos);',",
-        "        \"        if(corePos<0||coreOpen<0||coreBody<=0||coreClose<0) throw new Error('Could not extract generated core loader script.');\",",
-        "        '        new Function(loader.slice(coreBody,coreClose));',",
-        "        '      }catch(error){',",
-        "        \"        throw new Error('Generated core loader has invalid JavaScript: '+error.message);\",",
-        "        '      }',",
-        "        nestedWrite",
-        "      ].join('\\n');",
-        "      if(loader.split(nestedWrite).length-1!==1) throw new Error('Tournament-index document.write point not found exactly once.');",
-        "      loader=loader.replace(nestedWrite,nestedCode);"
-      ].join('\n');
-      if(loaderScript.split(autoAwait).length-1!==1) throw new Error('Auto-HD await point not found exactly once.');
-      loaderScript=loaderScript.replace(autoAwait,nestedInstrumentation);
-
-      loaderScript=loaderScript.replace(
-        '      const loaderPromise = fetchFirst(sources);',
-        "      try{const d=document.getElementById('loaderDetail');if(d)d.textContent='Loading Auto-HD app layer…';}catch(_e){}\n      const loaderPromise = fetchFirst(sources);"
-      );
-
-      try{ new Function(loaderScript); }
-      catch(error){ throw new Error('Generated Auto-HD loader has invalid JavaScript: '+error.message); }
-
-      detail('Launching instrumented app…');
-      const script=document.createElement('script');
-      script.textContent=loaderScript;
-      document.body.appendChild(script);
-    })().catch(error=>{
-      console.error('ComfortOtter direct loader failed',error);
-      const target=document.getElementById('loaderError');
-      if(target) target.textContent='ComfortOtter could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nDirect loader build v4';
-    });
-  </script>
+  <div class="loader">
+    <div class="loaderCard">
+      <div class="loaderTitle">Loading ComfortOtter…</div>
+      <div id="loaderDetail" class="loaderDetail">Starting direct loader…</div>
+      <div class="loaderBuild">Direct loader build v5</div>
+      <div id="loaderError" class="loaderError"></div>
+    </div>
+  </div>
+  <script src="direct-loader.js?v=20260826-v5"></script>
 </body>
 </html>
