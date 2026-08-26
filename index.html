@@ -13,15 +13,14 @@
 <body>
   <div class="loader"><div class="loaderCard"><div class="loaderTitle">Loading ComfortOtter…</div><div class="loaderDetail">Preparing your image library.</div><div id="loaderError" class="loaderError"></div></div></div>
   <script>
-    (async function loadEscapingFixedFirestoreSync(){
+    (async function loadFirestoreSync(){
       const priorRevision='65d7e68f2a19fff3941bec454480fb9ec1b784ef';
       const urls=[
         'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@'+priorRevision+'/index.html',
         'https://raw.githubusercontent.com/mkhrrs89/ComfortOtter/'+priorRevision+'/index.html'
       ];
       async function fetchFirst(){let last=null;for(const url of urls){try{const r=await fetch(url,{cache:'force-cache'});if(!r.ok)throw new Error(r.status+' '+r.statusText);return await r.text();}catch(e){last=e;}}throw last||new Error('Could not load ComfortOtter code.');}
-      let source=await fetchFirst();
-      source=source.replace(/\\{2,}'/g,"\\'");
+      const source=await fetchFirst();
       document.open();document.write(source);document.close();
     })().catch(error=>{
       console.error('ComfortOtter Firestore-sync loader failed',error);
