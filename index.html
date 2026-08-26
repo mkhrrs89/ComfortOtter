@@ -107,7 +107,7 @@
       const db = await openTourneyIndexDB();
       return new Promise((resolve,reject)=>{
         let failed = false;
-        const finish = (fn)=>{
+        const finish = fn=>{
           if(failed) return;
           failed = true;
           try{ db.close(); }catch(_e){}
@@ -250,34 +250,6 @@
       }
       return result;`,
         'remove deleted item from tournament index'
-      );
-
-      html = applyOnce(
-        html,
-        `        tx.oncomplete = () => {
-          res();
-          if (window.saveItemToCloud) window.saveItemToCloud(item);
-        };`,
-        `        tx.oncomplete = () => {
-          tourneyIndexPutItems([item]).catch(err=>console.warn('Could not add item to tournament index.',err));
-          res();
-          if (window.saveItemToCloud) window.saveItemToCloud(item);
-        };`,
-        'mirror direct item put to tournament index'
-      );
-
-      html = applyOnce(
-        html,
-        `        tx.oncomplete = () => {
-          try{ db.close(); }catch(e){}
-          res();
-        };`,
-        `        tx.oncomplete = () => {
-          try{ db.close(); }catch(e){}
-          tourneyIndexPutItems(items).catch(err=>console.warn('Could not add bulk items to tournament index.',err));
-          res();
-        };`,
-        'mirror direct bulk put to tournament index'
       );
 
       const tourneyIndexRequired = [
