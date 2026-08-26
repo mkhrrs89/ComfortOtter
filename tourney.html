@@ -18,19 +18,218 @@
   <div class="loader">
     <div class="loaderCard">
       <div class="loaderTitle">Loading Tournament…</div>
-      <div class="loaderDetail">Opening your image library.</div>
+      <div class="loaderDetail">Opening the lightweight tournament index.</div>
       <div id="loaderError" class="loaderError"></div>
     </div>
   </div>
+
+  <script type="text/plain" id="fastTournamentPatch">
+      html = replaceRange(
+        html,
+        `    async function idbGetAllItems(){`,
+        `    async function idbGetItem(id){`,
+        `    const TOURNEY_INDEX_DB_NAME = 'modelMatchupTourneyIndexDB';
+    const TOURNEY_INDEX_STORE = 'items';
+    const TOURNEY_INDEX_META_ID = '__meta__';
+    const TOURNEY_INDEX_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
+    function openTourneyIndexDB(){
+      return openDBWithTimeout(TOURNEY_INDEX_DB_NAME, 1, TOURNEY_INDEX_STORE);
+    }
+
+    async function readMainItemCount(){
+      const db = await openItemsDB();
+      return new Promise((resolve,reject)=>{
+        let tx;
+        try{
+          tx = db.transaction(DB_STORE,'readonly');
+          const req = tx.objectStore(DB_STORE).count();
+          req.onsuccess = ()=>resolve(Number(req.result || 0));
+          req.onerror = ()=>reject(req.error || new Error('Failed to count image records.'));
+        }catch(err){
+          reject(err);
+        }
+      });
+    }
+
+    async function readTourneyIndexSnapshot(){
+      const db = await openTourneyIndexDB();
+      return new Promise((resolve,reject)=>{
+        let rows = [];
+        let settled = false;
+        const finish = (fn)=>{
+          if(settled) return;
+          settled = true;
+          try{ db.close(); }catch(_e){}
+          fn();
+        };
+        let tx;
+        try{
+          tx = db.transaction(TOURNEY_INDEX_STORE,'readonly');
+          const req = tx.objectStore(TOURNEY_INDEX_STORE).getAll();
+          req.onsuccess = ()=>{ rows = Array.isArray(req.result) ? req.result : []; };
+          req.onerror = ()=>finish(()=>reject(req.error || new Error('Failed to read tournament index.')));
+          tx.oncomplete = ()=>{
+            const meta = rows.find(row=>row && row.id === TOURNEY_INDEX_META_ID) || null;
+            const items = rows.filter(row=>row && row.id && row.id !== TOURNEY_INDEX_META_ID);
+            finish(()=>resolve({
+              complete: !!(meta && meta.complete),
+              builtAt: Number(meta && meta.builtAt || 0),
+              items
+            }));
+          };
+          tx.onerror = ()=>finish(()=>reject(tx.error || new Error('Tournament index read failed.')));
+          tx.onabort = ()=>finish(()=>reject(tx.error || new Error('Tournament index read aborted.')));
+        }catch(err){
+          finish(()=>reject(err));
+        }
+      });
+    }
+
+    function tourneyIndexSlim(item){
+      if(!item || !item.id) return null;
+      const hasThumb = !!(item.thumbnail || item.thumbDataUrl || item.hasThumb);
+      const { dataUrl, thumbnail, thumbDataUrl, ...rest } = item;
+      return { ...rest, id:item.id, hasThumb };
+    }
+
+    async function writeTourneyIndexSnapshot(sourceItems){
+      const slimItems = (Array.isArray(sourceItems) ? sourceItems : [])
+        .map(tourneyIndexSlim)
+        .filter(Boolean);
+      const db = await openTourneyIndexDB();
+      return new Promise((resolve,reject)=>{
+        let settled = false;
+        const finish = (fn)=>{
+          if(settled) return;
+          settled = true;
+          try{ db.close(); }catch(_e){}
+          fn();
+        };
+        let tx;
+        try{
+          tx = db.transaction(TOURNEY_INDEX_STORE,'readwrite');
+          const st = tx.objectStore(TOURNEY_INDEX_STORE);
+          st.clear();
+          for(const item of slimItems) st.put(item);
+          st.put({
+            id:TOURNEY_INDEX_META_ID,
+            complete:true,
+            builtAt:Date.now(),
+            itemCount:slimItems.length
+          });
+          tx.oncomplete = ()=>finish(resolve);
+          tx.onerror = ()=>finish(()=>reject(tx.error || new Error('Tournament index write failed.')));
+          tx.onabort = ()=>finish(()=>reject(tx.error || new Error('Tournament index write aborted.')));
+        }catch(err){
+          finish(()=>reject(err));
+        }
+      });
+    }
+
+    async function idbGetAllItemsFromMain(){
+      const db = await openItemsDB();
+      return new Promise((res,rej)=>{
+        const tx = db.transaction(DB_STORE,'readonly');
+        const st = tx.objectStore(DB_STORE);
+        const out = [];
+        const cur = st.openCursor();
+        cur.onsuccess = e=>{
+          const c = e.target.result;
+          if(c){
+            out.push(stripBigFieldsForMemory(c.value));
+            c.continue();
+          }
+          else res(out);
+        };
+        cur.onerror = ()=>rej(cur.error);
+      });
+    }
+
+    async function idbGetAllItems(){
+      let snapshot = null;
+      let mainCount = null;
+
+      const [cacheResult, countResult] = await Promise.allSettled([
+        readTourneyIndexSnapshot(),
+        readMainItemCount()
+      ]);
+
+      if(cacheResult.status === 'fulfilled') snapshot = cacheResult.value;
+      else console.warn('Tournament index unavailable; falling back to full library scan.', cacheResult.reason);
+
+      if(countResult.status === 'fulfilled') mainCount = countResult.value;
+      else console.warn('Could not validate tournament index against library count.', countResult.reason);
+
+      const cacheAge = snapshot ? Date.now() - Number(snapshot.builtAt || 0) : Infinity;
+      const countMatches = snapshot && (mainCount == null || snapshot.items.length === mainCount);
+      const cacheIsFresh = snapshot && snapshot.complete && cacheAge >= 0 && cacheAge < TOURNEY_INDEX_MAX_AGE_MS;
+
+      if(cacheIsFresh && countMatches){
+        console.log('[TOURNEY FAST LOAD] using lightweight index', {
+          count:snapshot.items.length,
+          ageMs:cacheAge
+        });
+        return snapshot.items;
+      }
+
+      console.log('[TOURNEY FAST LOAD] rebuilding lightweight index', {
+        cachedCount:snapshot && snapshot.items ? snapshot.items.length : 0,
+        mainCount,
+        cacheAge
+      });
+      const rows = await idbGetAllItemsFromMain();
+      writeTourneyIndexSnapshot(rows).catch(err=>{
+        console.warn('Could not refresh lightweight tournament index.', err);
+      });
+      return rows;
+    }
+
+`,
+        'lightweight tournament item index'
+      );
+
+      html = replaceOnce(
+        html,
+        `        items = await idbGetAllItems();
+        items = await overlayFastStatsOnItems(items);`,
+        `        const itemLoadPromise = (async()=>overlayFastStatsOnItems(await idbGetAllItems()))();
+        const stateLoadPromise = loadTourneyState();
+        items = await itemLoadPromise;`,
+        'parallel tournament item/state load'
+      );
+
+      html = replaceOnce(
+        html,
+        `        tourneyState = await loadTourneyState();`,
+        `        tourneyState = await stateLoadPromise;`,
+        'finish parallel tournament state load'
+      );
+
+      const fastLoadRequired = [
+        "const TOURNEY_INDEX_DB_NAME = 'modelMatchupTourneyIndexDB'",
+        'async function readMainItemCount()',
+        'async function readTourneyIndexSnapshot()',
+        'async function writeTourneyIndexSnapshot(sourceItems)',
+        'async function idbGetAllItemsFromMain()',
+        "console.log('[TOURNEY FAST LOAD] using lightweight index'",
+        'const stateLoadPromise = loadTourneyState();'
+      ];
+      const missingFastLoad = fastLoadRequired.filter(snippet=>!html.includes(snippet));
+      if(missingFastLoad.length){
+        throw new Error('Tournament fast-load patch validation failed: ' + missingFastLoad.join(', '));
+      }
+  </script>
+
   <script>
-    (async function loadTournament(){
-      const sourceRevision = 'be04f76f96009a52cffeb5dc42333bedfd876110';
-      const appSources = [
-        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@' + sourceRevision + '/tourney.html',
-        'https://raw.githubusercontent.com/mkhrrs89/ComfortOtter/' + sourceRevision + '/tourney.html'
+    (async function loadFastTournament(){
+      const priorRevision = '6ad55663dc7aaeb6bd9a6e7397f47de7ca672d71';
+      const sources = [
+        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@' + priorRevision + '/tourney.html',
+        'https://raw.githubusercontent.com/mkhrrs89/ComfortOtter/' + priorRevision + '/tourney.html'
       ];
 
-      async function fetchFirst(urls, label){
+      async function fetchFirst(urls){
         let lastError = null;
         for(const url of urls){
           try{
@@ -41,586 +240,23 @@
             lastError = error;
           }
         }
-        throw new Error('Could not load ' + label + ': ' + (lastError && lastError.message ? lastError.message : lastError));
+        throw lastError || new Error('Could not load tournament code.');
       }
 
-      function countOccurrences(text, search){
-        if(!search) return 0;
-        return text.split(search).length - 1;
+      let loader = await fetchFirst(sources);
+      const marker = '      const required = [';
+      const count = loader.split(marker).length - 1;
+      if(count !== 1){
+        throw new Error('Fast tournament loader could not find its patch point.');
       }
-
-      function replaceOnce(text, oldText, newText, label){
-        const count = countOccurrences(text, oldText);
-        if(count !== 1){
-          throw new Error(label + ': expected 1 match, found ' + count);
-        }
-        return text.replace(oldText, newText);
-      }
-
-      function replaceRange(text, startMarker, endMarker, replacement, label){
-        const start = text.indexOf(startMarker);
-        if(start < 0) throw new Error(label + ': start marker not found');
-        const end = text.indexOf(endMarker, start + startMarker.length);
-        if(end < 0) throw new Error(label + ': end marker not found');
-        return text.slice(0,start) + replacement + text.slice(end);
-      }
-
-      let html = await fetchFirst(appSources, 'the tournament source');
-
-      html = replaceOnce(
-        html,
-        `    const OPEN_DB_TIMEOUT_MS = 10000;
-    const WRITE_TX_TIMEOUT_MS = 10000;`,
-        `    const OPEN_DB_TIMEOUT_MS = 30000;
-    const WRITE_TX_TIMEOUT_MS = 30000;`,
-        'IndexedDB timeout extension'
-      );
-
-      html = replaceOnce(
-        html,
-        `        req.onsuccess = () => {
-          const db = req.result;
-          db.onversionchange = ()=>{`,
-        `        req.onsuccess = () => {
-          const db = req.result;
-          if(settled){
-            try{ db.close(); }catch(e){}
-            return;
-          }
-          db.onversionchange = ()=>{`,
-        'late IndexedDB success cleanup'
-      );
-
-      html = replaceOnce(
-        html,
-        `    function openItemsDB(){
-      return openDBWithTimeout(DB_NAME, 2, DB_STORE);
-    }
-
-    function openTourneyDB(){
-      return openDBWithTimeout(TOURNEY_DB_NAME, 2, TOURNEY_STORE);
-    }`,
-        `    let itemsDbPromise = null;
-    let tourneyDbPromise = null;
-    let fastStatsDbPromise = null;
-    const trackedDbConnections = new Set();
-    const FAST_STATS_DB_NAME = 'modelMatchupStatsDB';
-    const FAST_STATS_STORE = 'stats';
-
-    function waitMs(ms){
-      return new Promise(resolve=>setTimeout(resolve, ms));
-    }
-
-    function closeTrackedDb(db){
-      if(!db) return;
-      trackedDbConnections.delete(db);
-      try{ db.close(); }catch(e){}
-    }
-
-    function openExistingDBWithTimeout(name, ensureStoreName, timeoutMs){
-      if(!canUseIndexedDB()){
-        return Promise.reject(new Error('IndexedDB unavailable on this browser.'));
-      }
-      return new Promise((resolve,reject)=>{
-        let settled = false;
-        let req;
-        try{
-          req = indexedDB.open(name);
-        }catch(err){
-          reject(err);
-          return;
-        }
-
-        const timeoutId = setTimeout(()=>{
-          if(settled) return;
-          settled = true;
-          reject(new Error('Timed out opening IndexedDB ' + name + '.'));
-        }, timeoutMs);
-
-        const finish = (fn)=>{
-          if(settled) return;
-          settled = true;
-          clearTimeout(timeoutId);
-          fn();
-        };
-
-        req.onblocked = () => finish(()=>reject(new Error('IndexedDB ' + name + ' is blocked by another tab. Close other app tabs and retry.')));
-        req.onerror = () => finish(()=>reject(req.error || new Error('Failed to open IndexedDB ' + name + '.')));
-        req.onsuccess = () => {
-          const db = req.result;
-          if(settled){
-            closeTrackedDb(db);
-            return;
-          }
-          if(ensureStoreName && !db.objectStoreNames.contains(ensureStoreName)){
-            closeTrackedDb(db);
-            finish(()=>reject(new Error('IndexedDB ' + name + ' missing required store ' + ensureStoreName + '.')));
-            return;
-          }
-          trackedDbConnections.add(db);
-          finish(()=>resolve(db));
-        };
-      });
-    }
-
-    async function openResilientDB(name, version, storeName){
-      let lastError = null;
-      const attemptTimeouts = [12000, 18000];
-
-      for(let attempt = 0; attempt < attemptTimeouts.length; attempt++){
-        try{
-          return await openExistingDBWithTimeout(name, storeName, attemptTimeouts[attempt]);
-        }catch(err){
-          lastError = err;
-          const message = err && err.message ? err.message : String(err || '');
-          console.warn('IndexedDB open attempt ' + (attempt + 1) + ' failed for ' + name, err);
-          if(message.indexOf('missing required store') !== -1) break;
-          if(attempt < attemptTimeouts.length - 1) await waitMs(500 * (attempt + 1));
-        }
-      }
-
-      try{
-        const db = await openDBWithTimeout(name, version, storeName);
-        trackedDbConnections.add(db);
-        return db;
-      }catch(err){
-        throw err || lastError;
-      }
-    }
-
-    function openCachedDB(kind, name, version, storeName){
-      const existingPromise = kind === 'items' ? itemsDbPromise : tourneyDbPromise;
-      if(existingPromise) return existingPromise;
-
-      const promise = openResilientDB(name, version, storeName)
-        .then(db=>{
-          db.onversionchange = ()=>{
-            closeTrackedDb(db);
-            if(kind === 'items') itemsDbPromise = null;
-            else tourneyDbPromise = null;
-          };
-          return db;
-        })
-        .catch(err=>{
-          if(kind === 'items') itemsDbPromise = null;
-          else tourneyDbPromise = null;
-          throw err;
-        });
-
-      if(kind === 'items') itemsDbPromise = promise;
-      else tourneyDbPromise = promise;
-      return promise;
-    }
-
-    function resetCachedDbConnection(kind){
-      const promise = kind === 'items' ? itemsDbPromise : tourneyDbPromise;
-      if(kind === 'items') itemsDbPromise = null;
-      else tourneyDbPromise = null;
-      if(promise){
-        Promise.resolve(promise).then(db=>closeTrackedDb(db)).catch(()=>{});
-      }
-    }
-
-    function resetItemsDbConnection(){
-      resetCachedDbConnection('items');
-    }
-
-    function resetTourneyDbConnection(){
-      resetCachedDbConnection('tourney');
-    }
-
-    function openItemsDB(){
-      return openCachedDB('items', DB_NAME, 2, DB_STORE);
-    }
-
-    function openTourneyDB(){
-      return openCachedDB('tourney', TOURNEY_DB_NAME, 2, TOURNEY_STORE);
-    }
-
-    function openFastStatsDB(){
-      if(fastStatsDbPromise) return fastStatsDbPromise;
-      fastStatsDbPromise = openDBWithTimeout(FAST_STATS_DB_NAME, 1, FAST_STATS_STORE)
-        .then(db=>{
-          trackedDbConnections.add(db);
-          db.onversionchange = ()=>{
-            closeTrackedDb(db);
-            fastStatsDbPromise = null;
-          };
-          return db;
-        })
-        .catch(err=>{
-          fastStatsDbPromise = null;
-          throw err;
-        });
-      return fastStatsDbPromise;
-    }
-
-    function fastStatsPatchFromItem(item){
-      return {
-        id: item.id,
-        wins: Math.max(0, Number(item.wins || 0)),
-        losses: Math.max(0, Number(item.losses || 0)),
-        tourneyBonus: Number(item.tourneyBonus || 0),
-        tourneyCount: Math.max(0, Number(item.tourneyCount || 0)),
-        updatedAt: Date.now()
-      };
-    }
-
-    function applyFastStatsRecord(item, stats){
-      if(!item || !stats) return item;
-      const next = {...item};
-      for(const key of ['wins','losses','tourneyBonus','tourneyCount','rating','ratingSeededFromWinPctV1']){
-        if(stats[key] !== undefined) next[key] = stats[key];
-      }
-      return next;
-    }
-
-    async function readFastStatsAll(){
-      const db = await openFastStatsDB();
-      return new Promise((resolve,reject)=>{
-        const tx = db.transaction(FAST_STATS_STORE,'readonly');
-        const req = tx.objectStore(FAST_STATS_STORE).getAll();
-        req.onsuccess = ()=>resolve(Array.isArray(req.result) ? req.result : []);
-        req.onerror = ()=>reject(req.error || new Error('Failed to load lightweight stats.'));
-      });
-    }
-
-    async function overlayFastStatsOnItems(baseItems){
-      try{
-        const rows = await readFastStatsAll();
-        if(!rows.length) return baseItems;
-        const byId = new Map(rows.map(row=>[row.id,row]));
-        return baseItems.map(item=>applyFastStatsRecord(item,byId.get(item.id)));
-      }catch(err){
-        console.warn('Lightweight stats overlay unavailable; using legacy item stats.', err);
-        return baseItems;
-      }
-    }
-
-    async function writeFastStatsForItems(nextItems){
-      if(!Array.isArray(nextItems) || !nextItems.length) return;
-      const db = await openFastStatsDB();
-      return new Promise((resolve,reject)=>{
-        const tx = db.transaction(FAST_STATS_STORE,'readwrite');
-        const st = tx.objectStore(FAST_STATS_STORE);
-        let failed = false;
-        const fail = err=>{
-          if(failed) return;
-          failed = true;
-          try{ tx.abort(); }catch(_e){}
-          reject(err || new Error('Failed to save lightweight stats.'));
-        };
-        for(const item of nextItems){
-          if(!item || !item.id) continue;
-          const getReq = st.get(item.id);
-          getReq.onerror = ()=>fail(getReq.error);
-          getReq.onsuccess = ()=>{
-            if(failed) return;
-            const existing = getReq.result || {id:item.id};
-            const putReq = st.put({...existing,...fastStatsPatchFromItem(item)});
-            putReq.onerror = ()=>fail(putReq.error);
-          };
-        }
-        tx.oncomplete = ()=>{ if(!failed) resolve(); };
-        tx.onerror = ()=>fail(tx.error);
-        tx.onabort = ()=>{ if(!failed) fail(tx.error || new Error('Lightweight stats transaction aborted.')); };
-      });
-    }
-
-    function updateMemoryStatsItem(nextItem){
-      if(!nextItem || !nextItem.id) return;
-      const slim = stripBigFieldsForMemory(nextItem);
-      itemsById.set(nextItem.id, slim);
-      items = items.map(item=>item.id === nextItem.id ? {...item,...slim} : item);
-    }
-
-    const legacyStatsSyncPending = new Set();
-    let legacyStatsSyncTimer = null;
-    let legacyStatsSyncRunning = false;
-    let pageIsLeaving = false;
-    const skipLegacyBlobSync = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-    function scheduleLegacyStatsSync(ids){
-      // Lightweight stats are authoritative. On iOS, rewriting the giant image
-      // records can hold IndexedDB open long enough to block the next page.
-      if(pageIsLeaving || skipLegacyBlobSync) return;
-      for(const id of (ids || [])){
-        if(id) legacyStatsSyncPending.add(id);
-      }
-      if(legacyStatsSyncTimer || legacyStatsSyncRunning) return;
-      legacyStatsSyncTimer = setTimeout(flushLegacyStatsSync, 5000);
-    }
-
-    async function flushLegacyStatsSync(){
-      if(pageIsLeaving || skipLegacyBlobSync || legacyStatsSyncRunning) return;
-      legacyStatsSyncTimer = null;
-      legacyStatsSyncRunning = true;
-      try{
-        const batch = Array.from(legacyStatsSyncPending).slice(0,8);
-        for(const id of batch){
-          if(pageIsLeaving) break;
-          legacyStatsSyncPending.delete(id);
-          const item = itemsById.get(id);
-          if(!item) continue;
-          try{
-            await idbPutItem(item);
-          }catch(err){
-            console.warn('Deferred legacy stat sync failed; lightweight stats remain authoritative.', id, err);
-          }
-          await delay(0);
-        }
-      }finally{
-        legacyStatsSyncRunning = false;
-        if(!pageIsLeaving && legacyStatsSyncPending.size && !legacyStatsSyncTimer){
-          legacyStatsSyncTimer = setTimeout(flushLegacyStatsSync, 1000);
-        }
-      }
-    }
-
-    window.addEventListener('pagehide', ()=>{
-      pageIsLeaving = true;
-      if(legacyStatsSyncTimer){
-        clearTimeout(legacyStatsSyncTimer);
-        legacyStatsSyncTimer = null;
-      }
-      legacyStatsSyncPending.clear();
-      for(const db of Array.from(trackedDbConnections)) closeTrackedDb(db);
-      itemsDbPromise = null;
-      tourneyDbPromise = null;
-      fastStatsDbPromise = null;
-    });
-
-    window.addEventListener('pageshow', ()=>{
-      pageIsLeaving = false;
-    });`,
-        'resilient IndexedDB openers and lightweight stats store'
-      );
-
-      html = replaceOnce(
-        html,
-        `        await delay(200);`,
-        `        resetItemsDbConnection();
-        await delay(250);`,
-        'fresh IndexedDB connection before legacy write retry'
-      );
-
-      html = replaceOnce(
-        html,
-        `    async function saveTourneyState(state){
-      return runWriteTransaction(openTourneyDB(), TOURNEY_STORE, (st)=>{
-        st.put({...state,id:TOURNEY_STATE_ID});
-      }, 'Saving tournament progress');
-    }`,
-        `    async function saveTourneyState(state){
-      let attempt = 0;
-      while(true){
-        attempt += 1;
-        try{
-          return await runWriteTransaction(openTourneyDB(), TOURNEY_STORE, (st)=>{
-            st.put({...state,id:TOURNEY_STATE_ID});
-          }, 'Saving tournament progress');
-        }catch(err){
-          if(attempt >= 2 || !isRetriableWriteError(err)) throw err;
-          resetTourneyDbConnection();
-          await delay(250);
-        }
-      }
-    }`,
-        'retry tournament-state writes with a fresh connection'
-      );
-
-      html = replaceOnce(
-        html,
-        `        items = await idbGetAllItems();`,
-        `        items = await idbGetAllItems();
-        items = await overlayFastStatsOnItems(items);`,
-        'load lightweight stats overlay'
-      );
-
-      html = replaceRange(
-        html,
-        `    async function applyWinLoss(winnerId, loserId){`,
-        `    async function reverseWinLoss(winnerId, loserId){`,
-        `    async function applyWinLoss(winnerId, loserId){
-      const winner = itemsById.get(winnerId);
-      const loser = itemsById.get(loserId);
-      if(!winner || !loser){
-        throw new Error('Winner or loser record missing during stat update.');
-      }
-
-      const nextWinner = {
-        ...winner,
-        wins: Math.max(0, Number(winner.wins || 0) + 1),
-        losses: Math.max(0, Number(winner.losses || 0)),
-        tourneyBonus: Number(winner.tourneyBonus || 0)
-      };
-      const nextLoser = {
-        ...loser,
-        wins: Math.max(0, Number(loser.wins || 0)),
-        losses: Math.max(0, Number(loser.losses || 0) + 1),
-        tourneyBonus: Number(loser.tourneyBonus || 0)
-      };
-
-      await writeFastStatsForItems([nextWinner,nextLoser]);
-      updateMemoryStatsItem(nextWinner);
-      updateMemoryStatsItem(nextLoser);
-      scheduleLegacyStatsSync([winnerId,loserId]);
-    }
-
-`,
-        'lightweight winner stat updates'
-      );
-
-      html = replaceRange(
-        html,
-        `    async function reverseWinLoss(winnerId, loserId){`,
-        `async function incrementTourneyCountsForParticipants(participantIds){`,
-        `    async function reverseWinLoss(winnerId, loserId){
-      const winner = itemsById.get(winnerId);
-      const loser = itemsById.get(loserId);
-      if(!winner || !loser){
-        throw new Error('Winner or loser record missing during undo stat update.');
-      }
-
-      const nextWinner = {
-        ...winner,
-        wins: Math.max(0, Number(winner.wins || 0) - 1),
-        losses: Math.max(0, Number(winner.losses || 0)),
-        tourneyBonus: Number(winner.tourneyBonus || 0)
-      };
-      const nextLoser = {
-        ...loser,
-        wins: Math.max(0, Number(loser.wins || 0)),
-        losses: Math.max(0, Number(loser.losses || 0) - 1),
-        tourneyBonus: Number(loser.tourneyBonus || 0)
-      };
-
-      await writeFastStatsForItems([nextWinner,nextLoser]);
-      updateMemoryStatsItem(nextWinner);
-      updateMemoryStatsItem(nextLoser);
-      scheduleLegacyStatsSync([winnerId,loserId]);
-    }
-
-`,
-        'lightweight undo stat updates'
-      );
-
-      html = replaceRange(
-        html,
-        `async function incrementTourneyCountsForParticipants(participantIds){`,
-        `    async function applyChampionBonus(championId){`,
-        `async function incrementTourneyCountsForParticipants(participantIds){
-  if(!Array.isArray(participantIds) || !participantIds.length) return;
-  const changed = [];
-  for(const id of participantIds){
-    const item = itemsById.get(id);
-    if(!item) continue;
-    changed.push({
-      ...item,
-      tourneyCount: Math.max(0, Number(item.tourneyCount || 0) + 1)
-    });
-  }
-  await writeFastStatsForItems(changed);
-  for(const item of changed) updateMemoryStatsItem(item);
-}
-
-`,
-        'lightweight tournament count updates'
-      );
-
-      html = replaceRange(
-        html,
-        `    async function applyChampionBonus(championId){`,
-        `    async function pickWinner(side){`,
-        `    async function applyChampionBonus(championId){
-      const champ = itemsById.get(championId);
-      if(!champ) return;
-      const next = {...champ, tourneyBonus: Number(champ.tourneyBonus || 0) + 5};
-      await writeFastStatsForItems([next]);
-      updateMemoryStatsItem(next);
-      scheduleLegacyStatsSync([championId]);
-    }
-
-    async function removeChampionBonus(championId){
-      const champ = itemsById.get(championId);
-      if(!champ) return;
-      const next = {...champ, tourneyBonus: Math.max(0, Number(champ.tourneyBonus || 0) - 5)};
-      await writeFastStatsForItems([next]);
-      updateMemoryStatsItem(next);
-      scheduleLegacyStatsSync([championId]);
-    }
-
-`,
-        'lightweight champion bonus updates'
-      );
-
-      html = replaceOnce(
-        html,
-        `  tourneyState = nextTourneyState;
-  renderAll();
-
-  try{
-    await incrementTourneyCountsForParticipants(participantIds);
-  }catch(e){
-    const msg = 'Tournament started, but failed to update participant tournament counts.';
-    console.error(msg, e);
-    alert(msg);
-  }`,
-        `  tourneyState = nextTourneyState;
-  statusEl.textContent = 'Preparing tournament…';
-
-  try{
-    await incrementTourneyCountsForParticipants(participantIds);
-  }catch(e){
-    const msg = 'Tournament started, but failed to update participant tournament counts.';
-    console.error(msg, e);
-    alert(msg);
-  }
-
-  renderAll();`,
-        'finish lightweight startup stats before first match'
-      );
-
-      html = replaceOnce(
-        html,
-        `        await withTimeout(applyWinLoss(winnerId, loserId), 12000, 'Saving winner/loser stats');`,
-        `        await withTimeout(applyWinLoss(winnerId, loserId), 70000, 'Saving winner/loser stats');`,
-        'winner stats timeout budget'
-      );
-
-      html = replaceOnce(
-        html,
-        `        await withTimeout(saveTourneyState(nextState), 12000, 'Saving tournament state');`,
-        `        await withTimeout(saveTourneyState(nextState), 70000, 'Saving tournament state');`,
-        'winner state timeout budget'
-      );
-
-      const required = [
-        'const OPEN_DB_TIMEOUT_MS = 30000;',
-        'const WRITE_TX_TIMEOUT_MS = 30000;',
-        "const FAST_STATS_DB_NAME = 'modelMatchupStatsDB'",
-        'function openExistingDBWithTimeout',
-        'function openFastStatsDB',
-        'async function writeFastStatsForItems',
-        'async function overlayFastStatsOnItems',
-        'const skipLegacyBlobSync',
-        'pageIsLeaving = true;',
-        'scheduleLegacyStatsSync([winnerId,loserId])',
-        'items = await overlayFastStatsOnItems(items);',
-        "70000, 'Saving winner/loser stats'",
-        "70000, 'Saving tournament state'"
-      ];
-      const missing = required.filter(snippet => !html.includes(snippet));
-      if(missing.length){
-        throw new Error('Tournament lightweight-stats patch validation failed: ' + missing.join(', '));
-      }
+      const patch = document.getElementById('fastTournamentPatch').textContent;
+      loader = loader.replace(marker, patch + '\n' + marker);
 
       document.open();
-      document.write(html);
+      document.write(loader);
       document.close();
-    })().catch(error => {
-      console.error('Tournament failed to load', error);
+    })().catch(error=>{
+      console.error('Fast tournament loader failed', error);
       const target = document.getElementById('loaderError');
       if(target){
         target.textContent = 'Tournament could not finish loading.\n\n' +
