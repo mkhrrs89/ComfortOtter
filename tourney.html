@@ -7,138 +7,48 @@
   <meta name="theme-color" content="#050c0a" />
   <style>
     html,body{height:100%;margin:0;background:#050c0a;color:#e7f5ef;font:14px/1.4 system-ui,Segoe UI,Roboto,Arial,sans-serif}
-    .loader{height:100%;display:grid;place-items:center;padding:24px;text-align:center}.loaderCard{max-width:520px;padding:20px;border:1px solid #1b3a2f;border-radius:14px;background:#091612}.loaderTitle{font-size:18px;font-weight:700;margin-bottom:8px}.loaderDetail{color:#8fb0a1}.loaderError{white-space:pre-wrap;text-align:left;color:#ffb4be;margin-top:12px}
+    .loader{height:100%;display:grid;place-items:center;padding:24px;text-align:center}.loaderCard{max-width:520px;padding:20px;border:1px solid #1b3a2f;border-radius:14px;background:#091612}.loaderTitle{font-size:18px;font-weight:700;margin-bottom:8px}.loaderDetail{color:#8fb0a1}.loaderBuild{margin-top:10px;color:#5f8273;font-size:11px}.loaderError{white-space:pre-wrap;text-align:left;color:#ffb4be;margin-top:12px}
   </style>
 </head>
 <body>
-  <div class="loader"><div class="loaderCard"><div class="loaderTitle">Loading Tournament…</div><div class="loaderDetail">Opening the lightweight tournament index.</div><div id="loaderError" class="loaderError"></div></div></div>
+  <div class="loader"><div class="loaderCard"><div class="loaderTitle">Loading Tournament…</div><div class="loaderDetail">Preparing the tournament.</div><div class="loaderBuild">Recovery build 15:50</div><div id="loaderError" class="loaderError"></div></div></div>
   <script>
-    (async function loadFirestoreSyncedTournament(){
-      const priorRevision='6131aebbe099bf09fd3944ec0a780f06941e7a8d';
-      const urls=[
-        'https://cdn.jsdelivr.net/gh/mkhrrs89/ComfortOtter@'+priorRevision+'/tourney.html',
-        'https://raw.githubusercontent.com/mkhrrs89/ComfortOtter/'+priorRevision+'/tourney.html'
-      ];
-      async function fetchFirst(){let last=null;for(const url of urls){try{const r=await fetch(url,{cache:'force-cache'});if(!r.ok)throw new Error(r.status+' '+r.statusText);return await r.text();}catch(e){last=e;}}throw last||new Error('Could not load tournament code.');}
-      let source=await fetchFirst();
-      const tick=String.fromCharCode(96);
-      const durableConstDecl='      const durablePatch = String.raw'+tick;
-      const durableLetDecl='      let durablePatch = String.raw'+tick;
-      if(source.split(durableConstDecl).length-1!==1) throw new Error('Tournament durable stats declaration patch point not found exactly once.');
-      source=source.replace(durableConstDecl,durableLetDecl);
-      const marker="      wrapper = wrapper.replace(marker,durablePatch + '\\n' + marker);";
-      if(source.split(marker).length-1!==1) throw new Error('Tournament Firestore patch point not found exactly once.');
-      const replacement=`      durablePatch += String.raw\`
-      const cloudTournamentNL = String.fromCharCode(10);
+    (async function loadTournamentRecoveryShell(){
+      const nativeFetch = window.fetch.bind(window);
+      const remotePattern = /(?:cdn\.jsdelivr\.net|raw\.githubusercontent\.com)/i;
 
-      const firestoreImportMarker = '    import { getStorage, ref, getDownloadURL } from \\"https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js\\";';
-      if(html.split(firestoreImportMarker).length - 1 !== 1) throw new Error('Tournament Firestore import marker not found exactly once.');
-      html=html.replace(firestoreImportMarker,firestoreImportMarker+cloudTournamentNL+'    import { getFirestore, doc, setDoc } from \\"https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js\\";');
+      window.fetch = function recoveryFetch(input, init){
+        const url = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+        if(!remotePattern.test(url)) return nativeFetch(input, init);
+        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const timer = setTimeout(()=>{ try{ if(controller) controller.abort(); }catch(_e){} }, 4500);
+        const options = {...(init || {}), cache:'no-cache'};
+        if(controller) options.signal = controller.signal;
+        return nativeFetch(input, options).finally(()=>clearTimeout(timer));
+      };
 
-      const firestoreInitMarker='    const storage = getStorage(app);';
-      if(html.split(firestoreInitMarker).length - 1 !== 1) throw new Error('Tournament Firestore init marker not found exactly once.');
-      html=html.replace(firestoreInitMarker,firestoreInitMarker+cloudTournamentNL+'    const firestore = getFirestore(app);');
+      async function fetchSameOrigin(url, timeoutMs){
+        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const timer = setTimeout(()=>{ try{ if(controller) controller.abort(); }catch(_e){} }, timeoutMs);
+        try{
+          const response = await nativeFetch(url,{cache:'no-store',signal:controller ? controller.signal : undefined});
+          if(!response.ok) throw new Error(response.status+' '+response.statusText);
+          return await response.text();
+        }finally{ clearTimeout(timer); }
+      }
 
-      const firebaseModuleEnd='    };'+cloudTournamentNL+'  </script>'+cloudTournamentNL+'</head>';
-      if(html.split(firebaseModuleEnd).length - 1 !== 1) throw new Error('Tournament Firebase module end marker not found exactly once.');
-      const tournamentCloudHelper=[
-        '    };',
-        '',
-        '    window.saveTournamentStatsToCloud = async function saveTournamentStatsToCloud(item){',
-        '      if(!item || !item.id) return false;',
-        '      const patch={id:item.id,updatedAt:new Date().toISOString()};',
-        "      for(const key of ['wins','losses','tourneyBonus','tourneyCount','rating','ratingSeededFromWinPctV1']){ if(item[key]!==undefined) patch[key]=item[key]; }",
-        '      try{',
-        "        await setDoc(doc(firestore,'images',item.id),patch,{merge:true});",
-        '        return true;',
-        '      }catch(err){',
-        "        console.error('Tournament Firestore stat save failed for',item.id,err);",
-        '        return false;',
-        '      }',
-        '    };',
-        '  </script>',
-        '</head>'
-      ].join(cloudTournamentNL);
-      html=html.replace(firebaseModuleEnd,tournamentCloudHelper);
-
-      const durableRowsMarker='    function durableStatsRows(){ return Object.values(durableStatsReadMap()).filter(row=>row && row.id); }';
-      if(html.split(durableRowsMarker).length - 1 !== 1) throw new Error('Tournament cloud queue durable-row marker not found exactly once.');
-      const queueHelpers=[
-        durableRowsMarker,
-        "    const CLOUD_STATS_QUEUE_KEY = 'modelMatchupPendingFirestoreStatsV1';",
-        '    let cloudStatsFlushTimer=null;',
-        '    let cloudStatsFlushRunning=false;',
-        '    function readCloudStatsQueue(){',
-        "      try{const s=window.localStorage;const raw=s?s.getItem(CLOUD_STATS_QUEUE_KEY):null;const parsed=raw?JSON.parse(raw):{};return parsed&&typeof parsed==='object'&&!Array.isArray(parsed)?parsed:{};}catch(err){return {};}",
-        '    }',
-        '    function writeCloudStatsQueue(queue){',
-        "      try{const s=window.localStorage;if(!s)return false;s.setItem(CLOUD_STATS_QUEUE_KEY,JSON.stringify(queue||{}));return true;}catch(err){console.warn('Tournament Firestore queue write failed',err);return false;}",
-        '    }',
-        '    function queueFirestoreStatsItems(sourceItems){',
-        '      const valid=(Array.isArray(sourceItems)?sourceItems:[sourceItems]).filter(item=>item&&item.id);',
-        '      if(!valid.length)return;',
-        '      const queue=readCloudStatsQueue();',
-        '      const now=Date.now();',
-        '      for(const item of valid){',
-        "        const existing=queue[item.id]&&typeof queue[item.id]==='object'?queue[item.id]:{id:item.id};",
-        '        const next={...existing,id:item.id};let changed=false;',
-        '        for(const key of DURABLE_STATS_KEYS){if(item[key]!==undefined){next[key]=normalizeDurableStat(key,item[key]);changed=true;}}',
-        '        if(changed){next.queuedAt=now;queue[item.id]=next;}',
-        '      }',
-        '      writeCloudStatsQueue(queue);',
-        '      scheduleFirestoreStatsFlush(50);',
-        '    }',
-        '    function scheduleFirestoreStatsFlush(delayMs){',
-        '      if(cloudStatsFlushTimer||cloudStatsFlushRunning)return;',
-        "      cloudStatsFlushTimer=setTimeout(()=>{cloudStatsFlushTimer=null;flushFirestoreStatsQueue().catch(err=>console.warn('Tournament Firestore flush failed',err));},Math.max(0,Number(delayMs||0)));",
-        '    }',
-        '    async function flushFirestoreStatsQueue(){',
-        '      if(cloudStatsFlushRunning)return;',
-        '      const queue=readCloudStatsQueue();const ids=Object.keys(queue);if(!ids.length)return;',
-        "      if(typeof window.saveTournamentStatsToCloud!=='function'){scheduleFirestoreStatsFlush(1000);return;}",
-        '      cloudStatsFlushRunning=true;let hadFailure=false;',
-        '      try{',
-        '        for(const id of ids.slice(0,24)){',
-        '          const current=readCloudStatsQueue();const snapshot=current[id];if(!snapshot)continue;',
-        '          let ok=false;',
-        "          try{ok=(await window.saveTournamentStatsToCloud(snapshot))===true;}catch(err){console.warn('Tournament Firestore stat update failed',id,err);}",
-        '          const latest=readCloudStatsQueue();',
-        '          if(ok&&latest[id]&&latest[id].queuedAt===snapshot.queuedAt){delete latest[id];writeCloudStatsQueue(latest);}else if(!ok){hadFailure=true;}',
-        '        }',
-        '      }finally{',
-        '        cloudStatsFlushRunning=false;',
-        '        if(Object.keys(readCloudStatsQueue()).length)scheduleFirestoreStatsFlush(hadFailure?5000:100);',
-        '      }',
-        '    }',
-        "    window.addEventListener('online',()=>scheduleFirestoreStatsFlush(0));",
-        "    window.addEventListener('pageshow',()=>scheduleFirestoreStatsFlush(250));",
-        '    setTimeout(()=>scheduleFirestoreStatsFlush(500),500);'
-      ].join(cloudTournamentNL);
-      html=html.replace(durableRowsMarker,queueHelpers);
-
-      const durableWriteWithJournal=[
-        '    async function writeFastStatsForItems(nextItems){',
-        '      if(!Array.isArray(nextItems) || !nextItems.length) return;',
-        '      durableStatsPutItems(nextItems);',
-        '      const db = await openFastStatsDB();'
-      ].join(cloudTournamentNL);
-      const durableWriteWithCloud=[
-        '    async function writeFastStatsForItems(nextItems){',
-        '      if(!Array.isArray(nextItems) || !nextItems.length) return;',
-        '      durableStatsPutItems(nextItems);',
-        '      queueFirestoreStatsItems(nextItems);',
-        '      const db = await openFastStatsDB();'
-      ].join(cloudTournamentNL);
-      if(html.split(durableWriteWithJournal).length - 1 !== 1) throw new Error('Tournament Firestore write hook not found exactly once.');
-      html=html.replace(durableWriteWithJournal,durableWriteWithCloud);
-\`;
-      wrapper = wrapper.replace(marker,durablePatch + '\\n' + marker);`;
-      source=source.replace(marker,replacement);
-      document.open();document.write(source);document.close();
+      let shell = await fetchSameOrigin('stable-tourney-shell.html?v=20260826-1550', 7000);
+      if(!shell.includes('loadDurableTournament')) throw new Error('Stable tournament shell validation failed.');
+      if(!shell.includes('firestore-sync.js')){
+        shell = shell.replace('</head>','<script type="module" src="firestore-sync.js?v=20260826-1550"><\\/script></head>');
+      }
+      document.open();
+      document.write(shell);
+      document.close();
     })().catch(error=>{
-      console.error('Tournament Firestore-sync loader failed',error);
+      console.error('Tournament recovery startup failed',error);
       const target=document.getElementById('loaderError');
-      if(target) target.textContent='Tournament could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nReload the page to try again.';
+      if(target) target.textContent='Tournament could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nRecovery build 15:50';
     });
   </script>
 </body>
