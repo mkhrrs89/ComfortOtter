@@ -21,6 +21,11 @@
       ];
       async function fetchFirst(){let last=null;for(const url of urls){try{const r=await fetch(url,{cache:'force-cache'});if(!r.ok)throw new Error(r.status+' '+r.statusText);return await r.text();}catch(e){last=e;}}throw last||new Error('Could not load tournament code.');}
       let source=await fetchFirst();
+      const tick=String.fromCharCode(96);
+      const durableConstDecl='      const durablePatch = String.raw'+tick;
+      const durableLetDecl='      let durablePatch = String.raw'+tick;
+      if(source.split(durableConstDecl).length-1!==1) throw new Error('Tournament durable stats declaration patch point not found exactly once.');
+      source=source.replace(durableConstDecl,durableLetDecl);
       const marker="      wrapper = wrapper.replace(marker,durablePatch + '\\n' + marker);";
       if(source.split(marker).length-1!==1) throw new Error('Tournament Firestore patch point not found exactly once.');
       const replacement=`      durablePatch += String.raw\`
