@@ -337,8 +337,14 @@
     const legacyStatsSyncPending = new Set();
     let legacyStatsSyncTimer = null;
     let legacyStatsSyncRunning = false;
+    let pageIsLeaving = false;
+    const skipLegacyBlobSync = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
     function scheduleLegacyStatsSync(ids){
+      // Lightweight stats are authoritative. On iOS, rewriting the giant image
+      // records can hold IndexedDB open long enough to block the next page.
+      if(pageIsLeaving || skipLegacyBlobSync) return;
       for(const id of (ids || [])){
         if(id) legacyStatsSyncPending.add(id);
       }
@@ -347,12 +353,13 @@
     }
 
     async function flushLegacyStatsSync(){
-      if(legacyStatsSyncRunning) return;
+      if(pageIsLeaving || skipLegacyBlobSync || legacyStatsSyncRunning) return;
       legacyStatsSyncTimer = null;
       legacyStatsSyncRunning = true;
       try{
         const batch = Array.from(legacyStatsSyncPending).slice(0,8);
         for(const id of batch){
+          if(pageIsLeaving) break;
           legacyStatsSyncPending.delete(id);
           const item = itemsById.get(id);
           if(!item) continue;
@@ -365,17 +372,27 @@
         }
       }finally{
         legacyStatsSyncRunning = false;
-        if(legacyStatsSyncPending.size && !legacyStatsSyncTimer){
+        if(!pageIsLeaving && legacyStatsSyncPending.size && !legacyStatsSyncTimer){
           legacyStatsSyncTimer = setTimeout(flushLegacyStatsSync, 1000);
         }
       }
     }
 
     window.addEventListener('pagehide', ()=>{
+      pageIsLeaving = true;
+      if(legacyStatsSyncTimer){
+        clearTimeout(legacyStatsSyncTimer);
+        legacyStatsSyncTimer = null;
+      }
+      legacyStatsSyncPending.clear();
       for(const db of Array.from(trackedDbConnections)) closeTrackedDb(db);
       itemsDbPromise = null;
       tourneyDbPromise = null;
       fastStatsDbPromise = null;
+    });
+
+    window.addEventListener('pageshow', ()=>{
+      pageIsLeaving = false;
     });`,
         'resilient IndexedDB openers and lightweight stats store'
       );
@@ -587,6 +604,8 @@
         'function openFastStatsDB',
         'async function writeFastStatsForItems',
         'async function overlayFastStatsOnItems',
+        'const skipLegacyBlobSync',
+        'pageIsLeaving = true;',
         'scheduleLegacyStatsSync([winnerId,loserId])',
         'items = await overlayFastStatsOnItems(items);',
         "70000, 'Saving winner/loser stats'",
