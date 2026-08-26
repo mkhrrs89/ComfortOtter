@@ -11,45 +11,70 @@
   </style>
 </head>
 <body>
-  <div class="loader"><div class="loaderCard"><div class="loaderTitle">Loading ComfortOtter…</div><div class="loaderDetail">Preparing your image library.</div><div class="loaderBuild">Recovery build 15:50</div><div id="loaderError" class="loaderError"></div></div></div>
+  <div class="loader"><div class="loaderCard"><div class="loaderTitle">Loading ComfortOtter…</div><div class="loaderDetail">Preparing your image library.</div><div class="loaderBuild">Direct loader build 16:50</div><div id="loaderError" class="loaderError"></div></div></div>
   <script>
-    (async function loadRecoveryShell(){
-      const nativeFetch = window.fetch.bind(window);
-      const remotePattern = /(?:cdn\.jsdelivr\.net|raw\.githubusercontent\.com)/i;
-
-      window.fetch = function recoveryFetch(input, init){
-        const url = typeof input === 'string' ? input : (input && input.url ? input.url : '');
-        if(!remotePattern.test(url)) return nativeFetch(input, init);
-        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-        const timer = setTimeout(()=>{ try{ if(controller) controller.abort(); }catch(_e){} }, 4500);
-        const options = {...(init || {}), cache:'no-cache'};
-        if(controller) options.signal = controller.signal;
-        return nativeFetch(input, options).finally(()=>clearTimeout(timer));
-      };
-
-      async function fetchSameOrigin(url, timeoutMs){
-        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-        const timer = setTimeout(()=>{ try{ if(controller) controller.abort(); }catch(_e){} }, timeoutMs);
+    (async function loadDirectComfortOtter(){
+      async function fetchText(url,timeoutMs=8000){
+        const controller=typeof AbortController!=='undefined'?new AbortController():null;
+        const timer=setTimeout(()=>{try{if(controller)controller.abort();}catch(_e){}},timeoutMs);
         try{
-          const response = await nativeFetch(url,{cache:'no-store',signal:controller ? controller.signal : undefined});
-          if(!response.ok) throw new Error(response.status+' '+response.statusText);
+          const response=await fetch(url,{cache:'no-store',signal:controller?controller.signal:undefined});
+          if(!response.ok) throw new Error(response.status+' '+response.statusText+' for '+url);
           return await response.text();
-        }finally{ clearTimeout(timer); }
+        }finally{clearTimeout(timer);}
       }
 
-      let shell = await fetchSameOrigin('stable-index-shell.html?v=20260826-1550', 7000);
-      if(!shell.includes('loadDurableStatsComfortOtter')) throw new Error('Stable app shell validation failed.');
-      if(!shell.includes('firestore-sync.js')){
-        const cloudTag='<script type="module" src="firestore-sync.js?v=20260826-1550"><'+'/script>';
-        shell = shell.replace('</head>',cloudTag+'</head>');
+      const [autoHdShell,durableShell]=await Promise.all([
+        fetchText('stable-auto-hd-shell.html?v=20260826-1650'),
+        fetchText('stable-index-shell.html?v=20260826-1650')
+      ]);
+
+      const autoMarker='(async function loadAutoHdComfortOtter(){';
+      const autoPos=autoHdShell.indexOf(autoMarker);
+      if(autoPos<0) throw new Error('Could not find the working Auto-HD loader.');
+      const autoScriptOpen=autoHdShell.lastIndexOf('<script',autoPos);
+      const autoScriptBody=autoHdShell.indexOf('>',autoScriptOpen)+1;
+      const autoScriptClose=autoHdShell.indexOf('</script>',autoPos);
+      if(autoScriptOpen<0||autoScriptBody<=0||autoScriptClose<0) throw new Error('Could not extract the working Auto-HD loader script.');
+      let loaderScript=autoHdShell.slice(autoScriptBody,autoScriptClose);
+
+      const durableStartToken='      const durablePatch = String.raw`';
+      const durableStart=durableShell.indexOf(durableStartToken);
+      const durableUse=durableShell.indexOf('      wrapper = wrapper.replace(marker,durablePatch',durableStart);
+      const durableEnd=durableShell.lastIndexOf('\n`;',durableUse);
+      if(durableStart<0||durableUse<0||durableEnd<0) throw new Error('Could not extract the durable-stat patch.');
+      const durablePatchText=durableShell.slice(durableStart+durableStartToken.length,durableEnd);
+      if(!durablePatchText.includes('DURABLE_STATS_STORAGE_KEY')||!durablePatchText.includes('persistStatPatch')){
+        throw new Error('Durable-stat patch validation failed.');
       }
-      document.open();
-      document.write(shell);
-      document.close();
+
+      window.__comfortOtterDurablePatchText=durablePatchText;
+      window.__comfortOtterFirestorePatch=[
+        "      if(!html.includes('firestore-sync.js')){",
+        "        const cloudTag='<script type=\"module\" src=\"firestore-sync.js?v=20260826-1650\"><'+'/script>';",
+        "        html=html.replace('</body>',cloudTag+'</body>');",
+        "      }"
+      ].join('\n');
+
+      const mergeAnchor="      loader = loader.replace(marker, injection + '\\n' + marker);";
+      if(loaderScript.split(mergeAnchor).length-1!==1) throw new Error('Direct-loader merge point not found exactly once.');
+      const durableMarker="      if(!html.includes('const [matchupLeftHd, setMatchupLeftHd] = useState(true);') ||";
+      const mergeCode=[
+        mergeAnchor,
+        "      const directDurableMarker=\"      if(!html.includes('const [matchupLeftHd, setMatchupLeftHd] = useState(true);') ||\";",
+        "      if(loader.split(directDurableMarker).length-1!==1) throw new Error('Direct durable patch point not found exactly once.');",
+        "      loader=loader.replace(directDurableMarker,window.__comfortOtterDurablePatchText+'\\n'+window.__comfortOtterFirestorePatch+'\\n'+directDurableMarker);"
+      ].join('\n');
+      loaderScript=loaderScript.replace(mergeAnchor,mergeCode);
+
+      if(!loaderScript.includes('window.__comfortOtterDurablePatchText')) throw new Error('Direct loader patch validation failed.');
+      const script=document.createElement('script');
+      script.textContent=loaderScript;
+      document.body.appendChild(script);
     })().catch(error=>{
-      console.error('ComfortOtter recovery startup failed',error);
+      console.error('ComfortOtter direct loader failed',error);
       const target=document.getElementById('loaderError');
-      if(target) target.textContent='ComfortOtter could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nRecovery build 15:50';
+      if(target) target.textContent='ComfortOtter could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nDirect loader build 16:50';
     });
   </script>
 </body>
