@@ -11,9 +11,10 @@
   </style>
 </head>
 <body>
-  <div class="loader"><div class="loaderCard"><div class="loaderTitle">Loading ComfortOtter…</div><div class="loaderDetail">Preparing your image library.</div><div class="loaderBuild">Direct loader build 16:50</div><div id="loaderError" class="loaderError"></div></div></div>
+  <div class="loader"><div class="loaderCard"><div class="loaderTitle">Loading ComfortOtter…</div><div id="loaderDetail" class="loaderDetail">Starting direct loader…</div><div class="loaderBuild">Direct loader build 16:56</div><div id="loaderError" class="loaderError"></div></div></div>
   <script>
     (async function loadDirectComfortOtter(){
+      const detail=(text)=>{ const el=document.getElementById('loaderDetail'); if(el) el.textContent=text; };
       async function fetchText(url,timeoutMs=8000){
         const controller=typeof AbortController!=='undefined'?new AbortController():null;
         const timer=setTimeout(()=>{try{if(controller)controller.abort();}catch(_e){}},timeoutMs);
@@ -24,10 +25,12 @@
         }finally{clearTimeout(timer);}
       }
 
+      detail('Fetching stable app layers…');
       const [autoHdShell,durableShell]=await Promise.all([
-        fetchText('stable-auto-hd-shell.html?v=20260826-1650'),
-        fetchText('stable-index-shell.html?v=20260826-1650')
+        fetchText('stable-auto-hd-shell.html?v=20260826-1656'),
+        fetchText('stable-index-shell.html?v=20260826-1656')
       ]);
+      detail('Stable layers loaded. Preparing app…');
 
       const autoMarker='(async function loadAutoHdComfortOtter(){';
       const autoPos=autoHdShell.indexOf(autoMarker);
@@ -51,14 +54,13 @@
       window.__comfortOtterDurablePatchText=durablePatchText;
       window.__comfortOtterFirestorePatch=[
         "      if(!html.includes('firestore-sync.js')){",
-        "        const cloudTag='<script type=\"module\" src=\"firestore-sync.js?v=20260826-1650\"><'+'/script>';",
+        "        const cloudTag='<script type=\"module\" src=\"firestore-sync.js?v=20260826-1656\"><'+'/script>';",
         "        html=html.replace('</body>',cloudTag+'</body>');",
         "      }"
       ].join('\n');
 
       const mergeAnchor="      loader = loader.replace(marker, injection + '\\n' + marker);";
       if(loaderScript.split(mergeAnchor).length-1!==1) throw new Error('Direct-loader merge point not found exactly once.');
-      const durableMarker="      if(!html.includes('const [matchupLeftHd, setMatchupLeftHd] = useState(true);') ||";
       const mergeCode=[
         mergeAnchor,
         "      const directDurableMarker=\"      if(!html.includes('const [matchupLeftHd, setMatchupLeftHd] = useState(true);') ||\";",
@@ -67,14 +69,39 @@
       ].join('\n');
       loaderScript=loaderScript.replace(mergeAnchor,mergeCode);
 
+      // Make every nested GitHub/CDN fetch fail fast instead of hanging forever.
+      const nativeFetch=window.fetch.bind(window);
+      window.fetch=function(input,init){
+        const url=typeof input==='string'?input:(input&&input.url?input.url:'');
+        if(!/(?:cdn\.jsdelivr\.net|raw\.githubusercontent\.com)/i.test(url)) return nativeFetch(input,init);
+        const controller=typeof AbortController!=='undefined'?new AbortController():null;
+        const timer=setTimeout(()=>{try{if(controller)controller.abort();}catch(_e){}},6000);
+        const opts={...(init||{}),cache:'no-cache'};
+        if(controller) opts.signal=controller.signal;
+        return nativeFetch(input,opts).finally(()=>clearTimeout(timer));
+      };
+
+      loaderScript=loaderScript.replace(
+        '      const loaderPromise = fetchFirst(sources);',
+        "      try{const d=document.getElementById('loaderDetail');if(d)d.textContent='Loading Auto-HD app layer…';}catch(_e){}\n      const loaderPromise = fetchFirst(sources);"
+      );
+      loaderScript=loaderScript.replace(
+        '      let loader = await loaderPromise;',
+        "      let loader = await loaderPromise;\n      try{const d=document.getElementById('loaderDetail');if(d)d.textContent='Auto-HD layer loaded. Applying patches…';}catch(_e){}"
+      );
+
       if(!loaderScript.includes('window.__comfortOtterDurablePatchText')) throw new Error('Direct loader patch validation failed.');
+      try{ new Function(loaderScript); }
+      catch(error){ throw new Error('Generated loader has invalid JavaScript: '+error.message); }
+
+      detail('Launching app…');
       const script=document.createElement('script');
       script.textContent=loaderScript;
       document.body.appendChild(script);
     })().catch(error=>{
       console.error('ComfortOtter direct loader failed',error);
       const target=document.getElementById('loaderError');
-      if(target) target.textContent='ComfortOtter could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nDirect loader build 16:50';
+      if(target) target.textContent='ComfortOtter could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nDirect loader build 16:56';
     });
   </script>
 </body>
