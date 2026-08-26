@@ -186,13 +186,157 @@
         'lightweight tournament item index'
       );
 
+      html = replaceRange(
+        html,
+        `function renderMissingMatchSide(label, item){`,
+        `function isHttpUrl(str){`,
+        `function renderMissingMatchSide(label, item){
+  const isLeft = /^Left/i.test(String(label || ''));
+  const imgId = isLeft ? 'tLeftImg' : 'tRightImg';
+  const btnId = isLeft ? 'tLeftImgBtn' : 'tRightImgBtn';
+  const collections = item ? collectionsToString(item.collections) : 'Unknown';
+  const wins = item ? Number(item.wins || 0) : 0;
+  const losses = item ? Number(item.losses || 0) : 0;
+  const points = item ? computePoints(wins, losses, item.tourneyBonus || 0) : 0;
+  const loadingText = item ? 'Loading image…' : 'Image missing — record could not be found.';
+  return '' +
+  '<div class="matchSide">' +
+    '<div class="matchMetaBox">' +
+      '<div class="matchMetaStats">' +
+        '<span>'+wins+'-'+losses+'</span>' +
+        '<span>'+pct(wins,losses).toFixed(2)+'%</span>' +
+        '<span>'+points+' pts</span>' +
+      '</div>' +
+      '<div class="matchMetaCollections">Collections: '+escapeHtml(collections)+'</div>' +
+    '</div>' +
+    '<button type="button" class="imageCard imageCardBtn imageFailed" id="'+btnId+'" aria-label="Choose '+escapeHtml(label)+'">' +
+      '<img id="'+imgId+'" data-srcs="" data-full-srcs="" data-src-index="0" alt="'+escapeHtml(label)+'" style="display:none" />' +
+      '<div class="imageFailureMsg" data-image-loading="true">'+escapeHtml(loadingText)+'</div>' +
+    '</button>' +
+  '</div>';
+}
+
+function isHttpUrl(str){`
+        ,
+        'hydrateable missing-image placeholder'
+      );
+
+      html = replaceRange(
+        html,
+        `    async function hydrateImgEl(imgEl, itemId){`,
+        `    async function loadTourneyState(){`,
+        `    async function hydrateImgEl(imgEl, itemId){
+      if(!imgEl || !itemId) return false;
+      const wrapper = imgEl.closest('.imageCard') || imgEl.parentElement;
+      const clearLoadingPlaceholder = ()=>{
+        if(!wrapper) return;
+        const placeholder = wrapper.querySelector('[data-image-loading]');
+        if(placeholder) placeholder.remove();
+      };
+      try{
+        const full = await idbGetItem(itemId);
+        if(!full){
+          clearLoadingPlaceholder();
+          showImageFailure(imgEl, 'Image unavailable: record missing.');
+          return false;
+        }
+
+        const thumbSources = getThumbOnlySources(full);
+        let fullSources = dedupeSources([...getFullOnlySources(full), ...thumbSources]);
+        let displaySources = thumbSources.length ? thumbSources : getFullOnlySources(full);
+
+        if(!displaySources.length && window.fetchFullImageUrl){
+          try{
+            const cloudUrl = await window.fetchFullImageUrl(itemId);
+            if(cloudUrl){
+              fullSources = dedupeSources([cloudUrl, ...fullSources]);
+              displaySources = [cloudUrl];
+              const memoryItem = itemsById.get(itemId);
+              if(memoryItem){
+                const updatedMemoryItem = {...memoryItem, fullUrl:cloudUrl};
+                itemsById.set(itemId, updatedMemoryItem);
+                items = items.map(it=>it.id === itemId ? updatedMemoryItem : it);
+              }
+            }
+          }catch(cloudErr){
+            console.warn('Cloud image fallback failed', itemId, cloudErr);
+          }
+        }
+
+        if(!displaySources.length){
+          clearLoadingPlaceholder();
+          showImageFailure(imgEl, 'Image unavailable: no local or cloud image source found.');
+          return false;
+        }
+
+        clearLoadingPlaceholder();
+        if(wrapper) wrapper.classList.remove('imageFailed');
+        imgEl.dataset.failureShown = '';
+        imgEl.dataset.srcs = serializeSources(displaySources);
+        imgEl.dataset.fullSrcs = serializeSources(fullSources);
+        imgEl.dataset.srcIndex = '0';
+        imgEl.style.display = '';
+        imgEl.src = displaySources[0];
+        return true;
+      }catch(err){
+        clearLoadingPlaceholder();
+        showImageFailure(imgEl, 'Image unavailable: local image lookup failed.');
+        console.warn('hydrateImgEl failed', itemId, err);
+        return false;
+      }
+    }
+
+`
+        ,
+        'on-demand tournament image hydration'
+      );
+
+      html = replaceRange(
+        html,
+        `async function maybeHydrateFullImage(item){`,
+        `function escapeHtml(str){`,
+        `async function maybeHydrateFullImage(item){
+  if(!item || hydratingFullUrls.has(item.id)) return;
+  if(item.fullUrl && isHttpUrl(item.fullUrl)) return;
+  if(!window.fetchFullImageUrl) return;
+
+  hydratingFullUrls.add(item.id);
+  try{
+    const url = await window.fetchFullImageUrl(item.id);
+    if(url && url !== item.fullUrl){
+      const updated = {...item, fullUrl:url};
+      itemsById.set(updated.id, updated);
+      items = items.map(it => it.id === updated.id ? updated : it);
+    }
+  }catch(err){
+    console.warn('Full image hydration failed for', item && item.id, err);
+  }finally{
+    hydratingFullUrls.delete(item.id);
+  }
+}
+
+function escapeHtml(str){`
+        ,
+        'avoid giant writes during cloud image hydration'
+      );
+
+      html = replaceOnce(
+        html,
+        `      const missingData = !hasLeftRecord || !hasRightRecord || !leftSrc || !rightSrc;`,
+        `      const missingData = !hasLeftRecord || !hasRightRecord;`,
+        'do not treat lightweight source omission as missing image data'
+      );
+
       const fastLoadRequired = [
         "const TOURNEY_INDEX_DB_NAME = 'modelMatchupTourneyIndexDB'",
         'async function readMainItemCount()',
         'async function readTourneyIndexSnapshot()',
         'async function writeTourneyIndexSnapshot(sourceItems)',
         'async function idbGetAllItemsFromMain()',
-        "console.log('[TOURNEY FAST LOAD] using lightweight index'"
+        "console.log('[TOURNEY FAST LOAD] using lightweight index'",
+        'data-image-loading="true"',
+        'Cloud image fallback failed',
+        'const missingData = !hasLeftRecord || !hasRightRecord;'
       ];
       const missingFastLoad = fastLoadRequired.filter(snippet=>!html.includes(snippet));
       if(missingFastLoad.length){
