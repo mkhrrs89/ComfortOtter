@@ -35,7 +35,7 @@
     <div>
       <h1>ModelMatchup DB Reset</h1>
       <p>
-        This page deletes the <code>modelMatchupDB</code> IndexedDB database for this site.
+        This page deletes the local ModelMatchup IndexedDB databases for this site.
         Use it if your app is crashing on startup.
       </p>
     </div>
@@ -58,24 +58,42 @@
   <div class="log" id="log"></div>
 
   <script>
-    const DB_NAME = 'modelMatchupDB';
+    const DB_NAMES = ['modelMatchupDB','modelMatchupStatsDB','modelMatchupTourneyDB'];
     const logEl = document.getElementById('log');
     const btn   = document.getElementById('wipeBtn');
 
     function log(msg) {
-      logEl.textContent += msg + "\\n";
+      logEl.textContent += msg + "\n";
+    }
+
+    function deleteDb(name){
+      return new Promise((resolve,reject)=>{
+        try{
+          const req = indexedDB.deleteDatabase(name);
+          req.onsuccess = ()=>{
+            log('✅ Deleted ' + name + '.');
+            resolve();
+          };
+          req.onerror = ()=>reject(req.error || new Error('Could not delete ' + name));
+          req.onblocked = ()=>reject(new Error('Delete blocked for ' + name + '. Close other tabs/apps using this site and try again.'));
+        }catch(e){
+          reject(e);
+        }
+      });
     }
 
     btn.addEventListener('click', async () => {
-      if (!confirm('Delete the IndexedDB database "'+DB_NAME+'"? This only affects this device.')) return;
-
+      if (!confirm('Delete all local ModelMatchup IndexedDB data on this device?')) return;
+      btn.disabled = true;
       try {
-        const req = indexedDB.deleteDatabase(DB_NAME);
-        req.onsuccess = () => log('✅ Database deleted successfully.');
-        req.onerror   = () => log('❌ Error deleting database: ' + (req.error && req.error.message));
-        req.onblocked = () => log('⚠️ Delete blocked. Close other tabs/apps using this site and try again.');
+        for(const name of DB_NAMES){
+          await deleteDb(name);
+        }
+        log('✅ All local ModelMatchup databases deleted successfully.');
       } catch (e) {
-        log('❌ Exception while deleting DB: ' + e.message);
+        log('❌ ' + (e && e.message ? e.message : e));
+      } finally {
+        btn.disabled = false;
       }
     });
   </script>
