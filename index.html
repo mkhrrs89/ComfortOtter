@@ -11,7 +11,7 @@
   </style>
 </head>
 <body>
-  <div class="loader"><div class="loaderCard"><div class="loaderTitle">Loading ComfortOtter…</div><div id="loaderDetail" class="loaderDetail">Starting direct loader…</div><div class="loaderBuild">Direct loader build 17:02</div><div id="loaderError" class="loaderError"></div></div></div>
+  <div class="loader"><div class="loaderCard"><div class="loaderTitle">Loading ComfortOtter…</div><div id="loaderDetail" class="loaderDetail">Starting direct loader…</div><div class="loaderBuild">Direct loader build v2</div><div id="loaderError" class="loaderError"></div></div></div>
   <script>
     (async function loadDirectComfortOtter(){
       const detail=(text)=>{ const el=document.getElementById('loaderDetail'); if(el) el.textContent=text; };
@@ -26,21 +26,11 @@
       }
 
       detail('Fetching stable app layers…');
-      const [autoHdShell,durableShell]=await Promise.all([
-        fetchText('stable-auto-hd-shell.html?v=20260826-1702'),
-        fetchText('stable-index-shell.html?v=20260826-1702')
+      let [autoHdShell,durableShell]=await Promise.all([
+        fetchText('stable-auto-hd-shell.html?v=20260826-v2'),
+        fetchText('stable-index-shell.html?v=20260826-v2')
       ]);
       detail('Stable layers loaded. Preparing app…');
-
-      const autoMarker='(async function loadAutoHdComfortOtter(){';
-      const autoPos=autoHdShell.indexOf(autoMarker);
-      if(autoPos<0) throw new Error('Could not find the working Auto-HD loader.');
-      const autoScriptOpen=autoHdShell.lastIndexOf('<script',autoPos);
-      const autoScriptBody=autoHdShell.indexOf('>',autoScriptOpen)+1;
-      const scriptCloseTag='<'+'/script>';
-      const autoScriptClose=autoHdShell.indexOf(scriptCloseTag,autoPos);
-      if(autoScriptOpen<0||autoScriptBody<=0||autoScriptClose<0) throw new Error('Could not extract the working Auto-HD loader script.');
-      let loaderScript=autoHdShell.slice(autoScriptBody,autoScriptClose);
 
       const durableStartToken='      const durablePatch = String.raw`';
       const durableStart=durableShell.indexOf(durableStartToken);
@@ -52,23 +42,29 @@
         throw new Error('Durable-stat patch validation failed.');
       }
 
-      window.__comfortOtterDurablePatchText=durablePatchText;
-      window.__comfortOtterFirestorePatch=[
+      // Inject into the Auto-HD loader source itself, matching the known-good
+      // durable wrapper's exact nesting/escaping semantics.
+      const durableMarker="      if(!html.includes('const [matchupLeftHd, setMatchupLeftHd] = useState(true);') ||";
+      if(autoHdShell.split(durableMarker).length-1!==1){
+        throw new Error('Auto-HD durable insertion point not found exactly once.');
+      }
+      const cloudPatch=[
         "      if(!html.includes('firestore-sync.js')){",
-        "        const cloudTag='<script type=\"module\" src=\"firestore-sync.js?v=20260826-1702\"><'+'/script>';",
+        "        const cloudTag='<script type=\"module\" src=\"firestore-sync.js?v=20260826-v2\"><'+'/script>';",
         "        html=html.replace('</body>',cloudTag+'</body>');",
         "      }"
       ].join('\n');
+      autoHdShell=autoHdShell.replace(durableMarker,durablePatchText+'\n'+cloudPatch+'\n'+durableMarker);
 
-      const mergeAnchor="      loader = loader.replace(marker, injection + '\\n' + marker);";
-      if(loaderScript.split(mergeAnchor).length-1!==1) throw new Error('Direct-loader merge point not found exactly once.');
-      const mergeCode=[
-        mergeAnchor,
-        "      const directDurableMarker=\"      if(!html.includes('const [matchupLeftHd, setMatchupLeftHd] = useState(true);') ||\";",
-        "      if(loader.split(directDurableMarker).length-1!==1) throw new Error('Direct durable patch point not found exactly once.');",
-        "      loader=loader.replace(directDurableMarker,window.__comfortOtterDurablePatchText+'\\n'+window.__comfortOtterFirestorePatch+'\\n'+directDurableMarker);"
-      ].join('\n');
-      loaderScript=loaderScript.replace(mergeAnchor,mergeCode);
+      const autoMarker='(async function loadAutoHdComfortOtter(){';
+      const autoPos=autoHdShell.indexOf(autoMarker);
+      if(autoPos<0) throw new Error('Could not find the working Auto-HD loader.');
+      const autoScriptOpen=autoHdShell.lastIndexOf('<script',autoPos);
+      const autoScriptBody=autoHdShell.indexOf('>',autoScriptOpen)+1;
+      const scriptCloseTag='<'+'/script>';
+      const autoScriptClose=autoHdShell.indexOf(scriptCloseTag,autoPos);
+      if(autoScriptOpen<0||autoScriptBody<=0||autoScriptClose<0) throw new Error('Could not extract the working Auto-HD loader script.');
+      let loaderScript=autoHdShell.slice(autoScriptBody,autoScriptClose);
 
       const nativeFetch=window.fetch.bind(window);
       window.fetch=function(input,init){
@@ -90,7 +86,6 @@
         "      let loader = await loaderPromise;\n      try{const d=document.getElementById('loaderDetail');if(d)d.textContent='Auto-HD layer loaded. Applying patches…';}catch(_e){}"
       );
 
-      if(!loaderScript.includes('window.__comfortOtterDurablePatchText')) throw new Error('Direct loader patch validation failed.');
       try{ new Function(loaderScript); }
       catch(error){ throw new Error('Generated loader has invalid JavaScript: '+error.message); }
 
@@ -101,7 +96,7 @@
     })().catch(error=>{
       console.error('ComfortOtter direct loader failed',error);
       const target=document.getElementById('loaderError');
-      if(target) target.textContent='ComfortOtter could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nDirect loader build 17:02';
+      if(target) target.textContent='ComfortOtter could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nDirect loader build v2';
     });
   </script>
 </body>
