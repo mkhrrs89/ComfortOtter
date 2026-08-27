@@ -15,8 +15,8 @@
 
   detail('Fetching stable app layers…');
   let [autoHdShell,durableShell]=await Promise.all([
-    fetchText('stable-auto-hd-shell.html?v=20260826-v6'),
-    fetchText('stable-index-shell.html?v=20260826-v6')
+    fetchText('stable-auto-hd-shell.html?v=20260826-v7'),
+    fetchText('stable-index-shell.html?v=20260826-v7')
   ]);
   detail('Stable layers loaded. Preparing app…');
 
@@ -105,6 +105,70 @@
     robustPatchItem + '\n\n' +
     durablePatchRaw.slice(patchItemSectionEnd);
 
+  // The optimized thumbnail-first startup path bypasses idbGetAll(), so the
+  // old durable build could write the local journal correctly and then ignore
+  // that journal on the next launch. Overlay the authoritative journal while
+  // normalizeItem builds both the initial page and every later library batch.
+  // Also write the result at the actual vote click, before React/IDB async work.
+  const startupPersistencePatch=[
+    "      const durableNormalizeMarker = '    const normalizeItem = (it)=>({';",
+    '      const durableNormalizeStartPos = html.indexOf(durableNormalizeMarker);',
+    "      if(durableNormalizeStartPos < 0) throw new Error('Durable startup normalizeItem marker not found.');",
+    "      const durableNormalizeSpread = '        ...it,';",
+    '      const durableNormalizeSpreadPos = html.indexOf(durableNormalizeSpread,durableNormalizeStartPos);',
+    "      if(durableNormalizeSpreadPos < 0 || durableNormalizeSpreadPos > durableNormalizeStartPos + 1200) throw new Error('Durable startup item spread not found near normalizeItem.');",
+    '      const durableStartupPrefix = [',
+    "        '    const durableStartupRows = durableStatsRows();',",
+    "        '    const durableStartupById = new Map(durableStartupRows.map(row=>[row.id,row]));',",
+    "        \"    if(durableStartupRows.length){ fastStatsPutItems(durableStartupRows).catch(err=>console.warn('Could not heal lightweight stats from durable journal.',err)); }\"",
+    '      ].join(durableNL) + durableNL;',
+    '      html = html.slice(0,durableNormalizeStartPos) + durableStartupPrefix + html.slice(durableNormalizeStartPos);',
+    '      const durableAdjustedNormalizeSpreadPos = durableNormalizeSpreadPos + durableStartupPrefix.length;',
+    "      const durableNormalizeReplacement = '        ...(it && it.id && durableStartupById.has(it.id) ? mergeFastStatsIntoItem(it,durableStartupById.get(it.id)) : it),';",
+    '      html = html.slice(0,durableAdjustedNormalizeSpreadPos) + durableNormalizeReplacement + html.slice(durableAdjustedNormalizeSpreadPos + durableNormalizeSpread.length);',
+    '',
+    '      const durableRecordWinOld = [',
+    "        '        const wWins = (winner.wins||0)+1;',",
+    "        '        const lLoss = (loser.losses||0)+1;',",
+    "        '        patchItem(winnerId,{wins:wWins});',",
+    "        '        patchItem(loserId,{losses:lLoss});'",
+    '      ].join(durableNL);',
+    '      const durableRecordWinNew = [',
+    "        '        const wWins = (winner.wins||0)+1;',",
+    "        '        const lLoss = (loser.losses||0)+1;',",
+    "        '        durableStatsPatch(winnerId,{wins:wWins});',",
+    "        '        durableStatsPatch(loserId,{losses:lLoss});',",
+    "        '        patchItem(winnerId,{wins:wWins});',",
+    "        '        patchItem(loserId,{losses:lLoss});'",
+    '      ].join(durableNL);',
+    "      if(html.split(durableRecordWinOld).length - 1 !== 1) throw new Error('Durable recordWin patch point not found exactly once.');",
+    '      html = html.replace(durableRecordWinOld,durableRecordWinNew);',
+    '',
+    '      const durableUndoOld = [',
+    "        '        if(winner){',",
+    "        '          patchItem(winnerId,{wins:Math.max(0,(winner.wins||0)-1)});',",
+    "        '        }',",
+    "        '        if(loser){',",
+    "        '          patchItem(loserId,{losses:Math.max(0,(loser.losses||0)-1)});',",
+    "        '        }'",
+    '      ].join(durableNL);',
+    '      const durableUndoNew = [',
+    "        '        if(winner){',",
+    "        '          const nextWins = Math.max(0,(winner.wins||0)-1);',",
+    "        '          durableStatsPatch(winnerId,{wins:nextWins});',",
+    "        '          patchItem(winnerId,{wins:nextWins});',",
+    "        '        }',",
+    "        '        if(loser){',",
+    "        '          const nextLosses = Math.max(0,(loser.losses||0)-1);',",
+    "        '          durableStatsPatch(loserId,{losses:nextLosses});',",
+    "        '          patchItem(loserId,{losses:nextLosses});',",
+    "        '        }'",
+    '      ].join(durableNL);',
+    "      if(html.split(durableUndoOld).length - 1 !== 1) throw new Error('Durable undo patch point not found exactly once.');",
+    '      html = html.replace(durableUndoOld,durableUndoNew);'
+  ].join('\n');
+  durablePatchRaw += '\n' + startupPersistencePatch;
+
   // This source is inserted into the Auto-HD loader's template literal. Double
   // backslashes so one level survives into the generated core loader.
   const durablePatchText=durablePatchRaw.replace(/\\/g,'\\\\');
@@ -116,7 +180,7 @@
 
   const cloudPatch=[
     "      if(!html.includes('firestore-sync.js')){",
-    "        const cloudTag='<script type=\"module\" src=\"firestore-sync.js?v=20260826-v6\"><'+'/script>';",
+    "        const cloudTag='<script type=\"module\" src=\"firestore-sync.js?v=20260826-v7\"><'+'/script>';",
     "        html=html.replace('</body>',cloudTag+'</body>');",
     '      }'
   ].join('\n');
@@ -168,6 +232,6 @@
   console.error('ComfortOtter direct loader failed',error);
   const target=document.getElementById('loaderError');
   if(target){
-    target.textContent='ComfortOtter could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nDirect loader build v6';
+    target.textContent='ComfortOtter could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nDirect loader build v7';
   }
 });
