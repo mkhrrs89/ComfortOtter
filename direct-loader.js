@@ -15,8 +15,8 @@
 
   detail('Fetching stable app layers…');
   let [autoHdShell,durableShell]=await Promise.all([
-    fetchText('stable-auto-hd-shell.html?v=20260826-v7'),
-    fetchText('stable-index-shell.html?v=20260826-v7')
+    fetchText('stable-auto-hd-shell.html?v=20260830-v8'),
+    fetchText('stable-index-shell.html?v=20260830-v8')
   ]);
   detail('Stable layers loaded. Preparing app…');
 
@@ -33,9 +33,6 @@
     throw new Error('Durable-stat patch validation failed.');
   }
 
-  // The tournament-index layer changes idbGetAll before the durable patch runs.
-  // Replace the old byte-for-byte matcher with a function-boundary matcher so
-  // both the tournament index refresh and durable stat overlay are preserved.
   const brittleGetAll=[
     "      if(html.split(durableGetAllOld).length - 1 !== 1) throw new Error('Durable idbGetAll patch point not found exactly once.');",
     '      html = html.replace(durableGetAllOld,durableGetAllNew);'
@@ -69,10 +66,6 @@
   }
   durablePatchRaw=durablePatchRaw.replace(brittleGetAll,robustGetAll);
 
-  // patchItem has also drifted across the rating/index layers. Replace the
-  // original exact three-line matcher with a scoped edit inside patchItem only.
-  // This keeps non-stat metadata writes intact while routing stat changes to the
-  // synchronous durable journal + lightweight stats DB.
   const patchItemSectionStart=durablePatchRaw.indexOf('      const patchItemOld = [');
   const patchItemSectionEnd=patchItemSectionStart>=0
     ? durablePatchRaw.indexOf('      const replaceAllOld = [',patchItemSectionStart)
@@ -105,72 +98,50 @@
     robustPatchItem + '\n\n' +
     durablePatchRaw.slice(patchItemSectionEnd);
 
-  // The optimized thumbnail-first startup path bypasses idbGetAll(), so the
-  // old durable build could write the local journal correctly and then ignore
-  // that journal on the next launch. Overlay the authoritative journal while
-  // normalizeItem builds both the initial page and every later library batch.
-  // Also write the result at the actual vote click, before React/IDB async work.
   const startupPersistencePatch=[
-    "      const durableNormalizeMarker = '    const normalizeItem = (it)=>({';",
-    '      const durableNormalizeStartPos = html.indexOf(durableNormalizeMarker);',
-    "      if(durableNormalizeStartPos < 0) throw new Error('Durable startup normalizeItem marker not found.');",
-    "      const durableNormalizeSpread = '        ...it,';",
-    '      const durableNormalizeSpreadPos = html.indexOf(durableNormalizeSpread,durableNormalizeStartPos);',
-    "      if(durableNormalizeSpreadPos < 0 || durableNormalizeSpreadPos > durableNormalizeStartPos + 1200) throw new Error('Durable startup item spread not found near normalizeItem.');",
+    "      const durableNormalizeToken = 'const normalizeItem = (it)=>({';",
+    '      const durableNormalizePos = html.indexOf(durableNormalizeToken);',
+    "      if(durableNormalizePos < 0) throw new Error('Durable startup normalizeItem function not found.');",
     '      const durableStartupPrefix = [',
     "        '    const durableStartupRows = durableStatsRows();',",
     "        '    const durableStartupById = new Map(durableStartupRows.map(row=>[row.id,row]));',",
-    "        \"    if(durableStartupRows.length){ fastStatsPutItems(durableStartupRows).catch(err=>console.warn('Could not heal lightweight stats from durable journal.',err)); }\"",
+    "        \"    if(durableStartupRows.length){ fastStatsPutItems(durableStartupRows).catch(err=>console.warn('Could not heal lightweight stats from durable journal.',err)); }\",",
+    "        '    const durableStartupOverlay = (item)=>item && item.id && durableStartupById.has(item.id) ? mergeFastStatsIntoItem(item,durableStartupById.get(item.id)) : item;'",
     '      ].join(durableNL) + durableNL;',
-    '      html = html.slice(0,durableNormalizeStartPos) + durableStartupPrefix + html.slice(durableNormalizeStartPos);',
-    '      const durableAdjustedNormalizeSpreadPos = durableNormalizeSpreadPos + durableStartupPrefix.length;',
-    "      const durableNormalizeReplacement = '        ...(it && it.id && durableStartupById.has(it.id) ? mergeFastStatsIntoItem(it,durableStartupById.get(it.id)) : it),';",
-    '      html = html.slice(0,durableAdjustedNormalizeSpreadPos) + durableNormalizeReplacement + html.slice(durableAdjustedNormalizeSpreadPos + durableNormalizeSpread.length);',
+    '      html = html.slice(0,durableNormalizePos) + durableStartupPrefix + html.slice(durableNormalizePos);',
+    "      const durableNormalizeCall = 'const normalized = normalizeItem(it);';",
+    '      const durableNormalizeCallCount = html.split(durableNormalizeCall).length - 1;',
+    "      if(durableNormalizeCallCount < 2) throw new Error('Durable startup normalizeItem calls not found.');",
+    "      html = html.split(durableNormalizeCall).join('const normalized = normalizeItem(durableStartupOverlay(it));');",
     '',
-    '      const durableRecordWinOld = [',
-    "        '        const wWins = (winner.wins||0)+1;',",
-    "        '        const lLoss = (loser.losses||0)+1;',",
-    "        '        patchItem(winnerId,{wins:wWins});',",
-    "        '        patchItem(loserId,{losses:lLoss});'",
-    '      ].join(durableNL);',
-    '      const durableRecordWinNew = [',
-    "        '        const wWins = (winner.wins||0)+1;',",
-    "        '        const lLoss = (loser.losses||0)+1;',",
-    "        '        durableStatsPatch(winnerId,{wins:wWins});',",
-    "        '        durableStatsPatch(loserId,{losses:lLoss});',",
-    "        '        patchItem(winnerId,{wins:wWins});',",
-    "        '        patchItem(loserId,{losses:lLoss});'",
-    '      ].join(durableNL);',
-    "      if(html.split(durableRecordWinOld).length - 1 !== 1) throw new Error('Durable recordWin patch point not found exactly once.');",
-    '      html = html.replace(durableRecordWinOld,durableRecordWinNew);',
+    "      const durableRecordWinStart = '      function recordWin(winnerId){';",
+    "      const durableRecordWinEnd = '      function undoLast(){';",
+    '      const durableRecordWinStartPos = html.indexOf(durableRecordWinStart);',
+    '      const durableRecordWinEndPos = durableRecordWinStartPos >= 0 ? html.indexOf(durableRecordWinEnd,durableRecordWinStartPos + durableRecordWinStart.length) : -1;',
+    "      if(durableRecordWinStartPos < 0 || durableRecordWinEndPos < 0) throw new Error('Durable recordWin function boundary not found.');",
+    '      let durableRecordWinBlock = html.slice(durableRecordWinStartPos,durableRecordWinEndPos);',
+    "      const durableWinnerPatchCall = '        patchItem(winnerId,{wins:wWins});';",
+    "      const durableLoserPatchCall = '        patchItem(loserId,{losses:lLoss});';",
+    "      if(durableRecordWinBlock.split(durableWinnerPatchCall).length - 1 !== 1 || durableRecordWinBlock.split(durableLoserPatchCall).length - 1 !== 1) throw new Error('Durable recordWin vote calls not found exactly once.');",
+    "      durableRecordWinBlock = durableRecordWinBlock.replace(durableWinnerPatchCall,'        durableStatsPatch(winnerId,{wins:wWins});' + durableNL + durableWinnerPatchCall);",
+    "      durableRecordWinBlock = durableRecordWinBlock.replace(durableLoserPatchCall,'        durableStatsPatch(loserId,{losses:lLoss});' + durableNL + durableLoserPatchCall);",
+    '      html = html.slice(0,durableRecordWinStartPos) + durableRecordWinBlock + html.slice(durableRecordWinEndPos);',
     '',
-    '      const durableUndoOld = [',
-    "        '        if(winner){',",
-    "        '          patchItem(winnerId,{wins:Math.max(0,(winner.wins||0)-1)});',",
-    "        '        }',",
-    "        '        if(loser){',",
-    "        '          patchItem(loserId,{losses:Math.max(0,(loser.losses||0)-1)});',",
-    "        '        }'",
-    '      ].join(durableNL);',
-    '      const durableUndoNew = [',
-    "        '        if(winner){',",
-    "        '          const nextWins = Math.max(0,(winner.wins||0)-1);',",
-    "        '          durableStatsPatch(winnerId,{wins:nextWins});',",
-    "        '          patchItem(winnerId,{wins:nextWins});',",
-    "        '        }',",
-    "        '        if(loser){',",
-    "        '          const nextLosses = Math.max(0,(loser.losses||0)-1);',",
-    "        '          durableStatsPatch(loserId,{losses:nextLosses});',",
-    "        '          patchItem(loserId,{losses:nextLosses});',",
-    "        '        }'",
-    '      ].join(durableNL);',
-    "      if(html.split(durableUndoOld).length - 1 !== 1) throw new Error('Durable undo patch point not found exactly once.');",
-    '      html = html.replace(durableUndoOld,durableUndoNew);'
+    "      const durableUndoStart = '      function undoLast(){';",
+    "      const durableUndoEnd = '      function resetAllStats(';",
+    '      const durableUndoStartPos = html.indexOf(durableUndoStart);',
+    '      let durableUndoEndPos = durableUndoStartPos >= 0 ? html.indexOf(durableUndoEnd,durableUndoStartPos + durableUndoStart.length) : -1;',
+    "      if(durableUndoEndPos < 0 && durableUndoStartPos >= 0) durableUndoEndPos = html.indexOf('      //',durableUndoStartPos + durableUndoStart.length);",
+    "      if(durableUndoStartPos < 0 || durableUndoEndPos < 0) throw new Error('Durable undo function boundary not found.');",
+    '      let durableUndoBlock = html.slice(durableUndoStartPos,durableUndoEndPos);',
+    "      const durableUndoWinnerCall = '          patchItem(winnerId,{wins:Math.max(0,(winner.wins||0)-1)});';",
+    "      const durableUndoLoserCall = '          patchItem(loserId,{losses:Math.max(0,(loser.losses||0)-1)});';",
+    "      if(durableUndoBlock.split(durableUndoWinnerCall).length - 1 === 1){ durableUndoBlock = durableUndoBlock.replace(durableUndoWinnerCall,\"          const durableUndoWins = Math.max(0,(winner.wins||0)-1);\" + durableNL + \"          durableStatsPatch(winnerId,{wins:durableUndoWins});\" + durableNL + \"          patchItem(winnerId,{wins:durableUndoWins});\"); }",
+    "      if(durableUndoBlock.split(durableUndoLoserCall).length - 1 === 1){ durableUndoBlock = durableUndoBlock.replace(durableUndoLoserCall,\"          const durableUndoLosses = Math.max(0,(loser.losses||0)-1);\" + durableNL + \"          durableStatsPatch(loserId,{losses:durableUndoLosses});\" + durableNL + \"          patchItem(loserId,{losses:durableUndoLosses});\"); }",
+    '      html = html.slice(0,durableUndoStartPos) + durableUndoBlock + html.slice(durableUndoEndPos);'
   ].join('\n');
   durablePatchRaw += '\n' + startupPersistencePatch;
 
-  // This source is inserted into the Auto-HD loader's template literal. Double
-  // backslashes so one level survives into the generated core loader.
   const durablePatchText=durablePatchRaw.replace(/\\/g,'\\\\');
 
   const durableMarker="      if(!html.includes('const [matchupLeftHd, setMatchupLeftHd] = useState(true);') ||";
@@ -180,7 +151,7 @@
 
   const cloudPatch=[
     "      if(!html.includes('firestore-sync.js')){",
-    "        const cloudTag='<script type=\"module\" src=\"firestore-sync.js?v=20260826-v7\"><'+'/script>';",
+    "        const cloudTag='<script type=\"module\" src=\"firestore-sync.js?v=20260830-v8\"><'+'/script>';",
     "        html=html.replace('</body>',cloudTag+'</body>');",
     '      }'
   ].join('\n');
@@ -198,8 +169,6 @@
   }
   let loaderScript=autoHdShell.slice(autoScriptBody,autoScriptClose);
 
-  // Keep every historical GitHub/CDN source request bounded. A failed source
-  // can fall through to its alternate instead of freezing startup forever.
   const nativeFetch=window.fetch.bind(window);
   window.fetch=function(input,init){
     const url=typeof input==='string'?input:(input&&input.url?input.url:'');
@@ -232,6 +201,6 @@
   console.error('ComfortOtter direct loader failed',error);
   const target=document.getElementById('loaderError');
   if(target){
-    target.textContent='ComfortOtter could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nDirect loader build v7';
+    target.textContent='ComfortOtter could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nDirect loader build v8';
   }
 });
