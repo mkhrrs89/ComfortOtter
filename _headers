@@ -8,6 +8,12 @@
   Cache-Control: no-cache, no-store, must-revalidate
 /direct-loader-v9.js
   Cache-Control: no-cache, no-store, must-revalidate
+/direct-loader-v10.js
+  Cache-Control: no-cache, no-store, must-revalidate
+/direct-loader-v10b.js
+  Cache-Control: no-cache, no-store, must-revalidate
+/record-journal.js
+  Cache-Control: no-cache, no-store, must-revalidate
 /firestore-sync.js
   Cache-Control: no-cache, no-store, must-revalidate
 /stable-index-shell.html
