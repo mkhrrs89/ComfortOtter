@@ -41,6 +41,10 @@
       [
         'firestore-sync.js?v=20260830-v8',
         'firestore-sync.js?v=20260831-v10'
+      ],
+      [
+        `const cloudTag='<script type=\\"module\\" src=\\"firestore-sync.js?v=20260831-v10\\"><'+'/script>';`,
+        `const cloudTag='<script src=\\"record-journal.js?v=20260831-v10\\"><'+'/script><script type=\\"module\\" src=\\"firestore-sync.js?v=20260831-v10\\"><'+'/script>';`
       ]
     ];
 
