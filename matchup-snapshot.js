@@ -1,6 +1,7 @@
 (function(){
   if(window.ComfortOtterMatchupSnapshot) return;
   const LOCAL_KEY='modelMatchupMatchupSnapshotV1';
+  const DURABLE_KEY='modelMatchupDurableStatsV1';
   const DB_NAME='modelMatchupMatchupSnapshotDB';
   const STORE='records';
   const STAT_KEYS=['wins','losses','tourneyBonus','tourneyCount','rating','ratingSeededFromWinPctV1'];
@@ -13,13 +14,16 @@
     if(key==='ratingSeededFromWinPctV1') return !!value;
     return value;
   }
+  function readJson(key){
+    try{
+      const raw=localStorage.getItem(key);
+      const parsed=raw?JSON.parse(raw):{};
+      return parsed&&typeof parsed==='object'&&!Array.isArray(parsed)?parsed:{};
+    }catch(_e){ return {}; }
+  }
   function readLocal(){
     if(cache) return cache;
-    try{
-      const raw=localStorage.getItem(LOCAL_KEY);
-      const parsed=raw?JSON.parse(raw):{};
-      cache=parsed&&typeof parsed==='object'&&!Array.isArray(parsed)?parsed:{};
-    }catch(_e){ cache={}; }
+    cache=readJson(LOCAL_KEY);
     return cache;
   }
   function writeLocal(){
@@ -42,7 +46,7 @@
       req.onupgradeneeded=()=>{ const db=req.result; if(!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE,{keyPath:'id'}); };
       req.onsuccess=()=>finish(()=>resolve(req.result));
       req.onerror=()=>finish(()=>reject(req.error||new Error('Matchup snapshot DB open failed')));
-      req.onblocked=()=>finish(()=>reject(new Error('Matchup snapshot DB blocked')));
+      req.onblocked=()=>finish(()=>reject(new Error('Matchup snapshot DB blocked'));
     });
   }
   async function putIdb(row){
@@ -104,6 +108,13 @@
     if(!item||!item.id) return item;
     const row=readLocal()[item.id];
     if(!row) return item;
+
+    // A later durable write (for example Reset Stats) should beat an older
+    // matchup snapshot. Normal matchup recovery still works because the item
+    // has already received the durable overlay before this function runs.
+    const durableRow=readJson(DURABLE_KEY)[item.id];
+    if(durableRow && Number(durableRow.updatedAt||0) > Number(row.updatedAt||0)) return item;
+
     const next={...item};
     for(const key of STAT_KEYS) if(row[key]!==undefined) next[key]=row[key];
     return next;
