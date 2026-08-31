@@ -12,7 +12,11 @@
   Cache-Control: no-cache, no-store, must-revalidate
 /direct-loader-v10b.js
   Cache-Control: no-cache, no-store, must-revalidate
+/direct-loader-v11.js
+  Cache-Control: no-cache, no-store, must-revalidate
 /record-journal.js
+  Cache-Control: no-cache, no-store, must-revalidate
+/matchup-snapshot.js
   Cache-Control: no-cache, no-store, must-revalidate
 /firestore-sync.js
   Cache-Control: no-cache, no-store, must-revalidate
