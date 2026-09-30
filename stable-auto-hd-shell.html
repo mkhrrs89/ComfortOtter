@@ -70,6 +70,21 @@
       const matchupRightImageMarker = '      <SafeImage\\n        item={right}';
       const leftHdMarker = '        onResolved={(url)=>patchItem(left.id,{fullUrl:url})}\\n        allowFull={matchupLeftHd}\\n      />';
       const rightHdMarker = '        onResolved={(url)=>patchItem(right.id,{fullUrl:url})}\\n        allowFull={matchupRightHd}\\n      />';
+
+      // Keep the transparent HD overlay invisible until an image has actually
+      // loaded. Safari otherwise paints its native broken-image question mark
+      // over the already-visible thumbnail while a remote HD URL fails/retries.
+      const safeImagePropsOld = '  hydrateThumb = true\\n}) => {';
+      const safeImagePropsNew = '  hydrateThumb = true,\\n  hideUntilLoaded = false\\n}) => {';
+      const safeImageRenderOld = [
+        "      style={{...style, visibility: currentSrc ? 'visible' : 'hidden'}}",
+        '      onError={handleError}'
+      ].join('\\n');
+      const safeImageRenderNew = [
+        "      style={{...style, visibility: currentSrc ? 'visible' : 'hidden', ...(hideUntilLoaded ? {opacity:0} : {})}}",
+        "      onLoad={(e)=>{ if(hideUntilLoaded) e.currentTarget.style.opacity='1'; }}",
+        "      onError={(e)=>{ if(hideUntilLoaded) e.currentTarget.style.opacity='0'; handleError(e); }}"
+      ].join('\\n');
       const autoHdLeftCount = html.split(autoHdLeftInit).length - 1;
       const autoHdRightCount = html.split(autoHdRightInit).length - 1;
       const autoHdLoadCount = html.split(autoHdLoadMarker).length - 1;
@@ -77,9 +92,13 @@
       const matchupRightImageCount = html.split(matchupRightImageMarker).length - 1;
       const leftHdCount = html.split(leftHdMarker).length - 1;
       const rightHdCount = html.split(rightHdMarker).length - 1;
-      if(autoHdLeftCount < 1 || autoHdRightCount < 1 || autoHdLoadCount < 1 || matchupLeftImageCount < 1 || matchupRightImageCount < 1 || leftHdCount < 1 || rightHdCount < 1){
+      const safeImagePropsCount = html.split(safeImagePropsOld).length - 1;
+      const safeImageRenderCount = html.split(safeImageRenderOld).length - 1;
+      if(autoHdLeftCount < 1 || autoHdRightCount < 1 || autoHdLoadCount < 1 || matchupLeftImageCount < 1 || matchupRightImageCount < 1 || leftHdCount < 1 || rightHdCount < 1 || safeImagePropsCount !== 1 || safeImageRenderCount !== 1){
         throw new Error('Matchup progressive Auto-HD patch could not find the expected hooks.');
       }
+      html = html.replace(safeImagePropsOld,safeImagePropsNew);
+      html = html.replace(safeImageRenderOld,safeImageRenderNew);
       html = html.split(autoHdLeftInit).join('const [matchupLeftHd, setMatchupLeftHd] = useState(true);');
       html = html.split(autoHdRightInit).join('const [matchupRightHd, setMatchupRightHd] = useState(true);');
       const autoHdEffect = 'useEffect(() => {\\n  if(matchIds[0] && matchIds[1]){\\n    setMatchupLeftHd(true);\\n    setMatchupRightHd(true);\\n  }\\n}, [matchIds[0], matchIds[1]]);\\n\\n';
@@ -101,7 +120,8 @@
         '          item={left}',
         '          src=""',
         '          fallbackSrcs={EMPTY_SOURCES}',
-        '          alt="left HD"',
+        '          alt=""',
+        '          hideUntilLoaded={true}',
         '          preferRemote={true}',
         '          eagerHydrate={true}',
         '          hydrateThumb={false}',
@@ -121,7 +141,8 @@
         '          item={right}',
         '          src=""',
         '          fallbackSrcs={EMPTY_SOURCES}',
-        '          alt="right HD"',
+        '          alt=""',
+        '          hideUntilLoaded={true}',
         '          preferRemote={true}',
         '          eagerHydrate={true}',
         '          hydrateThumb={false}',
@@ -139,6 +160,7 @@
          !html.includes('if(matchIds[0] && matchIds[1])') ||
          !html.includes("key={'left-hd-'+left.id}") ||
          !html.includes("key={'right-hd-'+right.id}") ||
+         !html.includes('hideUntilLoaded={true}') ||
          !html.includes('allowFull={false}')){
         throw new Error('Matchup progressive Auto-HD patch validation failed.');
       }
