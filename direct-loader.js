@@ -15,7 +15,7 @@
 
   detail('Fetching stable app layers…');
   let [autoHdShell,durableShell]=await Promise.all([
-    fetchText('stable-auto-hd-shell.html?v=20260830-v8'),
+    fetchText('stable-auto-hd-shell.html?v=20260930-hide-broken'),
     fetchText('stable-index-shell.html?v=20260830-v8')
   ]);
   detail('Stable layers loaded. Preparing app…');
