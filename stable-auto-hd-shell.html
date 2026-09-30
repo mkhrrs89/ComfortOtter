@@ -76,14 +76,20 @@
       // over the already-visible thumbnail while a remote HD URL fails/retries.
       const safeImagePropsOld = '  hydrateThumb = true\\n}) => {';
       const safeImagePropsNew = '  hydrateThumb = true,\\n  hideUntilLoaded = false\\n}) => {';
+      const safeImageStateOld = "  const [currentSrc, setCurrentSrc] = useState('');";
+      const safeImageStateNew = [
+        safeImageStateOld,
+        '  const [hideUntilLoadedReady, setHideUntilLoadedReady] = useState(false);',
+        '  useEffect(()=>{ if(hideUntilLoaded) setHideUntilLoadedReady(false); }, [currentSrc, hideUntilLoaded]);'
+      ].join('\\n');
       const safeImageRenderOld = [
         "      style={{...style, visibility: currentSrc ? 'visible' : 'hidden'}}",
         '      onError={handleError}'
       ].join('\\n');
       const safeImageRenderNew = [
-        "      style={{...style, visibility: currentSrc ? 'visible' : 'hidden', ...(hideUntilLoaded ? {opacity:0} : {})}}",
-        "      onLoad={(e)=>{ if(hideUntilLoaded) e.currentTarget.style.opacity='1'; }}",
-        "      onError={(e)=>{ if(hideUntilLoaded) e.currentTarget.style.opacity='0'; handleError(e); }}"
+        "      style={{...style, visibility: currentSrc && (!hideUntilLoaded || hideUntilLoadedReady) ? 'visible' : 'hidden'}}",
+        "      onLoad={()=>{ if(hideUntilLoaded) setHideUntilLoadedReady(true); }}",
+        "      onError={(e)=>{ if(hideUntilLoaded) setHideUntilLoadedReady(false); handleError(e); }}"
       ].join('\\n');
       const autoHdLeftCount = html.split(autoHdLeftInit).length - 1;
       const autoHdRightCount = html.split(autoHdRightInit).length - 1;
@@ -93,11 +99,13 @@
       const leftHdCount = html.split(leftHdMarker).length - 1;
       const rightHdCount = html.split(rightHdMarker).length - 1;
       const safeImagePropsCount = html.split(safeImagePropsOld).length - 1;
+      const safeImageStateCount = html.split(safeImageStateOld).length - 1;
       const safeImageRenderCount = html.split(safeImageRenderOld).length - 1;
-      if(autoHdLeftCount < 1 || autoHdRightCount < 1 || autoHdLoadCount < 1 || matchupLeftImageCount < 1 || matchupRightImageCount < 1 || leftHdCount < 1 || rightHdCount < 1 || safeImagePropsCount !== 1 || safeImageRenderCount !== 1){
+      if(autoHdLeftCount < 1 || autoHdRightCount < 1 || autoHdLoadCount < 1 || matchupLeftImageCount < 1 || matchupRightImageCount < 1 || leftHdCount < 1 || rightHdCount < 1 || safeImagePropsCount !== 1 || safeImageStateCount !== 1 || safeImageRenderCount !== 1){
         throw new Error('Matchup progressive Auto-HD patch could not find the expected hooks.');
       }
       html = html.replace(safeImagePropsOld,safeImagePropsNew);
+      html = html.replace(safeImageStateOld,safeImageStateNew);
       html = html.replace(safeImageRenderOld,safeImageRenderNew);
       html = html.split(autoHdLeftInit).join('const [matchupLeftHd, setMatchupLeftHd] = useState(true);');
       html = html.split(autoHdRightInit).join('const [matchupRightHd, setMatchupRightHd] = useState(true);');
