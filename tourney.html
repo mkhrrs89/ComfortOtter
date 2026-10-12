@@ -11,7 +11,7 @@
   </style>
 </head>
 <body>
-  <div class="loader"><div class="loaderCard"><div class="loaderTitle">Loading Tournament…</div><div class="loaderDetail">Preparing the tournament.</div><div class="loaderBuild">Recovery build 15:50</div><div id="loaderError" class="loaderError"></div></div></div>
+  <div class="loader"><div class="loaderCard"><div class="loaderTitle">Loading Tournament…</div><div class="loaderDetail">Preparing the tournament.</div><div class="loaderBuild">Tournament syntax fix 2026-10-12</div><div id="loaderError" class="loaderError"></div></div></div>
   <script>
     (async function loadTournamentRecoveryShell(){
       const nativeFetch = window.fetch.bind(window);
@@ -37,10 +37,10 @@
         }finally{ clearTimeout(timer); }
       }
 
-      let shell = await fetchSameOrigin('stable-tourney-shell.html?v=20260826-1550', 7000);
+      let shell = await fetchSameOrigin('stable-tourney-shell.html?v=20261012-syntaxfix', 7000);
       if(!shell.includes('loadDurableTournament')) throw new Error('Stable tournament shell validation failed.');
       if(!shell.includes('firestore-sync.js')){
-        const cloudTag='<script type="module" src="firestore-sync.js?v=20260826-1550"><'+'/script>';
+        const cloudTag='<script type="module" src="firestore-sync.js?v=20261012-syntaxfix"><'+'/script>';
         shell = shell.replace('</head>',cloudTag+'</head>');
       }
       document.open();
@@ -49,7 +49,7 @@
     })().catch(error=>{
       console.error('Tournament recovery startup failed',error);
       const target=document.getElementById('loaderError');
-      if(target) target.textContent='Tournament could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nRecovery build 15:50';
+      if(target) target.textContent='Tournament could not finish loading.\n\n'+(error&&error.message?error.message:error)+'\n\nTournament syntax fix 2026-10-12';
     });
   </script>
 </body>
