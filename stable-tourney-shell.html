@@ -26,6 +26,32 @@
       async function fetchFirst(urls){let last=null;for(const url of urls){try{const r=await fetch(url,{cache:'force-cache'});if(!r.ok)throw new Error(r.status+' '+r.statusText);return await r.text();}catch(e){last=e;}}throw last||new Error('Could not load tournament code.');}
       for(const url of warmUrls) fetch(url,{cache:'force-cache'}).catch(()=>{});
       let wrapper = await fetchFirst(sources);
+
+      // Repair two malformed replacement ranges in the historical fast-tournament
+      // patch. Each replacement accidentally included its own end marker, while
+      // replaceRange() also preserves that marker from the original source. The
+      // result was duplicated function declarations such as
+      // "function isHttpUrl(str){function isHttpUrl(str){" and the final
+      // tournament script failed to parse, leaving only the static header visible.
+      const tick = String.fromCharCode(96);
+      const fastPatchRepairs = [
+        [
+          "\nfunction isHttpUrl(str){" + tick + "\n        ,\n        'hydrateable missing-image placeholder'",
+          "\n" + tick + "\n        ,\n        'hydrateable missing-image placeholder'"
+        ],
+        [
+          "\nfunction escapeHtml(str){" + tick + "\n        ,\n        'avoid giant writes during cloud image hydration'",
+          "\n" + tick + "\n        ,\n        'avoid giant writes during cloud image hydration'"
+        ]
+      ];
+      for(const [badText, goodText] of fastPatchRepairs){
+        const repairCount = wrapper.split(badText).length - 1;
+        if(repairCount !== 1){
+          throw new Error('Tournament fast-patch syntax repair point not found exactly once.');
+        }
+        wrapper = wrapper.replace(badText, goodText);
+      }
+
       const marker = '      const fastLoadRequired = [';
       const count = wrapper.split(marker).length - 1;
       if(count !== 1) throw new Error('Durable tournament patch could not find its patch point.');
